@@ -1,0 +1,12 @@
+{
+  "name": "RocketWorld.Editor",
+  "rootNamespace": "RocketWorld.Editor",
+  "references": [
+    "RocketWorld.Runtime",
+    "Unity.RenderPipelines.Universal.Runtime",
+    "Unity.RenderPipelines.Universal.Editor"
+  ],
+  "includePlatforms": [ "Editor" ],
+  "excludePlatforms": [],
+  "autoReferenced": true
+}

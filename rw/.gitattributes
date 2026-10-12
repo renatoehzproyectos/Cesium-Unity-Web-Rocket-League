@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.glb binary
+*.a binary
+*.meta text eol=lf

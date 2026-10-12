@@ -1,0 +1,15 @@
+{
+  "name": "RocketWorld.Runtime",
+  "rootNamespace": "RocketWorld",
+  "references": [
+    "CesiumForUnity",
+    "Unity.Mathematics",
+    "Unity.InputSystem",
+    "Unity.RenderPipelines.Universal.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "autoReferenced": true,
+  "noEngineReferences": false
+}
