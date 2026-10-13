@@ -1,0 +1,10 @@
+{
+  "name": "RocketWorld.Sim",
+  "rootNamespace": "RocketWorld.Sim",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "autoReferenced": true,
+  "noEngineReferences": true
+}

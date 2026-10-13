@@ -5,6 +5,16 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      graphics:
+        description: "Graphics API for the build"
+        type: choice
+        options: [webgl2, webgpu]
+        default: webgl2
+
+env:
+  # RocketSim is only used as the reference for the parity test; it is pinned so the test is reproducible.
+  ROCKETSIM_REF: c2baacb8f4b441dd8505e63c2aeb5a1679b60b02
 
 jobs:
   checks:
@@ -16,14 +26,54 @@ jobs:
         run: |
           python3 -c "import json;json.load(open('Packages/manifest.json'));json.load(open('deploy/vercel.json'))"
           python3 -c "import yaml;yaml.safe_load(open('.github/workflows/ci.yml'))"
-      - name: No leftover physics/collision code
+
+  parity:
+    name: Vehicle model vs native RocketSim
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 8.0.x }
+      - name: Fetch RocketSim (reference)
+        run: git clone https://github.com/ZealanL/RocketSim.git /tmp/RocketSim && git -C /tmp/RocketSim checkout "$ROCKETSIM_REF"
+      - name: Build both and compare every scenario
+        run: tools/parity/build.sh /tmp/RocketSim "$(nproc)"
+
+  unity-tests:
+    name: Unity EditMode tests
+    runs-on: ubuntu-latest
+    needs: [checks, parity]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Unity license secrets
+        id: lic
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
         run: |
-          if grep -rEn "Physics\.|Rigidbody|MeshCollider|RocketSim|createPhysicsMeshes\s*=\s*true" Assets/Scripts; then echo "::error::physics/collision code found"; exit 1; fi
+          if [ -n "$UNITY_LICENSE" ] || [ -n "$UNITY_SERIAL" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::warning::No UNITY_LICENSE/UNITY_SERIAL secret - skipping Unity jobs. See README."; fi
+      - uses: actions/cache@v4
+        if: steps.lic.outputs.ok == 'true'
+        with:
+          path: Library
+          key: Library-Test-${{ hashFiles('Packages/manifest.json', 'Assets/**/*.cs') }}
+          restore-keys: Library-Test-
+      - uses: game-ci/unity-test-runner@v4
+        if: steps.lic.outputs.ok == 'true'
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          unityVersion: 6000.0.62f1
+          testMode: editmode
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
 
   unity-web:
     name: Unity 6000.0.62f1 WebGL build
     runs-on: ubuntu-latest
-    needs: checks
+    needs: [checks, parity]
     steps:
       - uses: actions/checkout@v4
         with: { lfs: false }
@@ -51,6 +101,7 @@ jobs:
           unityVersion: 6000.0.62f1
           targetPlatform: WebGL
           buildMethod: RocketWorld.Editor.BuildScript.BuildWebGL
+          customParameters: -rwGfx ${{ inputs.graphics == 'webgpu' && 'webgpu' || 'webgl2' }}
           versioning: None
           allowDirtyBuild: true
       - name: Add Vercel config to the build output

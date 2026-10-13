@@ -25,3 +25,6 @@ native/**/build-*/
 Assets/Plugins/WebGL/*.a
 Assets/Plugins/x86_64/*
 .DS_Store
+
+# parity tool outputs
+tools/parity/out/

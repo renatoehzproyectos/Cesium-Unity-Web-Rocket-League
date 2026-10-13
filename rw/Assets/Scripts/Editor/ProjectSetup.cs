@@ -26,6 +26,7 @@ namespace RocketWorld.Editor
             Directory.CreateDirectory("Assets/Settings"); Directory.CreateDirectory("Assets/Scenes"); Directory.CreateDirectory("Assets/Resources/Materials");
             EnsureUrp();
             EnsureMaterial("Assets/Resources/Materials/Ground.mat", "Universal Render Pipeline/Lit", new Color(0.36f, 0.42f, 0.33f));
+            EnsureMaterial("Assets/Resources/Materials/Flame.mat", "Universal Render Pipeline/Unlit", new Color(1f, 0.63f, 0.13f));
             EnsureMaterial("Assets/Resources/Materials/Sky.mat", "Skybox/Procedural", Color.white);
             EnsureScene();
             AssetDatabase.SaveAssets();

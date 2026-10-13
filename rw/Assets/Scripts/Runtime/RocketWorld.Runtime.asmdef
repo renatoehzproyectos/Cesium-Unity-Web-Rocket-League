@@ -2,6 +2,7 @@
   "name": "RocketWorld.Runtime",
   "rootNamespace": "RocketWorld",
   "references": [
+    "RocketWorld.Sim",
     "CesiumForUnity",
     "Unity.Mathematics",
     "Unity.InputSystem",

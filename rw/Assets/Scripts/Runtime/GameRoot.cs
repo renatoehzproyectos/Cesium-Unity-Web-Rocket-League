@@ -22,9 +22,22 @@ namespace RocketWorld
         public CesiumGeoreference georeference;
         public Cesium3DTileset tileset;
         public Transform car, carVisual;
+        public RocketCar carCtl;
+        public CarInput carInput;
+        public TileColliderBudget budget;
+        public ChaseCamera chase;
+        public int cameraMode;                                // 0 chase, 1 orbit
         public Camera cam;
         public OrbitCamera orbit;
         public DebugHud hud;
+        public AutoQuality autoQuality;
+        public BenchmarkRunner benchmark;
+        // offsets applied on top of the user's settings by AutoQuality
+        public float autoSseAdd, autoScaleMul = 1f, autoFarMul = 1f;
+        public float EffectiveSse => settings.sse + autoSseAdd;
+        public float EffectiveScale => Mathf.Clamp(settings.renderScale * autoScaleMul, 0.3f, 2f);
+        public float EffectiveFar => settings.viewDistance * autoFarMul;
+        bool _benchStarted;
 
         Light _sun;
         Transform _ground;
@@ -41,8 +54,10 @@ namespace RocketWorld
 #if UNITY_WEBGL && !UNITY_EDITOR
             WebGLInput.captureAllKeyboardInput = true;
 #endif
-            Application.runInBackground = true;
+            PhysicsSetup.Apply();
+            Application.runInBackground = false;                      // hidden tab: stop streaming/rendering (battery, bandwidth)
             settings = GameSettings.Load();
+            if (DeviceProfile.IsMobile) Application.targetFrameRate = 60;
 
             var g = new GameObject("CesiumGeoreference");
             georeference = g.AddComponent<CesiumGeoreference>();
@@ -56,10 +71,22 @@ namespace RocketWorld
             ApplyLive();
             hud = gameObject.AddComponent<DebugHud>();
             hud.root = this;
+            autoQuality = gameObject.AddComponent<AutoQuality>();
+            autoQuality.root = this; autoQuality.enabledByUser = settings.autoQuality;
+            benchmark = gameObject.AddComponent<BenchmarkRunner>();
+            benchmark.root = this;
             orbit.pointerBlocked = hud.Over;
         }
 
         void Start() { WebBridge.HideLoading(); }
+
+        void Update()
+        {
+            if (carInput != null && carInput.CameraTogglePressed) SetCameraMode(1 - cameraMode);
+            // ?bench=1: start once the first tiles are in (or after 25 s on a slow link / no key)
+            if (settings.bench && !_benchStarted && (tileset == null || tileset.ComputeLoadProgress() >= 99f || Time.realtimeSinceStartup > 25f))
+            { _benchStarted = true; benchmark.Begin(); }
+        }
 
         // ---- world -----------------------------------------------------------------------------------------
 
@@ -67,7 +94,7 @@ namespace RocketWorld
         public void CreateWorldContent()
         {
             if (tileset != null) Destroy(tileset.gameObject);
-            tileset = null;
+            tileset = null; budget = null;
             bool online = settings.HasCredentials;
             if (online)
             {
@@ -87,17 +114,20 @@ namespace RocketWorld
                     tileset.ionAccessToken = settings.ionToken.Trim();
                 }
                 tileset.showCreditsOnScreen = true;                    // Google/Cesium attribution is mandatory
-                tileset.createPhysicsMeshes = false;                   // render-only viewer: no colliders are ever built
+                tileset.createPhysicsMeshes = false;                   // TileColliderBudget adds colliders near the car only (baking is main-thread on Web)
                 tileset.generateSmoothNormals = false;
                 tileset.preloadAncestors = true;
                 tileset.forbidHoles = false;
                 tileset.enableFrustumCulling = true;
                 tileset.enforceCulledScreenSpaceError = true;
                 tileset.culledScreenSpaceError = 64f;
-                tileset.maximumSimultaneousTileLoads = 20;
+                tileset.maximumSimultaneousTileLoads = DeviceProfile.SimultaneousLoads;
                 tileset.loadingDescendantLimit = 20;
-                tileset.maximumCachedBytes = 384L * 1024 * 1024;       // WebGL heap is limited: keep the tile cache modest
-                tileset.maximumScreenSpaceError = settings.sse;
+                tileset.maximumCachedBytes = DeviceProfile.TileCacheBytes;   // WebGL heap is limited: sized from the device
+                tileset.maximumScreenSpaceError = EffectiveSse;
+                budget = go.AddComponent<TileColliderBudget>();        // subscribes in OnEnable, before the tileset starts loading
+                budget.tileset = tileset;
+                budget.focus = car;
                 go.SetActive(true);
             }
             if (_ground != null) { Destroy(_ground.gameObject); _ground = null; }
@@ -105,20 +135,22 @@ namespace RocketWorld
             {
                 var gm = Resources.Load<Material>("Materials/Ground");
                 var plane = GameObject.CreatePrimitive(PrimitiveType.Plane);
-                Destroy(plane.GetComponent<Collider>());
+                plane.GetComponent<Collider>().sharedMaterial = PhysicsSetup.WorldMaterial;   // test ground the car can drive on
                 plane.name = "FallbackGround";
                 plane.transform.SetParent(georeference.transform, false);
                 plane.transform.localScale = new Vector3(400f, 1f, 400f);   // 4 km square
                 if (gm != null) plane.GetComponent<Renderer>().sharedMaterial = gm;
                 _ground = plane.transform;
             }
+            if (carCtl != null) { carCtl.tileset = tileset; carCtl.colliderBudget = budget; carCtl.Respawn(false); }
         }
 
         void UpdateOrigin(bool force)
         {
             if (!force && _lon == settings.lon && _lat == settings.lat && Mathf.Approximately(_gh, settings.groundHeight)) return;
             _lon = settings.lon; _lat = settings.lat; _gh = settings.groundHeight;
-            georeference.SetOriginLongitudeLatitudeHeight(_lon, _lat, _gh);   // Unity y = 0 is the ground the car stands on
+            georeference.SetOriginLongitudeLatitudeHeight(_lon, _lat, _gh);   // Unity y = 0 is the (approximate) ground height
+            if (!force && carCtl != null) carCtl.Respawn(false);              // new place: drop the car there
         }
 
         /// <summary>Applies every live-changeable setting (cheap; called whenever a setting moves).</summary>
@@ -126,12 +158,13 @@ namespace RocketWorld
         {
             var s = settings;
             UpdateOrigin(false);
-            car.localRotation = Quaternion.Euler(0f, s.heading, 0f);
+            if (carCtl != null) carCtl.spawnHeadingDeg = s.heading;
             if (_color != s.carColor) { _color = s.carColor; CarVisual.SetBodyColor(carVisual, GameSettings.CarColors[s.carColor].color); }
-            if (tileset != null) tileset.maximumScreenSpaceError = s.sse;
+            if (tileset != null) tileset.maximumScreenSpaceError = EffectiveSse;
             if (orbit != null) orbit.autoRotate = s.autoRotate;
-            if (cam != null) cam.farClipPlane = s.viewDistance;
-            if (UniversalRenderPipeline.asset != null) UniversalRenderPipeline.asset.renderScale = Mathf.Clamp(s.renderScale, 0.3f, 2f);
+            if (cam != null) cam.farClipPlane = EffectiveFar;
+            if (autoQuality != null) autoQuality.enabledByUser = s.autoQuality;
+            if (UniversalRenderPipeline.asset != null) UniversalRenderPipeline.asset.renderScale = EffectiveScale;
             ApplyTimeOfDay();
         }
 
@@ -180,8 +213,8 @@ namespace RocketWorld
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = fog;
-            RenderSettings.fogStartDistance = s.viewDistance * 0.10f;
-            RenderSettings.fogEndDistance = s.viewDistance * 0.443f;   // RocketWorld: fog 140..620 m with far plane 1400 m
+            RenderSettings.fogStartDistance = EffectiveFar * 0.10f;
+            RenderSettings.fogEndDistance = EffectiveFar * 0.443f;   // RocketWorld: fog 140..620 m with far plane 1400 m
             bool proc = s.proceduralSky && _skyMat != null;
             RenderSettings.skybox = proc ? _skyMat : null;
             if (cam != null) { cam.clearFlags = proc ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor; cam.backgroundColor = fog; }
@@ -192,9 +225,19 @@ namespace RocketWorld
         void BuildCar()
         {
             var go = new GameObject("Car");
-            go.transform.SetParent(georeference.transform, false);       // at the origin: y = 0 is the ground
+            go.transform.SetParent(georeference.transform, false);
             car = go.transform;
-            carVisual = CarVisual.Build(car, GameSettings.CarColors[settings.carColor].color);
+            go.AddComponent<CesiumGlobeAnchor>();
+            var shift = go.AddComponent<CesiumOriginShift>();
+            shift.distance = 1500.0;                                     // re-centre Unity's origin on the car every 1.5 km
+            carInput = go.AddComponent<CarInput>();
+            carInput.TouchControlsActive = DeviceProfile.IsMobile;
+            carCtl = go.AddComponent<RocketCar>();                       // builds Rigidbody + hitbox collider + vehicle model in Awake
+            carCtl.georeference = georeference;
+            carCtl.input = carInput;
+            carCtl.spawnHeadingDeg = settings.heading;
+            carVisual = CarVisual.Build(car, GameSettings.CarColors[settings.carColor].color, -0.3406f);   // Octane rest height: CoM 17 uu above the ground
+            carCtl.visual = carVisual;
         }
 
         void BuildCamera()
@@ -211,10 +254,21 @@ namespace RocketWorld
             data.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
             data.antialiasingQuality = AntialiasingQuality.Medium;
             data.renderShadows = false;
+            go.AddComponent<CesiumGlobeAnchor>();                        // keeps the camera valid across origin shifts
+            chase = go.AddComponent<ChaseCamera>();
+            chase.car = carCtl;
             orbit = go.AddComponent<OrbitCamera>();
             orbit.target = car;
             orbit.yaw = settings.camYaw; orbit.pitch = settings.camPitch; orbit.distance = settings.camDist;
             orbit.autoRotate = settings.autoRotate;
+            SetCameraMode(0);
+        }
+
+        public void SetCameraMode(int mode)
+        {
+            cameraMode = mode;
+            if (chase != null) chase.enabled = mode == 0;
+            if (orbit != null) orbit.enabled = mode == 1;
         }
     }
 }

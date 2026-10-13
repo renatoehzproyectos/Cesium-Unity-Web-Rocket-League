@@ -10,6 +10,8 @@ namespace RocketWorld
         [DllImport("__Internal")] static extern string RW_Prompt(string message, string def);
         [DllImport("__Internal")] static extern void RW_HideLoading();
         [DllImport("__Internal")] static extern string RW_GetBaseUrl();
+        [DllImport("__Internal")] static extern string RW_GetDeviceInfo();
+        public static string DeviceInfo() => RW_GetDeviceInfo();
         public static string BaseUrl() => RW_GetBaseUrl();
         public static string Query(string name) => RW_GetQueryParam(name);
         public static string Prompt(string message, string def) => RW_Prompt(message, def);
@@ -18,6 +20,7 @@ namespace RocketWorld
         public static string Query(string name) => System.Environment.GetEnvironmentVariable("RW_" + name.ToUpperInvariant()) ?? "";
         public static string Prompt(string message, string def) => def;   // Editor/desktop: use the RW_KEY env var
         public static string BaseUrl() => "http://localhost/";
+        public static string DeviceInfo() => "8;8;0;1;1";
         public static void HideLoading() { }
 #endif
     }

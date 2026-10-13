@@ -1,39 +1,49 @@
-# RocketWorld (Unity) - Cesium for Unity in the browser
+# RocketWorld (Unity) - drive a Rocket League car on the real world, in the browser
 
-A Unity 6 **Web** project: Cesium for Unity streams Google Photorealistic 3D Tiles and a Fennec (RocketWorld's car, same scale and
-look) sits in the world with an orbit camera. Because the web build *is* the Unity build, it looks the same as any Unity project
-with these settings.
+Unity 6 **Web** project: Cesium for Unity streams Google Photorealistic 3D Tiles and you drive a Fennec with **RocketSim's car physics running
+on Unity PhysX**, so collision against buildings and terrain is exact (real mesh colliders), not approximated.
 
-**Status: ~75 % of the current scope (see `docs/ROADMAP.md`).** Render-only: no physics, collision, car movement or height
-sampling (removed on request; the 50 % zip still has the RocketSim version).
+**Status: 100 % of the planned scope (see `docs/ROADMAP.md`).** Read the honesty note: nothing has been compiled or run *in Unity* yet.
 
-> **Honest status.** Nothing here has been compiled or run: my sandbox has no Unity or Vercel. Verified: `vercel.json`, the
-> manifest and the workflow parse, and C# brace balance. Expect a first-build fix iteration; send me the log.
+> **Honest status.** My sandbox has no Unity/Vercel. What *is* verified, with real tools: the RocketSim vehicle model (`Assets/Scripts/Sim`) was
+> compiled and compared tick by tick against native RocketSim built from source (<= 0.04 uu error on 8 scenarios, see `docs/PHYSICS.md`), the 12
+> EditMode tests pass in a stub harness, the physics-facing Unity scripts type-check against stubs, and the JSON/YAML parse. **Not verified:** the
+> Unity compile of the rest, PhysX contact feel, the WebGL build, Vercel, Google tiles. Expect a first-build fix iteration and send me the log.
 
-## Using it
-Drag to orbit, wheel / pinch / +- to zoom, arrows to rotate, Esc or the gear for settings, the link button copies a URL that
-reproduces your view (never includes your API key). Settings: tile provider + key, location presets, ground height (adjust until the
-wheels touch the street), car heading and colour, time of day, tile detail, view distance, render scale, lighting/sky style.
-URL params: `?key= ?ion= ?lat= ?lon= ?h= ?hdg= ?t= ?car= ?yaw= ?pitch= ?dist= ?sse= ?scale=`.
+## Controls
+WASD/arrows drive · Space jump (twice = flip, with direction = dodge) · Shift boost (infinite) · Ctrl/X drift · Q/E air-roll · C camera · R rescue ·
+Esc / gear = settings · link button copies a URL for this place (never includes your API key). Mobile: on-screen pads. Gamepad supported.
+URL params: `?key= ?ion= ?lat= ?lon= ?h= ?hdg= ?t= ?car= ?sse= ?scale= ?bench=1`.
 
 ## Deploy: GitHub -> Vercel
 1. Push this folder to `main` of a new GitHub repo.
-2. **Unity license for CI** (Settings -> Secrets -> Actions). Personal license via game-ci: follow https://game.ci/docs/github/activation,
-   then add secrets `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD` (or `UNITY_SERIAL` for Pro/Plus). Without them CI runs only the static checks.
-3. Push -> Actions builds the WebGL player with Unity 6000.0.62f1 and publishes it to branch **`release`**.
+2. **Unity license for CI** (Settings -> Secrets -> Actions). Personal: follow https://game.ci/docs/github/activation and add `UNITY_LICENSE`, `UNITY_EMAIL`,
+   `UNITY_PASSWORD` (or `UNITY_SERIAL` for Pro/Plus). Without them CI still runs the static checks and the **parity** job; the Unity jobs are skipped with a warning.
+3. Push -> Actions: static checks, parity vs native RocketSim, Unity EditMode tests, WebGL build -> publishes to branch **`release`**.
+   (Run the workflow manually to choose WebGPU instead of WebGL 2.)
 4. Vercel -> *Add New Project* -> import the repo -> **Production Branch = `release`**, Framework *Other*, no build command, output `.`.
-   `vercel.json` (in `release`) sets COOP/COEP (required for Cesium's multithreaded WASM) and Brotli headers; the page shows a red banner if they are missing.
-5. Open the site -> gear -> paste your Google Maps Platform key (Map Tiles API enabled; restrict it by HTTP referrer to your Vercel domain).
+   `vercel.json` sets COOP/COEP (needed by Cesium's threaded WASM) and caching; the page shows a red banner if the headers are missing.
+5. Open the site -> gear -> paste your Google Maps Platform key (Map Tiles API enabled; restrict by HTTP referrer to your Vercel domain).
+
+## Verify the physics yourself
+```
+tools/parity/build.sh /path/to/RocketSim      # builds native RocketSim + the C# port, runs every scenario, fails on divergence
+```
+In Unity: Test Runner -> EditMode (`SimCoreTests` pins the final state of every scenario to native RocketSim). In the game: settings -> *Run benchmark*
+(or `?bench=1`) gives frame-time percentiles and a PASS/BORDERLINE/FAIL verdict for 60 FPS; the HUD (debug) shows wheels/ground/colliders/gyro-compensation.
 
 ## Local development
-Unity **6000.0.62f1** (Web module). First open creates the URP asset, materials and boot scene (`RocketWorld/Ensure project setup`).
-Build with **RocketWorld -> Build WebGL**; serve the output with COOP/COEP headers (e.g. `vercel dev`). Commit the generated `.meta` files after the first open.
+Unity **6000.0.62f1** (Web module). First open creates the URP asset, materials and boot scene (`RocketWorld/Ensure project setup`). Build with
+**RocketWorld -> Build WebGL**; serve with COOP/COEP headers (e.g. `vercel dev`). Commit the generated `.meta` files after the first open.
 
 ## Layout
 ```
-Assets/Scripts/Runtime   GameRoot (builds everything), OrbitCamera, CarVisual, DebugHud, GameSettings, WebBridge
+Assets/Scripts/Sim       engine-free RocketSim port: RocketVehicle, RL constants, CarConfig, interfaces (+ RocketSim MIT notice)
+Assets/Scripts/Runtime   GameRoot, RocketCar + PhysX adapter (PhysxBody, ray caster, contact sensor), TileColliderBudget, cameras,
+                         CarInput, DebugHud, AutoQuality, BenchmarkRunner, DeviceProfile, GameSettings
 Assets/Scripts/Editor    ProjectSetup (URP asset/scene/materials from code), BuildScript (WebGL settings, CI entry, index.html check)
-Assets/Plugins/WebGL     jslib (query params, prompt, base URL)
+Assets/Tests/EditMode    SimCoreTests (golden values from native RocketSim), AutoQuality + settings tests, ReferenceRig
+tools/parity             native RocketSim reference + C# harness + scenarios + comparer
 deploy/vercel.json       headers for the hosted build
-docs/                    ROADMAP
+docs/                    PHYSICS (design, what is matched/verified/unverifiable), ROADMAP
 ```

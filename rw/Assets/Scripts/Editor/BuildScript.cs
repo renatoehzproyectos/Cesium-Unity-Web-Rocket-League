@@ -51,6 +51,12 @@ namespace RocketWorld.Editor
     d.textContent = msg; document.body.appendChild(d);
   })();
 </script>
+<style>
+  #rw-loading{position:fixed;inset:0;background:#0b1620;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;color:#cfe6f2;font:16px sans-serif;transition:opacity .5s}
+  #rw-loading .sp{width:44px;height:44px;border:4px solid #25415a;border-top-color:#cfe6f2;border-radius:50%;animation:rwspin 1s linear infinite;margin-bottom:16px}
+  @keyframes rwspin{to{transform:rotate(360deg)}}
+</style>
+<div id=""rw-loading""><div class=""sp""></div><div>Loading RocketWorld…</div><div style=""opacity:.6;font-size:13px;margin-top:6px"">First load downloads the engine; later visits are cached.</div></div>
 ";
                 System.IO.File.WriteAllText(file, html.Replace("</body>", snippet + "</body>"));
             }
@@ -66,14 +72,21 @@ namespace RocketWorld.Editor
             PlayerSettings.stripEngineCode = true;
             PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.WebGL, ManagedStrippingLevel.Low);   // Cesium uses reflection-heavy interop
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.WebGL, ScriptingImplementation.IL2CPP);
-            PlayerSettings.SetGraphicsAPIs(BuildTarget.WebGL, new[] { GraphicsDeviceType.OpenGLES3 });
+            // WebGL 2 by default. `-rwGfx webgpu` (CI input "graphics") puts WebGPU first with WebGL 2 as the fallback, when this Unity version has it.
+            var apis = new System.Collections.Generic.List<GraphicsDeviceType>();
+            if (string.Equals(Arg("-rwGfx"), "webgpu", StringComparison.OrdinalIgnoreCase) && Enum.TryParse<GraphicsDeviceType>("WebGPU", out var gpu)) apis.Add(gpu);
+            else if (string.Equals(Arg("-rwGfx"), "webgpu", StringComparison.OrdinalIgnoreCase)) Debug.LogWarning("[RocketWorld] this Unity version has no WebGPU graphics API; using WebGL 2");
+            apis.Add(GraphicsDeviceType.OpenGLES3);
+            PlayerSettings.SetGraphicsAPIs(BuildTarget.WebGL, apis.ToArray());
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.WebGL, false);
 
             PlayerSettings.WebGL.template = "APPLICATION:Default";
             PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Brotli;
             PlayerSettings.WebGL.decompressionFallback = false;     // vercel.json sends Content-Encoding: br
             PlayerSettings.WebGL.dataCaching = true;
-            PlayerSettings.WebGL.nameFilesAsHashes = false;
+            PlayerSettings.WebGL.nameFilesAsHashes = true;          // content-hashed file names => safe to cache forever (see deploy/vercel.json)
+            PlayerSettings.SetIl2CppCodeGeneration(NamedBuildTarget.WebGL, Il2CppCodeGeneration.OptimizeSpeed);
+            PlayerSettings.SetIl2CppCompilerConfiguration(NamedBuildTarget.WebGL, Il2CppCompilerConfiguration.Release);
             PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
             // Mandatory for Cesium for Unity on the Web (see Documentation~/supported-platforms.md in the package).
             PlayerSettings.WebGL.threadsSupport = true;

@@ -22,6 +22,8 @@ namespace RocketWorld
         public bool autoRotate = true;
         public bool proceduralSky = false;           // false = flat sky + fog like RocketWorld; true = Unity procedural skybox
         public bool debugHud = true;
+        public bool autoQuality = true;              // adaptive 60 FPS controller (AutoQuality)
+        public bool bench;                           // ?bench=1 runs the benchmark right after the world is ready
         public int carColor = 0;
         public float camYaw = 200f, camPitch = 14f, camDist = 7.5f;
 
@@ -62,9 +64,13 @@ namespace RocketWorld
                 autoRotate = PlayerPrefs.GetInt(P + "auto", 1) == 1,
                 proceduralSky = PlayerPrefs.GetInt(P + "psky", 0) == 1,
                 debugHud = PlayerPrefs.GetInt(P + "hud", 1) == 1,
+                autoQuality = PlayerPrefs.GetInt(P + "autoq", 1) == 1,
                 carColor = PlayerPrefs.GetInt(P + "car", 0),
             };
+            DeviceProfile.Load();
+            if (!PlayerPrefs.HasKey(P + "init")) DeviceProfile.ApplyFirstRunDefaults(s);
             string q;
+            s.bench = WebBridge.Query("bench") == "1";
             if (!string.IsNullOrEmpty(q = WebBridge.Query("key"))) s.googleKey = q;
             if (!string.IsNullOrEmpty(q = WebBridge.Query("ion"))) { s.ionToken = q; s.provider = TileProvider.CesiumIon; }
             s.lat = D(WebBridge.Query("lat"), s.lat); s.lon = D(WebBridge.Query("lon"), s.lon);
@@ -87,7 +93,7 @@ namespace RocketWorld
             PlayerPrefs.SetFloat(P + "gh", groundHeight); PlayerPrefs.SetFloat(P + "hdg", heading); PlayerPrefs.SetFloat(P + "tod", timeOfDay);
             PlayerPrefs.SetFloat(P + "sse", sse); PlayerPrefs.SetFloat(P + "far", viewDistance); PlayerPrefs.SetFloat(P + "scale", renderScale);
             PlayerPrefs.SetInt(P + "baked", bakedLighting ? 1 : 0); PlayerPrefs.SetInt(P + "auto", autoRotate ? 1 : 0); PlayerPrefs.SetInt(P + "psky", proceduralSky ? 1 : 0); PlayerPrefs.SetInt(P + "hud", debugHud ? 1 : 0);
-            PlayerPrefs.SetInt(P + "car", carColor);
+            PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1);
             PlayerPrefs.Save();
         }
 

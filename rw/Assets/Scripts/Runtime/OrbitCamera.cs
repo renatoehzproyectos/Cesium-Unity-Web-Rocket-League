@@ -15,6 +15,7 @@ namespace RocketWorld
         public float autoRotateSpeed = 6f;       // deg/s once idle
         public float idleBeforeAutoRotate = 3f;
         public Vector3 lookOffset = new Vector3(0f, 0.8f, 0f);
+        public bool externalControl;             // benchmark drives yaw/pitch/distance itself
         public System.Func<Vector2, bool> pointerBlocked;   // true when the pointer is over HUD
 
         float _idle;
@@ -27,13 +28,14 @@ namespace RocketWorld
         {
             if (target == null) return;
             float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
-            ReadInput(dt, out Vector2 drag, out float zoom, out bool active);
+            Vector2 drag = Vector2.zero; float zoom = 0f; bool active = false;
+            if (!externalControl) ReadInput(dt, out drag, out zoom, out active);
 
             if (active) _idle = 0f; else _idle += dt;
             yaw += drag.x * 0.25f;
             pitch = Mathf.Clamp(pitch - drag.y * 0.25f, -4f, 85f);
-            distance = Mathf.Clamp(distance * Mathf.Exp(-zoom), minDistance, maxDistance);
-            if (autoRotate && _idle > idleBeforeAutoRotate) yaw += autoRotateSpeed * dt;
+            distance = Mathf.Clamp(externalControl ? distance : distance * Mathf.Exp(-zoom), minDistance, maxDistance);
+            if (!externalControl && autoRotate && _idle > idleBeforeAutoRotate) yaw += autoRotateSpeed * dt;
             yaw = Mathf.Repeat(yaw, 360f);
 
             var focus = target.position + lookOffset;

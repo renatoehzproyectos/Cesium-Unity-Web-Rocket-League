@@ -1,0 +1,22 @@
+{
+  "name": "RocketWorld.Tests.EditMode",
+  "rootNamespace": "RocketWorld.Tests",
+  "references": [
+    "RocketWorld.Runtime",
+    "UnityEngine.TestRunner",
+    "UnityEditor.TestRunner",
+    "RocketWorld.Sim"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
+  "autoReferenced": false
+}
