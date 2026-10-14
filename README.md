@@ -34,7 +34,7 @@ In Unity: Test Runner -> EditMode (`SimCoreTests` pins the final state of every 
 
 ## Local development
 Unity **6000.0.62f1** (Web module). First open creates the URP asset, materials and boot scene (`RocketWorld/Ensure project setup`). Build with
-**RocketWorld -> Build WebGL**; serve with COOP/COEP headers (e.g. `vercel dev`). Commit the generated `.meta` files after the first open.
+**RocketWorld -> Build WebGL**; serve the output folder (build/WebGL/WebGL) with COOP/COEP headers (e.g. `vercel dev`). Commit the generated `.meta` files after the first open.
 
 ## Layout
 ```

@@ -106,19 +106,23 @@ jobs:
           allowDirtyBuild: true
       - name: Add Vercel config to the build output
         if: steps.lic.outputs.ok == 'true'
-        run: cp deploy/vercel.json build/WebGL/vercel.json && ls -la build/WebGL build/WebGL/Build
+        run: |
+          # game-ci builds inside a root container: take ownership first. The player lands in build/WebGL/WebGL.
+          sudo chown -R "$(id -u):$(id -g)" build
+          cp deploy/vercel.json build/WebGL/WebGL/vercel.json
+          ls -la build/WebGL/WebGL build/WebGL/WebGL/Build
       - uses: actions/upload-artifact@v4
         if: steps.lic.outputs.ok == 'true'
         with:
           name: rocketworld-webgl
-          path: build/WebGL
+          path: build/WebGL/WebGL
       - name: Publish to the release branch (Vercel production branch)
         if: steps.lic.outputs.ok == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: release
-          publish_dir: build/WebGL
+          publish_dir: build/WebGL/WebGL
           force_orphan: true
           enable_jekyll: false
           commit_message: "release ${{ github.sha }}"
