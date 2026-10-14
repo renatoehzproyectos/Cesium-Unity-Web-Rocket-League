@@ -27,7 +27,7 @@ URL params: `?key= ?ion= ?lat= ?lon= ?h= ?hdg= ?t= ?car= ?sse= ?scale= ?bench=1`
 
 ## Verify the physics yourself
 ```
-tools/parity/build.sh /path/to/RocketSim      # builds native RocketSim + the C# port, runs every scenario, fails on divergence
+bash tools/parity/build.sh /path/to/RocketSim      # builds native RocketSim + the C# port, runs every scenario, fails on divergence
 ```
 In Unity: Test Runner -> EditMode (`SimCoreTests` pins the final state of every scenario to native RocketSim). In the game: settings -> *Run benchmark*
 (or `?bench=1`) gives frame-time percentiles and a PASS/BORDERLINE/FAIL verdict for 60 FPS; the HUD (debug) shows wheels/ground/colliders/gyro-compensation.

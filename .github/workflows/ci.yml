@@ -37,7 +37,7 @@ jobs:
       - name: Fetch RocketSim (reference)
         run: git clone https://github.com/ZealanL/RocketSim.git /tmp/RocketSim && git -C /tmp/RocketSim checkout "$ROCKETSIM_REF"
       - name: Build both and compare every scenario
-        run: tools/parity/build.sh /tmp/RocketSim "$(nproc)"
+        run: bash tools/parity/build.sh /tmp/RocketSim "$(nproc)"
 
   unity-tests:
     name: Unity EditMode tests
