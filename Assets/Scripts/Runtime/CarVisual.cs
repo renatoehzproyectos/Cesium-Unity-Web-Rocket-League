@@ -34,7 +34,15 @@ namespace RocketWorld
             // Prefer length along the model's longest horizontal axis (glTFast often uses +X forward).
             float modelLen = Mathf.Max(b.size.x, b.size.z, 1e-4f);
             float s = (LengthM * 0.98f) / modelLen;
-            var yaw = Quaternion.Euler(0f, -90f, 0f);                                      // model +X -> car +Z
+            // Work out which way the model's nose points from its headlights (falls back to +X forward).
+            float noseSign = 1f; Vector3 hl = Vector3.zero; int hn = 0;
+            foreach (var r in model.GetComponentsInChildren<Renderer>())
+                foreach (var m in r.sharedMaterials)
+                    if (m != null && Has(m.name, "Headlight")) { hl += r.bounds.center; hn++; break; }
+            if (hn > 0) { float dx = hl.x / hn - b.center.x, dz = hl.z / hn - b.center.z; noseSign = (Mathf.Abs(dx) >= Mathf.Abs(dz) ? dx : dz) < 0f ? -1f : 1f; if (Mathf.Abs(dz) > Mathf.Abs(dx)) noseSign = 0f; }
+            Quaternion yaw;
+            if (hn > 0 && noseSign == 0f) { float dz = hl.z / hn - b.center.z; yaw = Quaternion.Euler(0f, dz > 0f ? 0f : 180f, 0f); }   // nose along Z
+            else yaw = Quaternion.Euler(0f, -90f * (noseSign < 0f ? -1f : 1f), 0f);        // nose along +X -> -90, along -X -> +90
             model.transform.SetParent(root, false);
             model.transform.localRotation = yaw;
             model.transform.localScale = Vector3.one * s;

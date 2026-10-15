@@ -11,6 +11,18 @@ on:
         type: choice
         options: [webgl2, webgpu]
         default: webgl2
+      clean_cache:
+        description: "Wipe Bee/IL2CPP caches first (slow; only if a build segfaults)"
+        type: boolean
+        default: false
+      optimize_speed:
+        description: "IL2CPP OptimizeSpeed (slower build, slightly faster runtime)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   # RocketSim is only used as the reference for the parity test; it is pinned so the test is reproducible.
@@ -44,7 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write        # lets the job push the build to the release branch
-    needs: [checks, parity]
+    # No `needs`: the Unity build runs in parallel with the static checks / parity test; publishing waits for all three.
     outputs:
       built: ${{ steps.lic.outputs.ok }}
     steps:
@@ -61,19 +73,22 @@ jobs:
         if: steps.lic.outputs.ok == 'true'
         with:
           path: Library
-          # v3: invalidate old Library caches that caused IL2CPP_CodeGen segfaults (exit 139)
-          key: Library-WebGL-v3-${{ hashFiles('Packages/manifest.json', 'Assets/**/*.cs') }}
+          # v4: keep Bee/IL2CPP output so the C++ compile is incremental (it was the bulk of the build time)
+          key: Library-WebGL-v4-${{ hashFiles('Packages/manifest.json', 'Assets/**/*.cs') }}
           restore-keys: |
-            Library-WebGL-v3-
-      - name: Drop stale Bee / IL2CPP artifacts
-        if: steps.lic.outputs.ok == 'true'
+            Library-WebGL-v4-
+      - name: Drop stale Bee / IL2CPP artifacts (manual only)
+        if: steps.lic.outputs.ok == 'true' && inputs.clean_cache == true
         run: |
           # Partial Library restores leave inconsistent Bee/IL2CPP state; il2cpp then SIGSEGVs (exit 139).
           rm -rf Library/Bee Library/Il2cppBuildCache Library/BuildPlayerData \
                  Library/PlayerDataCache Library/ShaderCache Library/BuildCache
           echo "Cleaned Bee/IL2CPP caches. Remaining Library:"
           du -sh Library 2>/dev/null || true
-      - uses: game-ci/unity-builder@v4
+      - name: Unity WebGL build
+        id: build
+        continue-on-error: true
+        uses: game-ci/unity-builder@v4
         if: steps.lic.outputs.ok == 'true'
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -84,7 +99,27 @@ jobs:
           unityVersion: 6000.0.62f1
           targetPlatform: WebGL
           buildMethod: RocketWorld.Editor.BuildScript.BuildWebGL
-          customParameters: -rwGfx ${{ inputs.graphics == 'webgpu' && 'webgpu' || 'webgl2' }}
+          customParameters: -rwGfx ${{ inputs.graphics == 'webgpu' && 'webgpu' || 'webgl2' }} -rwFast ${{ github.event_name == 'pull_request' && '1' || '0' }} -rwSpeed ${{ inputs.optimize_speed == true && '1' || '0' }}
+          versioning: None
+          allowDirtyBuild: true
+      - name: Retry from clean Bee/IL2CPP state (only if the cached build failed, e.g. exit 139)
+        id: retry
+        if: steps.lic.outputs.ok == 'true' && steps.build.outcome == 'failure'
+        run: |
+          sudo rm -rf Library/Bee Library/Il2cppBuildCache Library/BuildPlayerData Library/PlayerDataCache Library/ShaderCache Library/BuildCache
+      - name: Unity WebGL build (clean retry)
+        if: steps.lic.outputs.ok == 'true' && steps.build.outcome == 'failure'
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          unityVersion: 6000.0.62f1
+          targetPlatform: WebGL
+          buildMethod: RocketWorld.Editor.BuildScript.BuildWebGL
+          customParameters: -rwGfx ${{ inputs.graphics == 'webgpu' && 'webgpu' || 'webgl2' }} -rwFast ${{ github.event_name == 'pull_request' && '1' || '0' }} -rwSpeed ${{ inputs.optimize_speed == true && '1' || '0' }}
           versioning: None
           allowDirtyBuild: true
       - name: Add Vercel config to the build output
@@ -99,13 +134,25 @@ jobs:
         with:
           name: rocketworld-webgl
           path: build/WebGL/WebGL
-      - name: Publish to the release branch (Vercel production branch)
-        if: steps.lic.outputs.ok == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        uses: peaceiris/actions-gh-pages@v4
+          compression-level: 0   # Build files are already Brotli-compressed
+
+  publish-release:
+    name: Publish to release branch
+    runs-on: ubuntu-latest
+    needs: [checks, parity, unity-web]
+    if: needs.unity-web.outputs.built == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: rocketworld-webgl
+          path: webgl
+      - uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: release
-          publish_dir: build/WebGL/WebGL
+          publish_dir: webgl
           force_orphan: true
           enable_jekyll: false
           commit_message: "release ${{ github.sha }}"
@@ -115,8 +162,8 @@ jobs:
   deploy-op-test:
     name: Deploy WebGL → op-test
     runs-on: ubuntu-latest
-    needs: [unity-web]
-    if: needs.unity-web.outputs.built == 'true'
+    needs: [checks, parity, unity-web]
+    if: needs.unity-web.outputs.built == 'true' && github.event_name != 'pull_request'
     steps:
       - name: Download rocketworld-webgl artifact
         uses: actions/download-artifact@v4

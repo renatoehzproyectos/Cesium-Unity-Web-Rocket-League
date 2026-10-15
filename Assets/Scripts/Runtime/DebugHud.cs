@@ -89,6 +89,16 @@ namespace RocketWorld
             if (root.carInput != null && root.carInput.TouchControlsActive)
                 foreach (var z in CarInput.TouchZones)
                     GUI.Box(new Rect(z.zone.x * W, (1f - z.zone.y - z.zone.height) * H, z.zone.width * W, z.zone.height * H), z.label);
+            if (root.carInput != null && root.carInput.TouchControlsActive)
+            {
+                var sr = CarInput.StickRect;
+                var box = new Rect(sr.x / _k, (Screen.height - sr.yMax) / _k, sr.width / _k, sr.height / _k);
+                GUI.Box(box, "");
+                var v = root.carInput.StickValue;
+                float ks = box.width * 0.30f;
+                var kc = box.center + new Vector2(v.x * box.width * 0.5f, -v.y * box.height * 0.5f);
+                GUI.Box(new Rect(kc.x - ks * 0.5f, kc.y - ks * 0.5f, ks, ks), "");
+            }
             if (!s.HasCredentials)
                 GUI.Label(new Rect(0, H * 0.14f, W, 70), "<size=16>No tile key set — showing a flat test ground.\nOpen ⚙ (or press Esc) and add a Google Maps Platform key (Map Tiles API) or a Cesium ion token.</size>", _center);
 

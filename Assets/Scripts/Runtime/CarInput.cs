@@ -19,12 +19,17 @@ namespace RocketWorld
         public bool SettingsPressed { get; private set; }
         public bool TouchControlsActive;
 
+        // Button zones (normalized, origin bottom-left). The analog stick is separate (StickRect, pixel-based so it stays square).
+        public const int ZJump = 0, ZBoost = 1, ZRollL = 2, ZRollR = 3;
         public static readonly (string label, Rect zone)[] TouchZones =
         {
-            ("◀", new Rect(0.02f, 0.05f, 0.11f, 0.22f)), ("▶", new Rect(0.14f, 0.05f, 0.11f, 0.22f)),
-            ("GAS", new Rect(0.82f, 0.24f, 0.15f, 0.20f)), ("BRK", new Rect(0.82f, 0.05f, 0.15f, 0.17f)),
-            ("JUMP", new Rect(0.64f, 0.05f, 0.16f, 0.20f)), ("BOOST", new Rect(0.64f, 0.27f, 0.16f, 0.17f)),
+            ("JUMP", new Rect(0.80f, 0.05f, 0.17f, 0.20f)), ("BOOST", new Rect(0.80f, 0.27f, 0.17f, 0.20f)),
+            ("ROLL ◀", new Rect(0.61f, 0.05f, 0.17f, 0.20f)), ("ROLL ▶", new Rect(0.61f, 0.27f, 0.17f, 0.20f)),
         };
+        /// <summary>Analog stick area in pixels (origin bottom-left): a square at the lower left.</summary>
+        public static Rect StickRect { get { float sz = Screen.height * 0.46f, m = Screen.height * 0.04f; return new Rect(m, m, sz, sz); } }
+        /// <summary>Current stick deflection (x: right+, y: up+), -1..1, for drawing the knob.</summary>
+        public Vector2 StickValue { get; private set; }
         readonly List<Vector2> _touches = new List<Vector2>(10);
 
         void Update()
@@ -71,6 +76,7 @@ namespace RocketWorld
             _touches.Clear();
             for (int i = 0; i < Input.touchCount; i++) _touches.Add(Input.GetTouch(i).position);
 #endif
+            StickValue = Vector2.zero;
             if (TouchControlsActive && _touches.Count > 0)
             {
                 bool Held(int zone)
@@ -79,9 +85,22 @@ namespace RocketWorld
                     foreach (var p in _touches) { float x = p.x / Screen.width, y = p.y / Screen.height; if (z.Contains(new Vector2(x, y))) return true; }
                     return false;
                 }
-                st += (Held(1) ? 1 : 0) - (Held(0) ? 1 : 0);
-                th += (Held(2) ? 1 : 0) - (Held(3) ? 1 : 0);
-                jump |= Held(4); boost |= Held(5);
+                // One analog stick: up = throttle / nose down, down = brake / nose up, left/right = steer (ground) and yaw (air).
+                var sr = StickRect; Vector2 best = Vector2.zero;
+                foreach (var p in _touches)
+                {
+                    if (!sr.Contains(p)) continue;
+                    var d = new Vector2((p.x - sr.center.x) / (sr.width * 0.5f), (p.y - sr.center.y) / (sr.height * 0.5f));
+                    if (d.sqrMagnitude > best.sqrMagnitude) best = d;
+                }
+                if (best.sqrMagnitude > 1f) best.Normalize();
+                const float dead = 0.12f;
+                float sx = Mathf.Abs(best.x) < dead ? 0f : Mathf.Sign(best.x) * (Mathf.Abs(best.x) - dead) / (1f - dead);
+                float sy = Mathf.Abs(best.y) < dead ? 0f : Mathf.Sign(best.y) * (Mathf.Abs(best.y) - dead) / (1f - dead);
+                StickValue = best;
+                st += sx; th += sy;
+                roll += (Held(ZRollR) ? 1 : 0) - (Held(ZRollL) ? 1 : 0);
+                jump |= Held(ZJump); boost |= Held(ZBoost);
             }
             th = Mathf.Clamp(th, -1, 1); st = Mathf.Clamp(st, -1, 1);
             controls = new Controls { throttle = th, steer = st, yaw = st, pitch = -th, roll = Mathf.Clamp(roll, -1, 1), jump = jump, boost = boost, handbrake = hb };
@@ -91,7 +110,7 @@ namespace RocketWorld
         {
             var n = new Vector2(screenPos.x / Screen.width, screenPos.y / Screen.height);
             foreach (var z in TouchZones) if (z.zone.Contains(n)) return true;
-            return false;
+            return StickRect.Contains(screenPos);
         }
     }
 }

@@ -81,11 +81,14 @@ namespace RocketWorld.Editor
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.WebGL, false);
 
             PlayerSettings.WebGL.template = "APPLICATION:Default";
-            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Brotli;
+            // `-rwFast 1` (CI pull requests / throw-away builds): no Brotli pass (the slowest post-step), nothing is deployed from these.
+            bool fast = Arg("-rwFast") == "1";
+            PlayerSettings.WebGL.compressionFormat = fast ? WebGLCompressionFormat.Disabled : WebGLCompressionFormat.Brotli;
             PlayerSettings.WebGL.decompressionFallback = false;     // vercel.json sends Content-Encoding: br
             PlayerSettings.WebGL.dataCaching = true;
             PlayerSettings.WebGL.nameFilesAsHashes = true;          // content-hashed file names => safe to cache forever (see deploy/vercel.json)
-            PlayerSettings.SetIl2CppCodeGeneration(NamedBuildTarget.WebGL, Il2CppCodeGeneration.OptimizeSpeed);
+            // OptimizeSize emits far less C++ for emscripten to compile + wasm-opt to chew through: much faster builds, smaller download.
+            PlayerSettings.SetIl2CppCodeGeneration(NamedBuildTarget.WebGL, Arg("-rwSpeed") == "1" ? Il2CppCodeGeneration.OptimizeSpeed : Il2CppCodeGeneration.OptimizeSize);
             PlayerSettings.SetIl2CppCompilerConfiguration(NamedBuildTarget.WebGL, Il2CppCompilerConfiguration.Release);
             PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
             // Mandatory for Cesium for Unity on the Web (see Documentation~/supported-platforms.md in the package).
