@@ -48,19 +48,7 @@ namespace RocketWorld
 
         int WheelCount() { int n = 0; for (int i = 0; i < 4; i++) if (root.carCtl.Vehicle.WheelInContact(i)) n++; return n; }
 
-        void SetOpen(bool open)
-        {
-            if (_open && !open)
-            {
-                root.settingsOpen = false;
-                root.FlushOrigin();          // apply any pending location/height change now
-                root.FlushSse();             // apply tile-detail once (not while the slider was dragged)
-                root.SaveSettings();
-            }
-            if (!_open && open)
-                root.settingsOpen = true;
-            _open = open;
-        }
+        void SetOpen(bool open) { if (_open && !open) root.SaveSettings(); _open = open; }
 
         /// <summary>True when a screen position (pixels, origin bottom-left) is over HUD, so the camera ignores that drag.</summary>
         public bool Over(Vector2 screenPos)
@@ -124,7 +112,7 @@ namespace RocketWorld
                 if (GUILayout.Button("Set token…")) s.ionToken = WebBridge.Prompt("Cesium ion access token", s.ionToken);
                 if (GUILayout.Button("Set asset id…") && long.TryParse(WebBridge.Prompt("Cesium ion asset id (2275207 = Google Photorealistic 3D Tiles)", s.ionAssetId.ToString()), out var id)) s.ionAssetId = id;
             }
-            if (GUILayout.Button("Reload tiles")) { root.FlushOrigin(); root.SaveSettings(); root.CreateWorldContent(); }
+            if (GUILayout.Button("Reload tiles")) { root.SaveSettings(); root.CreateWorldContent(); }
 
             GUILayout.Space(6);
             GUILayout.Label("Location");
@@ -132,14 +120,7 @@ namespace RocketWorld
             GUILayout.BeginHorizontal();
             foreach (var p in GameSettings.Presets)
             {
-                if (GUILayout.Button(p.name))
-                {
-                    s.lat = p.lat; s.lon = p.lon; s.groundHeight = p.h;
-                    changed = true;
-                    // City presets should apply immediately (not wait for the ground-height debounce).
-                    root.ApplyLive();
-                    root.FlushOrigin();
-                }
+                if (GUILayout.Button(p.name)) { s.lat = p.lat; s.lon = p.lon; s.groundHeight = p.h; changed = true; }
                 if (++col % 3 == 0) { GUILayout.EndHorizontal(); GUILayout.BeginHorizontal(); }
             }
             GUILayout.EndHorizontal();

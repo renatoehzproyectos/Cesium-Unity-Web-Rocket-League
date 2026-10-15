@@ -31,9 +31,7 @@ namespace RocketWorld
             var model = Object.Instantiate(prefab);
             model.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);   // measure at identity
             var b = Measure(model);
-            // Prefer length along the model's longest horizontal axis (glTFast often uses +X forward).
-            float modelLen = Mathf.Max(b.size.x, b.size.z, 1e-4f);
-            float s = (LengthM * 0.98f) / modelLen;
+            float s = (LengthM * 0.98f) / Mathf.Max(b.size.x, 1e-4f);
             var yaw = Quaternion.Euler(0f, -90f, 0f);                                      // model +X -> car +Z
             model.transform.SetParent(root, false);
             model.transform.localRotation = yaw;
@@ -41,68 +39,16 @@ namespace RocketWorld
             var centre = yaw * new Vector3(b.center.x * s, 0f, b.center.z * s);
             model.transform.localPosition = new Vector3(-centre.x, -b.min.y * s + bottomY, -centre.z);   // wheels bottom at bottomY, centred on the root
             foreach (var col in model.GetComponentsInChildren<Collider>()) Object.Destroy(col);
-            // Replace glTFast shader-graph materials with URP Lit so the body survives WebGL shader stripping.
-            // (Otherwise you can see the boost flame but an invisible car.)
             foreach (var r in model.GetComponentsInChildren<Renderer>())
             {
-                r.enabled = true;
+                var mats = r.materials;                                                     // instances, safe to edit
+                for (int i = 0; i < mats.Length; i++) Paint(mats[i], body);
+                r.materials = mats;
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 r.receiveShadows = false;
-                var oldMats = r.sharedMaterials;
-                var newMats = new Material[oldMats.Length];
-                for (int i = 0; i < oldMats.Length; i++)
-                    newMats[i] = MakeUrpLit(oldMats[i], body);
-                r.sharedMaterials = newMats;
-            }
-            // If the GLB produced no visible mesh, fall back to a solid body cube so the car is never invisible.
-            if (model.GetComponentsInChildren<Renderer>().Length == 0)
-            {
-                var box = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                Object.Destroy(box.GetComponent<Collider>());
-                box.transform.SetParent(root, false);
-                box.transform.localScale = new Vector3(84.2f * 0.02f, HeightM, LengthM);
-                box.transform.localPosition = new Vector3(0, HeightM * 0.5f + bottomY, 0);
-                var br = box.GetComponent<Renderer>();
-                br.sharedMaterial = MakeUrpLit(null, body);
-                br.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             }
             AddFlame(root);
             return root;
-        }
-
-        /// <summary>URP Lit material that is always included in WebGL builds (unlike glTFast shader graphs).</summary>
-        static Material MakeUrpLit(Material source, Color bodyFallback)
-        {
-            var sh = Shader.Find("Universal Render Pipeline/Lit");
-            if (sh == null) sh = Shader.Find("Universal Render Pipeline/Simple Lit");
-            if (sh == null) sh = Shader.Find("Sprites/Default");
-            var m = new Material(sh != null ? sh : Shader.Find("Hidden/InternalErrorShader"));
-            string n = source != null ? source.name : "Body";
-            Color c = bodyFallback;
-            float metal = 0.25f, rough = 0.35f;
-            Color emissive = Color.black;
-            if (Has(n, "Window")) { c = new Color(0.05f, 0.05f, 0.06f); metal = 0f; rough = 0.1f; }
-            else if (Has(n, "Headlight")) { c = new Color(0.96f, 0.98f, 1f); metal = 0f; rough = 0.2f; emissive = new Color(0.62f, 0.94f, 1f) * 1.4f; }
-            else if (Has(n, "Alpha") || Has(n, "Dieci") || Has(n, "Wheel") || Has(n, "Tire")) { c = new Color(0.08f, 0.08f, 0.09f); metal = 0.1f; rough = 0.7f; }
-            else if (IsBody(n)) { c = bodyFallback; metal = 0.25f; rough = 0.3f; }
-            else if (source != null)
-            {
-                // Try to keep a plausible colour from the imported material.
-                if (source.HasProperty("baseColorFactor")) c = source.GetColor("baseColorFactor");
-                else if (source.HasProperty("_BaseColor")) c = source.GetColor("_BaseColor");
-                else if (source.HasProperty("_Color")) c = source.GetColor("_Color");
-            }
-            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
-            else if (m.HasProperty("_Color")) m.SetColor("_Color", c);
-            if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", metal);
-            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 1f - rough);
-            if (m.HasProperty("_EmissionColor"))
-            {
-                m.EnableKeyword("_EMISSION");
-                m.SetColor("_EmissionColor", emissive);
-            }
-            m.name = "RW_" + n;
-            return m;
         }
 
         // Boost flame: stretched sphere + point light behind the car. The material is a Resources asset so its shader survives stripping.
@@ -128,19 +74,8 @@ namespace RocketWorld
         {
             if (visual == null) return;
             foreach (var r in visual.GetComponentsInChildren<Renderer>())
-            {
-                if (r == null || r.name == "Flame") continue;
                 foreach (var m in r.sharedMaterials)
-                {
-                    if (m == null) continue;
-                    // Our runtime materials are named RW_<original>; treat body-ish slots as recolourable.
-                    bool bodyish = IsBody(m.name) || (Has(m.name, "RW_")
-                        && !Has(m.name, "Window") && !Has(m.name, "Headlight")
-                        && !Has(m.name, "Wheel") && !Has(m.name, "Tire")
-                        && !Has(m.name, "Alpha") && !Has(m.name, "Dieci"));
-                    if (bodyish) Prop(m, c, "baseColorFactor", "_BaseColor", "_Color");
-                }
-            }
+                    if (m != null && IsBody(m.name)) Prop(m, c, "baseColorFactor", "_BaseColor", "_Color");
         }
 
         static bool IsBody(string n) => Has(n, "Body");

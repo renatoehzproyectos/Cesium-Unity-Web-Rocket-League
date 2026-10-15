@@ -44,13 +44,6 @@ namespace RocketWorld
         double _lon, _lat; float _gh = float.NaN;
         int _color = -1;
         Material _skyMat;
-        // last values we actually pushed to Cesium / camera — avoid thrashing tiles every slider frame
-        float _appliedSse = float.NaN, _appliedFar = float.NaN, _appliedScale = float.NaN;
-        float _originDebounceUntil;          // delay origin shifts while the user is dragging the ground-height slider
-        double _pendingLon, _pendingLat; float _pendingGh;
-        bool _originPending;
-        /// <summary>True while the settings panel is open. Expensive Cesium writes (SSE) are deferred until close.</summary>
-        public bool settingsOpen;
 
         static readonly Color DayFog = new Color(0.812f, 0.902f, 0.949f);   // 0xcfe6f2, RocketWorld's sky/fog
         static readonly Color DuskFog = new Color(0.95f, 0.60f, 0.42f);
@@ -93,14 +86,6 @@ namespace RocketWorld
             // ?bench=1: start once the first tiles are in (or after 25 s on a slow link / no key)
             if (settings.bench && !_benchStarted && (tileset == null || tileset.ComputeLoadProgress() >= 99f || Time.realtimeSinceStartup > 25f))
             { _benchStarted = true; benchmark.Begin(); }
-
-            // Debounced origin apply: while the user drags ground-height / picks a preset we wait a short
-            // moment so Cesium is not destroyed/reloaded every frame (which drops all tile colliders).
-            if (_originPending && Time.unscaledTime >= _originDebounceUntil)
-            {
-                _originPending = false;
-                CommitOrigin(_pendingLon, _pendingLat, _pendingGh, forceRespawn: true);
-            }
         }
 
         // ---- world -----------------------------------------------------------------------------------------
@@ -110,7 +95,6 @@ namespace RocketWorld
         {
             if (tileset != null) Destroy(tileset.gameObject);
             tileset = null; budget = null;
-            _appliedSse = float.NaN;   // force SSE to be written onto the new tileset in the next ApplyLive
             bool online = settings.HasCredentials;
             if (online)
             {
@@ -141,7 +125,6 @@ namespace RocketWorld
                 tileset.loadingDescendantLimit = 20;
                 tileset.maximumCachedBytes = DeviceProfile.TileCacheBytes;   // WebGL heap is limited: sized from the device
                 tileset.maximumScreenSpaceError = EffectiveSse;
-                _appliedSse = EffectiveSse;
                 budget = go.AddComponent<TileColliderBudget>();        // subscribes in OnEnable, before the tileset starts loading
                 budget.tileset = tileset;
                 budget.focus = car;
@@ -165,104 +148,24 @@ namespace RocketWorld
         void UpdateOrigin(bool force)
         {
             if (!force && _lon == settings.lon && _lat == settings.lat && Mathf.Approximately(_gh, settings.groundHeight)) return;
-
-            // On first boot (force) apply immediately. While the settings panel is open, origin
-            // changes are debounced so dragging the ground-height slider does not unload tiles
-            // and drop the car through the map every frame.
-            if (force)
-            {
-                CommitOrigin(settings.lon, settings.lat, settings.groundHeight, forceRespawn: false);
-                return;
-            }
-
-            _pendingLon = settings.lon;
-            _pendingLat = settings.lat;
-            _pendingGh = settings.groundHeight;
-            _originPending = true;
-            _originDebounceUntil = Time.unscaledTime + 0.35f;   // wait until the user pauses dragging
-        }
-
-        void CommitOrigin(double lon, double lat, float gh, bool forceRespawn)
-        {
-            bool sameLatLon = _lon == lon && _lat == lat;
-            bool sameAll = sameLatLon && Mathf.Approximately(_gh, gh);
-            if (sameAll && !float.IsNaN(_gh)) return;
-
-            _lon = lon; _lat = lat; _gh = gh;
+            _lon = settings.lon; _lat = settings.lat; _gh = settings.groundHeight;
             georeference.SetOriginLongitudeLatitudeHeight(_lon, _lat, _gh);   // Unity y = 0 is the (approximate) ground height
-
-            if (carCtl == null) return;
-            // Same place, only height tweak: keep XZ and re-raycast (rescue path). New city: full respawn at origin.
-            carCtl.Respawn(sameLatLon);
+            if (!force && carCtl != null) carCtl.Respawn(false);              // new place: drop the car there
         }
 
-        /// <summary>
-        /// Applies live-changeable settings. Safe to call every frame from the settings panel:
-        /// expensive Cesium properties (SSE, origin) are only written when they actually change
-        /// (and origin is debounced) so tiles/colliders are not torn down while the user drags a slider.
-        /// </summary>
+        /// <summary>Applies every live-changeable setting (cheap; called whenever a setting moves).</summary>
         public void ApplyLive()
         {
             var s = settings;
             UpdateOrigin(false);
             if (carCtl != null) carCtl.spawnHeadingDeg = s.heading;
             if (_color != s.carColor) { _color = s.carColor; CarVisual.SetBodyColor(carVisual, GameSettings.CarColors[s.carColor].color); }
-
-            // SSE must NOT be written while the settings panel is open: dragging the slider would
-            // unload/reload Cesium tiles every frame and the car falls through missing colliders.
-            // AutoQuality (panel closed) and FlushSse (on panel close) still push SSE.
-            if (!settingsOpen)
-                CommitSse(EffectiveSse, protectCar: false);
-
+            if (tileset != null) tileset.maximumScreenSpaceError = EffectiveSse;
             if (orbit != null) orbit.autoRotate = s.autoRotate;
-
-            float far = EffectiveFar;
-            if (cam != null && !Mathf.Approximately(_appliedFar, far))
-            {
-                _appliedFar = far;
-                cam.farClipPlane = far;
-            }
-
+            if (cam != null) cam.farClipPlane = EffectiveFar;
             if (autoQuality != null) autoQuality.enabledByUser = s.autoQuality;
-
-            float scale = EffectiveScale;
-            if (UniversalRenderPipeline.asset != null && !Mathf.Approximately(_appliedScale, scale))
-            {
-                _appliedScale = scale;
-                UniversalRenderPipeline.asset.renderScale = scale;
-            }
-
+            if (UniversalRenderPipeline.asset != null) UniversalRenderPipeline.asset.renderScale = EffectiveScale;
             ApplyTimeOfDay();
-        }
-
-        /// <summary>
-        /// Push maximumScreenSpaceError once. When <paramref name="protectCar"/> is true and SSE
-        /// actually changes, the car is soft-held (kinematic, same pose) until nearby tile colliders
-        /// exist again — no respawn, no fall through the map.
-        /// </summary>
-        public void CommitSse(float sse, bool protectCar)
-        {
-            if (tileset == null) return;
-            if (!float.IsNaN(_appliedSse) && Mathf.Abs(_appliedSse - sse) < 0.5f) return;
-            _appliedSse = sse;
-            tileset.maximumScreenSpaceError = sse;
-            if (budget != null) budget.burst = true;
-            if (protectCar && carCtl != null)
-                carCtl.SoftHoldForTerrain(1.5f);
-        }
-
-        /// <summary>Force an immediate origin commit (e.g. after "Reload tiles" or a city preset that already called ApplyLive).</summary>
-        public void FlushOrigin()
-        {
-            if (!_originPending) return;
-            _originPending = false;
-            CommitOrigin(_pendingLon, _pendingLat, _pendingGh, forceRespawn: true);
-        }
-
-        /// <summary>Apply the user's SSE (and auto offsets) once — call when the settings panel closes.</summary>
-        public void FlushSse()
-        {
-            CommitSse(EffectiveSse, protectCar: true);
         }
 
         public void SaveSettings() { settings.Save(); }
