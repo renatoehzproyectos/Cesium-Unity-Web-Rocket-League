@@ -41,6 +41,7 @@ namespace RocketWorld
         const float TurboSse = 48f;
         bool _turbo; float _turboStart, _turboStep, _turboCur = TurboSse;
         public float EffectiveScale => Mathf.Clamp(settings.renderScale * autoScaleMul, 0.3f, 2f);
+        public float EffectiveRadius => settings.loadRadius * autoFarMul;
         public float EffectiveFar => settings.viewDistance * autoFarMul;
         bool _benchStarted;
 
@@ -153,7 +154,7 @@ namespace RocketWorld
                 tileset.preloadAncestors = true;
                 tileset.forbidHoles = false;
                 tileset.enableFrustumCulling = true;
-                tileset.enforceCulledScreenSpaceError = true;
+                tileset.enforceCulledScreenSpaceError = false;   // nothing outside every camera is loaded; StreamingCameras cover the full circle round the car
                 tileset.culledScreenSpaceError = 256f;      // tiles outside the view only get the coarsest level: bandwidth goes to what you look at
                 tileset.maximumSimultaneousTileLoads = DeviceProfile.SimultaneousLoads;
                 tileset.loadingDescendantLimit = 60;       // let many visible tiles refine in parallel
@@ -391,6 +392,8 @@ namespace RocketWorld
             go.AddComponent<CesiumGlobeAnchor>();                        // keeps the camera valid across origin shifts
             chase = go.AddComponent<ChaseCamera>();
             chase.car = carCtl;
+            var streamGo = new GameObject("StreamingCameras");
+            var stream = streamGo.AddComponent<StreamingCameras>(); stream.root = this; stream.follow = car;
             orbit = go.AddComponent<OrbitCamera>();
             orbit.target = car;
             orbit.yaw = settings.camYaw; orbit.pitch = settings.camPitch; orbit.distance = settings.camDist;
