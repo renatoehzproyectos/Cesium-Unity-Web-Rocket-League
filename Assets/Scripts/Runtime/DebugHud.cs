@@ -99,6 +99,8 @@ namespace RocketWorld
                 var kc = box.center + new Vector2(v.x * box.width * 0.5f, -v.y * box.height * 0.5f);
                 GUI.Box(new Rect(kc.x - ks * 0.5f, kc.y - ks * 0.5f, ks, ks), "");
             }
+            if (root.tileLog != null && !string.IsNullOrEmpty(root.tileLog.Hud))
+                GUI.Label(new Rect(0, 30, W, 24), "<size=15><b>" + root.tileLog.Hud + "</b></size>", _center);
             if (!s.HasCredentials)
                 GUI.Label(new Rect(0, H * 0.14f, W, 70), "<size=16>No tile key set — showing a flat test ground.\nOpen ⚙ (or press Esc) and add a Google Maps Platform key (Map Tiles API) or a Cesium ion token.</size>", _center);
 
@@ -184,6 +186,16 @@ namespace RocketWorld
             bool aq = GUILayout.Toggle(s.autoQuality, "Auto quality (keeps ~60 fps by lowering scale / detail / distance)");
             if (aq != s.autoQuality) { s.autoQuality = aq; if (!aq && root.autoQuality != null) root.autoQuality.ResetToUser(); changed = true; }
             GUILayout.Space(6);
+            if (root.tileLog != null)
+            {
+                var tl = root.tileLog;
+                GUILayout.Label($"<b>Tile log</b> — {tl.Lines} frames, {tl.Chars / 1024} KB kept (one line per frame)", _small);
+                tl.fullTileList = GUILayout.Toggle(tl.fullTileList, "Include every tile on every line (bigger log)");
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button("Copy tile log")) { GUIUtility.systemCopyBuffer = tl.Text(); _toast = Time.unscaledTime + 2.5f; _toastText = "Tile log copied (" + tl.StoredLines + " lines)"; }
+                if (GUILayout.Button("Clear / restart timer")) tl.Clear();
+                GUILayout.EndHorizontal();
+            }
             GUILayout.Label("<color=#ffffffcc>Device: " + DeviceProfile.Describe() + "</color>", _small);
             if (root.benchmark != null && GUILayout.Button(root.benchmark.Running ? "Benchmark running…" : "Run 36 s benchmark (camera flight)") && !root.benchmark.Running) { _reportOpen = false; SetOpen(false); root.benchmark.Begin(); }
             GUILayout.Label("<color=#ffffff88>Settings are stored in this browser only. Share links never contain your API key.</color>", _small);

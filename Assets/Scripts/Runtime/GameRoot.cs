@@ -32,6 +32,8 @@ namespace RocketWorld
         public DebugHud hud;
         public AutoQuality autoQuality;
         public BenchmarkRunner benchmark;
+        public TileLog tileLog;
+        public bool TurboActive => _turbo;
         // offsets applied on top of the user's settings by AutoQuality
         public float autoSseAdd, autoScaleMul = 1f, autoFarMul = 1f;
         public float EffectiveSse => Mathf.Max(settings.sse + autoSseAdd, _turbo ? _turboCur : 0f);
@@ -88,6 +90,9 @@ namespace RocketWorld
             autoQuality.root = this; autoQuality.enabledByUser = settings.autoQuality;
             benchmark = gameObject.AddComponent<BenchmarkRunner>();
             benchmark.root = this;
+            tileLog = gameObject.AddComponent<TileLog>();
+            tileLog.root = this;
+            if (tileset != null) tileLog.Begin(tileset);   // the first tileset was created before the log existed
             orbit.pointerBlocked = hud.Over;
         }
 
@@ -100,7 +105,7 @@ namespace RocketWorld
                 // Step the detail down gradually (48 -> target) instead of one cliff: a single big drop makes Cesium
                 // re-request nearly every tile at once (progress falls back to 0 %). Each step waits until the view is ~loaded.
                 float now = Time.unscaledTime;
-                if (now - _turboStart > 2f && now - _turboStep >= 1.5f && (tileset.ComputeLoadProgress() >= 90f || now - _turboStep >= 4f))
+                if (now - _turboStart > 2f && now - _turboStep >= 1.5f && (tileset.ComputeLoadProgress() >= 85f || now - _turboStep >= 3f))
                 {
                     _turboStep = now;
                     _turboCur -= 16f;
@@ -157,7 +162,7 @@ namespace RocketWorld
                 tileset.enforceCulledScreenSpaceError = false;   // nothing outside every camera is loaded; StreamingCameras cover the full circle round the car
                 tileset.culledScreenSpaceError = 256f;      // tiles outside the view only get the coarsest level: bandwidth goes to what you look at
                 tileset.maximumSimultaneousTileLoads = DeviceProfile.SimultaneousLoads;
-                tileset.loadingDescendantLimit = 60;       // let many visible tiles refine in parallel
+                tileset.loadingDescendantLimit = 120;       // let many visible tiles refine in parallel
                 // Optional tuning: set by reflection so a property that differs in this Cesium version cannot break the build.
                 TrySetTileset("preloadSiblings", false);    // siblings are mostly outside the view
                 TrySetTileset("enableFoveatedRendering", true);
@@ -168,6 +173,7 @@ namespace RocketWorld
                 tileset.maximumCachedBytes = DeviceProfile.TileCacheBytes;   // WebGL heap is limited: sized from the device
                 tileset.maximumScreenSpaceError = EffectiveSse;
                 _appliedSse = EffectiveSse;
+                if (tileLog != null) tileLog.Begin(tileset);
                 budget = go.AddComponent<TileColliderBudget>();        // subscribes in OnEnable, before the tileset starts loading
                 budget.tileset = tileset;
                 budget.focus = car;

@@ -35,7 +35,7 @@ namespace RocketWorld
                                            : MemoryGB <= 4f ? 256L * 1024 * 1024
                                            : MemoryGB >= 8f ? 512L * 1024 * 1024 : 384L * 1024 * 1024;
 
-        public static uint SimultaneousLoads => IsMobile ? 20u : Cores >= 8 ? 40u : 24u;   // HTTP/2 multiplexes, so many parallel requests are cheap
+        public static uint SimultaneousLoads => IsMobile ? 32u : Cores >= 8 ? 64u : 40u;   // HTTP/2 multiplexes, so many parallel requests are cheap
 
         /// <summary>First-run defaults (only used when the user has no saved settings).</summary>
         public static void ApplyFirstRunDefaults(GameSettings s)
