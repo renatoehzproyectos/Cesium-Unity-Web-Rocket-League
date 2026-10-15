@@ -149,12 +149,12 @@ namespace RocketWorld
                 tileset.culledScreenSpaceError = 64f;
                 tileset.maximumSimultaneousTileLoads = DeviceProfile.SimultaneousLoads;
                 tileset.loadingDescendantLimit = 20;
-                tileset.preloadSiblings = true;
-                // Foveated loading: tiles away from the view centre are refined later / more coarsely, so bandwidth goes to what you look at.
-                tileset.enableFoveatedRendering = true;
-                tileset.foveatedConeSize = 0.25f;
-                tileset.foveatedTimeDelay = 0f;
-                tileset.foveatedMinimumScreenSpaceErrorRelaxation = 0f;
+                // Optional tuning: set by reflection so a property that differs in this Cesium version cannot break the build.
+                TrySetTileset("preloadSiblings", true);
+                TrySetTileset("enableFoveatedRendering", true);
+                TrySetTileset("foveatedConeSize", 0.25f);
+                TrySetTileset("foveatedTimeDelay", 0f);
+                TrySetTileset("foveatedMinimumScreenSpaceErrorRelaxation", 0f);
                 _turbo = true; _turboStart = Time.unscaledTime;
                 tileset.maximumCachedBytes = DeviceProfile.TileCacheBytes;   // WebGL heap is limited: sized from the device
                 tileset.maximumScreenSpaceError = EffectiveSse;
@@ -177,6 +177,18 @@ namespace RocketWorld
                 _ground = plane.transform;
             }
             if (carCtl != null) { carCtl.tileset = tileset; carCtl.colliderBudget = budget; carCtl.Respawn(false); }
+        }
+
+        void TrySetTileset(string name, object value)
+        {
+            try
+            {
+                var p = typeof(Cesium3DTileset).GetProperty(name);
+                if (p != null && p.CanWrite) { p.SetValue(tileset, System.Convert.ChangeType(value, p.PropertyType)); return; }
+                var f = typeof(Cesium3DTileset).GetField(name);
+                if (f != null) f.SetValue(tileset, System.Convert.ChangeType(value, f.FieldType));
+            }
+            catch (System.Exception) { }
         }
 
         void UpdateOrigin(bool force)
