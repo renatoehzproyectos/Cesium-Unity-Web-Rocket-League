@@ -18,6 +18,7 @@ namespace RocketWorld
         public float sse = 16f;                      // maximumScreenSpaceError
         public float viewDistance = 1400f;           // camera far plane (m); RocketWorld used 1400
         public float loadRadius = 600f;              // m around the car where ALL tiles are loaded at full detail (StreamingCameras)
+        public float distantQuality = 1f;            // x: sharper tiles at distance (StreamingCameras virtual viewport height)
         public float renderScale = 1f;
         public bool bakedLighting = true;            // flat ambient => tiles look like RocketWorld's baked rendering
         public bool autoRotate = true;
@@ -61,6 +62,7 @@ namespace RocketWorld
                 sse = PlayerPrefs.GetFloat(P + "sse", 16f),
                 viewDistance = PlayerPrefs.GetFloat(P + "far", 1400f),
                 loadRadius = PlayerPrefs.GetFloat(P + "radius", 600f),
+                distantQuality = PlayerPrefs.GetFloat(P + "dq", 1f),
                 renderScale = PlayerPrefs.GetFloat(P + "scale", 1f),
                 bakedLighting = PlayerPrefs.GetInt(P + "baked", 1) == 1,
                 autoRotate = PlayerPrefs.GetInt(P + "auto", 1) == 1,
@@ -82,6 +84,7 @@ namespace RocketWorld
             s.timeOfDay = Mathf.Repeat((float)D(WebBridge.Query("t"), s.timeOfDay), 24f);
             s.sse = (float)D(WebBridge.Query("sse"), s.sse);
             s.loadRadius = Mathf.Clamp((float)D(WebBridge.Query("radius"), s.loadRadius), 100f, 20000f);
+            s.distantQuality = Mathf.Clamp((float)D(WebBridge.Query("dq"), s.distantQuality), 0.5f, 8f);
             s.viewDistance = Mathf.Clamp((float)D(WebBridge.Query("far"), s.viewDistance), 200f, 20000f);
             s.renderScale = Mathf.Clamp((float)D(WebBridge.Query("scale"), s.renderScale), 0.3f, 2f);
             s.carColor = Mathf.Clamp((int)D(WebBridge.Query("car"), s.carColor), 0, CarColors.Length - 1);
@@ -96,7 +99,7 @@ namespace RocketWorld
             PlayerPrefs.SetInt(P + "provider", (int)provider); PlayerPrefs.SetString(P + "gkey", googleKey); PlayerPrefs.SetString(P + "iontoken", ionToken);
             PlayerPrefs.SetString(P + "ionasset", ionAssetId.ToString(Inv)); PlayerPrefs.SetString(P + "lat", lat.ToString(Inv)); PlayerPrefs.SetString(P + "lon", lon.ToString(Inv));
             PlayerPrefs.SetFloat(P + "gh", groundHeight); PlayerPrefs.SetFloat(P + "hdg", heading); PlayerPrefs.SetFloat(P + "tod", timeOfDay);
-            PlayerPrefs.SetFloat(P + "sse", sse); PlayerPrefs.SetFloat(P + "far", viewDistance); PlayerPrefs.SetFloat(P + "scale", renderScale); PlayerPrefs.SetFloat(P + "radius", loadRadius);
+            PlayerPrefs.SetFloat(P + "sse", sse); PlayerPrefs.SetFloat(P + "far", viewDistance); PlayerPrefs.SetFloat(P + "scale", renderScale); PlayerPrefs.SetFloat(P + "radius", loadRadius); PlayerPrefs.SetFloat(P + "dq", distantQuality);
             PlayerPrefs.SetInt(P + "baked", bakedLighting ? 1 : 0); PlayerPrefs.SetInt(P + "auto", autoRotate ? 1 : 0); PlayerPrefs.SetInt(P + "psky", proceduralSky ? 1 : 0); PlayerPrefs.SetInt(P + "hud", debugHud ? 1 : 0);
             PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1);
             PlayerPrefs.Save();

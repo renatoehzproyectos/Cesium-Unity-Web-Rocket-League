@@ -170,6 +170,8 @@ namespace RocketWorld
             s.viewDistance = GUILayout.HorizontalSlider(s.viewDistance, 400f, 20000f);
             GUILayout.Label($"Load radius around car {s.loadRadius:0} m (all tiles, full detail, live)");
             s.loadRadius = GUILayout.HorizontalSlider(s.loadRadius, 100f, 20000f);
+            GUILayout.Label($"Distant tile quality ×{s.distantQuality:0.0} (higher = sharper far tiles, more tiles to load)");
+            s.distantQuality = GUILayout.HorizontalSlider(s.distantQuality, 0.5f, 6f);
             GUILayout.Label($"Render scale {s.renderScale:0.00}");
             s.renderScale = GUILayout.HorizontalSlider(s.renderScale, 0.3f, 2f);
 

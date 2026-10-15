@@ -20,33 +20,44 @@ namespace RocketWorld
         Camera[] _cams;
         RenderTexture _rt;
         IList _list;
-        float _appliedRadius = -1f;
+        float _appliedRadius = -1f, _appliedMult = 1f, _rtChanged;
 
         void Start()
         {
             // Large virtual viewport => same pixels-per-degree as the main camera, so SSE picks the same (sharp) detail level.
-            int px = DeviceProfile.IsMobile ? 1024 : 1536;
-            _rt = new RenderTexture(px, px, 0, RenderTextureFormat.ARGB32) { name = "RW_StreamRT", antiAliasing = 1 };
             _cams = new Camera[4];
+            _rt = MakeRt(root.settings.distantQuality);
             for (int i = 0; i < 4; i++)
             {
                 var go = new GameObject("StreamCam" + i);
                 go.transform.SetParent(transform, false);
                 go.transform.rotation = Quaternion.Euler(0f, 90f * i, 0f);
                 var c = go.AddComponent<Camera>();
-                c.fieldOfView = 90f; c.aspect = 1f;
+                c.fieldOfView = 90f;
                 c.nearClipPlane = 1f;
                 c.cullingMask = 0;
                 c.clearFlags = CameraClearFlags.Nothing;
                 c.depth = -100;
                 c.allowHDR = false; c.allowMSAA = false;
-                c.targetTexture = _rt;
+                c.targetTexture = _rt; c.aspect = 1f;   // frustum stays square; only the virtual viewport HEIGHT (= sharpness) changes
                 c.useOcclusionCulling = false;
                 var d = c.GetUniversalAdditionalCameraData();
                 if (d != null) { d.renderShadows = false; d.renderPostProcessing = false; d.antialiasing = AntialiasingMode.None; d.requiresColorOption = CameraOverrideOption.Off; d.requiresDepthOption = CameraOverrideOption.Off; }
                 _cams[i] = c;
             }
             if (!Register()) { Debug.LogWarning("[RocketWorld] CesiumCameraManager not found: radius loading disabled"); enabled = false; foreach (var c in _cams) c.enabled = false; }
+        }
+
+        /// <summary>
+        /// "Distant tile quality": Cesium's screen-space error scales with the camera's viewport height, so a taller virtual viewport
+        /// makes these cameras ask for finer tiles at the same distance. The RT is narrow (cheap) and only its height grows.
+        /// </summary>
+        RenderTexture MakeRt(float mult)
+        {
+            int baseH = DeviceProfile.IsMobile ? 1024 : 1536, maxH = DeviceProfile.IsMobile ? 4096 : 8192;
+            int h = Mathf.Clamp(Mathf.RoundToInt(baseH * Mathf.Max(0.25f, mult)), 256, maxH);
+            _appliedMult = mult; _rtChanged = Time.unscaledTime;
+            return new RenderTexture(128, h, 0, RenderTextureFormat.ARGB32) { name = "RW_StreamRT", antiAliasing = 1 };
         }
 
         bool Register()
@@ -72,6 +83,13 @@ namespace RocketWorld
         {
             if (_cams == null || follow == null || root == null) return;
             transform.position = follow.position + Vector3.up * 2f;
+            float dq = root.settings.distantQuality;
+            if (Mathf.Abs(dq - _appliedMult) > 0.04f && Time.unscaledTime - _rtChanged > 0.6f)   // live, but not on every slider tick
+            {
+                var old = _rt; _rt = MakeRt(dq);
+                foreach (var c in _cams) { c.targetTexture = _rt; c.aspect = 1f; }
+                if (old != null) old.Release();
+            }
             float r = Mathf.Max(50f, root.EffectiveRadius);
             if (!Mathf.Approximately(r, _appliedRadius))
             {
