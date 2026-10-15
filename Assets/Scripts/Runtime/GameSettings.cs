@@ -71,6 +71,7 @@ namespace RocketWorld
             };
             DeviceProfile.Load();
             if (!PlayerPrefs.HasKey(P + "init")) DeviceProfile.ApplyFirstRunDefaults(s);
+            if (!PlayerPrefs.HasKey(P + "radius")) s.loadRadius = DeviceProfile.IsMobile ? 300f : 600f;
             string q;
             s.bench = WebBridge.Query("bench") == "1";
             if (!string.IsNullOrEmpty(q = WebBridge.Query("key"))) s.googleKey = q;

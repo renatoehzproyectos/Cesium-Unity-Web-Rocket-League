@@ -127,7 +127,7 @@ namespace RocketWorld
               .Append(" load=").Append(prog.ToString("0.0", Inv))
               .Append(" tiles=").Append(n).Append(" vis=").Append(vis).Append(" hid=").Append(hid).Append(" new=").Append(nNew).Append(" gone=").Append(_goneIds.Count)
               .Append(" verts=").Append(verts).Append(" tris=").Append(tris).Append(" visVerts=").Append(vVerts).Append(" visTris=").Append(vTris)
-              .Append(" sse=").Append(root.EffectiveSse.ToString("0.#", Inv)).Append(" radius=").Append(root.EffectiveRadius.ToString("0", Inv)).Append(" far=").Append(root.EffectiveFar.ToString("0", Inv))
+              .Append(" sse=").Append(root.EffectiveSse.ToString("0.#", Inv)).Append(" radius=").Append(root.EffectiveRadius.ToString("0", Inv)).Append(" radMul=").Append(root.RadiusMul.ToString("0.00", Inv)).Append(" far=").Append(root.EffectiveFar.ToString("0", Inv))
               .Append(" turbo=").Append(root.TurboActive ? 1 : 0).Append(" cacheMB=").Append(DeviceProfile.TileCacheBytes / (1024 * 1024))
               .Append(" car=").Append(cp.x.ToString("0.0", Inv)).Append(',').Append(cp.y.ToString("0.0", Inv)).Append(',').Append(cp.z.ToString("0.0", Inv))
               .Append(' ').Append(root.carCtl != null ? (root.carCtl.SpeedMS * 3.6f).ToString("0", Inv) : "0")

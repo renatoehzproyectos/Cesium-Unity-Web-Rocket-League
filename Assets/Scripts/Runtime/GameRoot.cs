@@ -43,7 +43,11 @@ namespace RocketWorld
         const float TurboSse = 48f;
         bool _turbo; float _turboStart, _turboStep, _turboCur = TurboSse;
         public float EffectiveScale => Mathf.Clamp(settings.renderScale * autoScaleMul, 0.3f, 2f);
-        public float EffectiveRadius => settings.loadRadius * autoFarMul;
+        public float EffectiveRadius => settings.loadRadius * autoFarMul * RadiusMul;
+        // Adaptive radius: if the demanded tiles do not fit the cache, loading stalls (tiles evicted as fast as they arrive).
+        // The slider is the MAXIMUM; the radius shrinks while progress stagnates and grows back once everything is loaded.
+        public float RadiusMul { get; private set; } = 1f;
+        float _radChkT, _radChkProg;
         public float EffectiveFar => settings.viewDistance * autoFarMul;
         bool _benchStarted;
 
@@ -100,6 +104,16 @@ namespace RocketWorld
 
         void Update()
         {
+            if (tileset != null && Time.unscaledTime - _radChkT >= 6f)
+            {
+                float p = tileset.ComputeLoadProgress();
+                if (_radChkT > 0f)
+                {
+                    if (p < 99f && p <= _radChkProg + 1.5f) RadiusMul = Mathf.Max(0.2f, RadiusMul * 0.75f);
+                    else if (p >= 99.9f) RadiusMul = Mathf.Min(1f, RadiusMul * 1.15f);
+                }
+                _radChkT = Time.unscaledTime; _radChkProg = p;
+            }
             if (_turbo && tileset != null)
             {
                 // Step the detail down gradually (48 -> target) instead of one cliff: a single big drop makes Cesium
