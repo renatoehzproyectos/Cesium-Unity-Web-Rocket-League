@@ -34,7 +34,12 @@ namespace RocketWorld
         public BenchmarkRunner benchmark;
         // offsets applied on top of the user's settings by AutoQuality
         public float autoSseAdd, autoScaleMul = 1f, autoFarMul = 1f;
-        public float EffectiveSse => settings.sse + autoSseAdd;
+        public float EffectiveSse => Mathf.Max(settings.sse + autoSseAdd, _turbo ? TurboSse : 0f);
+
+        // "Turbo load": until the first view is fully loaded (or 20 s), ask for coarser tiles so the whole picture arrives fast,
+        // then drop to the user's SSE and let Cesium refine in place (ancestors are already cached, so refining is cheap).
+        const float TurboSse = 48f;
+        bool _turbo; float _turboStart;
         public float EffectiveScale => Mathf.Clamp(settings.renderScale * autoScaleMul, 0.3f, 2f);
         public float EffectiveFar => settings.viewDistance * autoFarMul;
         bool _benchStarted;
@@ -89,6 +94,11 @@ namespace RocketWorld
 
         void Update()
         {
+            if (_turbo && tileset != null)
+            {
+                float el = Time.unscaledTime - _turboStart;
+                if ((el > 2f && tileset.ComputeLoadProgress() >= 99.9f) || el > 20f) { _turbo = false; CommitSse(EffectiveSse, protectCar: false); }
+            }
             if (carInput != null && carInput.CameraTogglePressed) SetCameraMode(1 - cameraMode);
             // ?bench=1: start once the first tiles are in (or after 25 s on a slow link / no key)
             if (settings.bench && !_benchStarted && (tileset == null || tileset.ComputeLoadProgress() >= 99f || Time.realtimeSinceStartup > 25f))
@@ -139,6 +149,13 @@ namespace RocketWorld
                 tileset.culledScreenSpaceError = 64f;
                 tileset.maximumSimultaneousTileLoads = DeviceProfile.SimultaneousLoads;
                 tileset.loadingDescendantLimit = 20;
+                tileset.preloadSiblings = true;
+                // Foveated loading: tiles away from the view centre are refined later / more coarsely, so bandwidth goes to what you look at.
+                tileset.enableFoveatedRendering = true;
+                tileset.foveatedConeSize = 0.25f;
+                tileset.foveatedTimeDelay = 0f;
+                tileset.foveatedMinimumScreenSpaceErrorRelaxation = 0f;
+                _turbo = true; _turboStart = Time.unscaledTime;
                 tileset.maximumCachedBytes = DeviceProfile.TileCacheBytes;   // WebGL heap is limited: sized from the device
                 tileset.maximumScreenSpaceError = EffectiveSse;
                 _appliedSse = EffectiveSse;
