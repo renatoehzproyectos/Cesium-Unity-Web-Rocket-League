@@ -237,7 +237,8 @@ namespace RocketWorld
 
         /// <summary>
         /// Push maximumScreenSpaceError once. When <paramref name="protectCar"/> is true and SSE
-        /// actually changes, the car is held kinematic until nearby tile colliders exist again.
+        /// actually changes, the car is soft-held (kinematic, same pose) until nearby tile colliders
+        /// exist again — no respawn, no fall through the map.
         /// </summary>
         public void CommitSse(float sse, bool protectCar)
         {
@@ -246,9 +247,8 @@ namespace RocketWorld
             _appliedSse = sse;
             tileset.maximumScreenSpaceError = sse;
             if (budget != null) budget.burst = true;
-            // LOD swap drops MeshColliders under the car for a few frames — hold the car so it cannot fall.
-            if (protectCar && carCtl != null && carCtl.CurrentPhase == RocketCar.Phase.Running)
-                carCtl.Respawn(true);
+            if (protectCar && carCtl != null)
+                carCtl.SoftHoldForTerrain(1.5f);
         }
 
         /// <summary>Force an immediate origin commit (e.g. after "Reload tiles" or a city preset that already called ApplyLive).</summary>

@@ -41,6 +41,9 @@ namespace RocketWorld
         bool _resync, _rescue;
         float _waitStart, _stableSince = -1f;
         Transform _flame;
+        // Soft hold: freeze the car in place while Cesium LOD/colliders settle (SSE change). No respawn, no fall.
+        bool _softHold;
+        float _softHoldUntil;
 
         void Awake()
         {
@@ -92,9 +95,27 @@ namespace RocketWorld
         /// <summary>Back to "waiting for ground": atCurrentPosition keeps XZ and heading (rescue), otherwise spawns at the georeference origin.</summary>
         public void Respawn(bool atCurrentPosition)
         {
+            _softHold = false;
             _rescue = atCurrentPosition;
             if (!atCurrentPosition) transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
             BeginWaiting();
+        }
+
+        /// <summary>
+        /// Freeze the car at its current pose while tile colliders are rebuilt (e.g. after an SSE change).
+        /// Does not teleport, does not enter WaitingForGround — the car simply stays put until nearby
+        /// colliders exist again (or a short timeout), then continues driving.
+        /// </summary>
+        public void SoftHoldForTerrain(float seconds = 1.25f)
+        {
+            if (CurrentPhase != Phase.Running || _rb == null) return;
+            if (colliderBudget != null) colliderBudget.burst = true;
+            _rb.linearVelocity = Vector3.zero;
+            _rb.angularVelocity = Vector3.zero;
+            _rb.isKinematic = true;
+            _softHold = true;
+            _softHoldUntil = Time.realtimeSinceStartup + Mathf.Max(0.3f, seconds);
+            Status = "";
         }
 
         void BeginWaiting()
@@ -110,6 +131,36 @@ namespace RocketWorld
             if (input != null && input.ResetPressed && CurrentPhase == Phase.Running) { _rescue = true; BeginWaiting(); }
             if (CurrentPhase == Phase.WaitingForGround) { TrySpawn(); return; }
             if (_resync) ApplyOriginShift();
+
+            if (_softHold)
+            {
+                // Stay frozen until nearby colliders are back or the timeout elapses.
+                bool collidersReady = colliderBudget != null && colliderBudget.WithCollider > 0;
+                bool timedOut = Time.realtimeSinceStartup >= _softHoldUntil;
+                if (collidersReady || timedOut)
+                {
+                    // Optional micro-snap to ground if we are slightly floating / sinking after LOD swap.
+                    if (Physics.Raycast(transform.position + Vector3.up * 3f, Vector3.down, out var hit, 8f,
+                            PhysicsSetup.WorldMask, QueryTriggerInteraction.Ignore) && hit.normal.y > 0.5f)
+                    {
+                        var pos = hit.point + Vector3.up * 0.34f;
+                        transform.position = pos;
+                        _rb.position = pos;
+                        _prevPos = _currPos = pos;
+                    }
+                    _rb.isKinematic = false;
+                    _rb.linearVelocity = Vector3.zero;
+                    _rb.angularVelocity = Vector3.zero;
+                    if (colliderBudget != null) colliderBudget.burst = false;
+                    _softHold = false;
+                    Physics.SyncTransforms();
+                }
+                else
+                {
+                    ApplyVisual(0f);
+                    return;
+                }
+            }
 
             _acc += dt;
             int ticks = Mathf.Min((int)(_acc / Tick), 8);
