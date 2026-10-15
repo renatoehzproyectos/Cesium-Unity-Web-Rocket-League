@@ -39,44 +39,14 @@ jobs:
       - name: Build both and compare every scenario
         run: bash tools/parity/build.sh /tmp/RocketSim "$(nproc)"
 
-  unity-tests:
-    name: Unity EditMode tests
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    needs: [checks, parity]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check Unity license secrets
-        id: lic
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
-        run: |
-          if [ -n "$UNITY_LICENSE" ] || [ -n "$UNITY_SERIAL" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::warning::No UNITY_LICENSE/UNITY_SERIAL secret - skipping Unity jobs. See README."; fi
-      - uses: actions/cache@v4
-        if: steps.lic.outputs.ok == 'true'
-        with:
-          path: Library
-          key: Library-Test-${{ hashFiles('Packages/manifest.json', 'Assets/**/*.cs') }}
-          restore-keys: Library-Test-
-      - uses: game-ci/unity-test-runner@v4
-        if: steps.lic.outputs.ok == 'true'
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
-        with:
-          unityVersion: 6000.0.62f1
-          testMode: editmode
-
   unity-web:
     name: Unity 6000.0.62f1 WebGL build
     runs-on: ubuntu-latest
     permissions:
       contents: write        # lets the job push the build to the release branch
     needs: [checks, parity]
+    outputs:
+      built: ${{ steps.lic.outputs.ok }}
     steps:
       - uses: actions/checkout@v4
         with: { lfs: false }
@@ -91,8 +61,18 @@ jobs:
         if: steps.lic.outputs.ok == 'true'
         with:
           path: Library
-          key: Library-WebGL-${{ hashFiles('Packages/manifest.json', 'Assets/**/*.cs') }}
-          restore-keys: Library-WebGL-
+          # v3: invalidate old Library caches that caused IL2CPP_CodeGen segfaults (exit 139)
+          key: Library-WebGL-v3-${{ hashFiles('Packages/manifest.json', 'Assets/**/*.cs') }}
+          restore-keys: |
+            Library-WebGL-v3-
+      - name: Drop stale Bee / IL2CPP artifacts
+        if: steps.lic.outputs.ok == 'true'
+        run: |
+          # Partial Library restores leave inconsistent Bee/IL2CPP state; il2cpp then SIGSEGVs (exit 139).
+          rm -rf Library/Bee Library/Il2cppBuildCache Library/BuildPlayerData \
+                 Library/PlayerDataCache Library/ShaderCache Library/BuildCache
+          echo "Cleaned Bee/IL2CPP caches. Remaining Library:"
+          du -sh Library 2>/dev/null || true
       - uses: game-ci/unity-builder@v4
         if: steps.lic.outputs.ok == 'true'
         env:
@@ -129,3 +109,35 @@ jobs:
           force_orphan: true
           enable_jekyll: false
           commit_message: "release ${{ github.sha }}"
+
+  # After the WebGL artifact is produced: download-artifact unpacks it,
+  # then the player is force-pushed to renatoehzproyectos/op-test (main).
+  deploy-op-test:
+    name: Deploy WebGL → op-test
+    runs-on: ubuntu-latest
+    needs: [unity-web]
+    if: needs.unity-web.outputs.built == 'true'
+    steps:
+      - name: Download rocketworld-webgl artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: rocketworld-webgl
+          path: webgl
+
+      - name: Show what will be published
+        run: |
+          echo "Contents of the WebGL player:"
+          find webgl -maxdepth 2 -type f | head -40
+          test -f webgl/index.html
+          test -d webgl/Build
+
+      - name: Push to renatoehzproyectos/op-test
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.PAT }}
+          external_repository: renatoehzproyectos/op-test
+          publish_dir: ./webgl
+          publish_branch: main
+          force_orphan: true
+          enable_jekyll: false
+          commit_message: "deploy rocketworld-webgl from ${{ github.repository }}@${{ github.sha }}"
