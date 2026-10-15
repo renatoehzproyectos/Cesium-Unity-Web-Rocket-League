@@ -49,6 +49,8 @@ namespace RocketWorld
         float _originDebounceUntil;          // delay origin shifts while the user is dragging the ground-height slider
         double _pendingLon, _pendingLat; float _pendingGh;
         bool _originPending;
+        /// <summary>True while the settings panel is open. Expensive Cesium writes (SSE) are deferred until close.</summary>
+        public bool settingsOpen;
 
         static readonly Color DayFog = new Color(0.812f, 0.902f, 0.949f);   // 0xcfe6f2, RocketWorld's sky/fog
         static readonly Color DuskFog = new Color(0.95f, 0.60f, 0.42f);
@@ -206,14 +208,11 @@ namespace RocketWorld
             if (carCtl != null) carCtl.spawnHeadingDeg = s.heading;
             if (_color != s.carColor) { _color = s.carColor; CarVisual.SetBodyColor(carVisual, GameSettings.CarColors[s.carColor].color); }
 
-            float sse = EffectiveSse;
-            // Only push SSE when it moves enough — continuous slider drag would otherwise unload/reload
-            // tiles every frame and drop the car through missing colliders.
-            if (tileset != null && (float.IsNaN(_appliedSse) || Mathf.Abs(_appliedSse - sse) >= 0.5f))
-            {
-                _appliedSse = sse;
-                tileset.maximumScreenSpaceError = sse;
-            }
+            // SSE must NOT be written while the settings panel is open: dragging the slider would
+            // unload/reload Cesium tiles every frame and the car falls through missing colliders.
+            // AutoQuality (panel closed) and FlushSse (on panel close) still push SSE.
+            if (!settingsOpen)
+                CommitSse(EffectiveSse, protectCar: false);
 
             if (orbit != null) orbit.autoRotate = s.autoRotate;
 
@@ -236,12 +235,34 @@ namespace RocketWorld
             ApplyTimeOfDay();
         }
 
+        /// <summary>
+        /// Push maximumScreenSpaceError once. When <paramref name="protectCar"/> is true and SSE
+        /// actually changes, the car is held kinematic until nearby tile colliders exist again.
+        /// </summary>
+        public void CommitSse(float sse, bool protectCar)
+        {
+            if (tileset == null) return;
+            if (!float.IsNaN(_appliedSse) && Mathf.Abs(_appliedSse - sse) < 0.5f) return;
+            _appliedSse = sse;
+            tileset.maximumScreenSpaceError = sse;
+            if (budget != null) budget.burst = true;
+            // LOD swap drops MeshColliders under the car for a few frames — hold the car so it cannot fall.
+            if (protectCar && carCtl != null && carCtl.CurrentPhase == RocketCar.Phase.Running)
+                carCtl.Respawn(true);
+        }
+
         /// <summary>Force an immediate origin commit (e.g. after "Reload tiles" or a city preset that already called ApplyLive).</summary>
         public void FlushOrigin()
         {
             if (!_originPending) return;
             _originPending = false;
             CommitOrigin(_pendingLon, _pendingLat, _pendingGh, forceRespawn: true);
+        }
+
+        /// <summary>Apply the user's SSE (and auto offsets) once — call when the settings panel closes.</summary>
+        public void FlushSse()
+        {
+            CommitSse(EffectiveSse, protectCar: true);
         }
 
         public void SaveSettings() { settings.Save(); }

@@ -52,9 +52,13 @@ namespace RocketWorld
         {
             if (_open && !open)
             {
+                root.settingsOpen = false;
                 root.FlushOrigin();          // apply any pending location/height change now
+                root.FlushSse();             // apply tile-detail once (not while the slider was dragged)
                 root.SaveSettings();
             }
+            if (!_open && open)
+                root.settingsOpen = true;
             _open = open;
         }
 
