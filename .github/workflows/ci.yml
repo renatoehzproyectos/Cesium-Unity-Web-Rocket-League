@@ -42,6 +42,8 @@ jobs:
   unity-tests:
     name: Unity EditMode tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [checks, parity]
     steps:
       - uses: actions/checkout@v4
@@ -68,11 +70,12 @@ jobs:
         with:
           unityVersion: 6000.0.62f1
           testMode: editmode
-          githubToken: ${{ secrets.GITHUB_TOKEN }}
 
   unity-web:
     name: Unity 6000.0.62f1 WebGL build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write        # lets the job push the build to the release branch
     needs: [checks, parity]
     steps:
       - uses: actions/checkout@v4
