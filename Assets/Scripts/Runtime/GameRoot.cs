@@ -34,12 +34,12 @@ namespace RocketWorld
         public BenchmarkRunner benchmark;
         // offsets applied on top of the user's settings by AutoQuality
         public float autoSseAdd, autoScaleMul = 1f, autoFarMul = 1f;
-        public float EffectiveSse => Mathf.Max(settings.sse + autoSseAdd, _turbo ? TurboSse : 0f);
+        public float EffectiveSse => Mathf.Max(settings.sse + autoSseAdd, _turbo ? _turboCur : 0f);
 
         // "Turbo load": until the first view is fully loaded (or 20 s), ask for coarser tiles so the whole picture arrives fast,
         // then drop to the user's SSE and let Cesium refine in place (ancestors are already cached, so refining is cheap).
         const float TurboSse = 48f;
-        bool _turbo; float _turboStart;
+        bool _turbo; float _turboStart, _turboStep, _turboCur = TurboSse;
         public float EffectiveScale => Mathf.Clamp(settings.renderScale * autoScaleMul, 0.3f, 2f);
         public float EffectiveFar => settings.viewDistance * autoFarMul;
         bool _benchStarted;
@@ -96,8 +96,16 @@ namespace RocketWorld
         {
             if (_turbo && tileset != null)
             {
-                float el = Time.unscaledTime - _turboStart;
-                if ((el > 2f && tileset.ComputeLoadProgress() >= 99.9f) || el > 20f) { _turbo = false; CommitSse(EffectiveSse, protectCar: false); }
+                // Step the detail down gradually (48 -> target) instead of one cliff: a single big drop makes Cesium
+                // re-request nearly every tile at once (progress falls back to 0 %). Each step waits until the view is ~loaded.
+                float now = Time.unscaledTime;
+                if (now - _turboStart > 2f && now - _turboStep >= 2f && (tileset.ComputeLoadProgress() >= 95f || now - _turboStep >= 6f))
+                {
+                    _turboStep = now;
+                    _turboCur -= 8f;
+                    if (_turboCur <= settings.sse + autoSseAdd) _turbo = false;
+                    CommitSse(EffectiveSse, protectCar: false);
+                }
             }
             if (carInput != null && carInput.CameraTogglePressed) SetCameraMode(1 - cameraMode);
             // ?bench=1: start once the first tiles are in (or after 25 s on a slow link / no key)
@@ -155,7 +163,7 @@ namespace RocketWorld
                 TrySetTileset("foveatedConeSize", 0.25f);
                 TrySetTileset("foveatedTimeDelay", 0f);
                 TrySetTileset("foveatedMinimumScreenSpaceErrorRelaxation", 0f);
-                _turbo = true; _turboStart = Time.unscaledTime;
+                _turbo = true; _turboStart = _turboStep = Time.unscaledTime; _turboCur = TurboSse;
                 tileset.maximumCachedBytes = DeviceProfile.TileCacheBytes;   // WebGL heap is limited: sized from the device
                 tileset.maximumScreenSpaceError = EffectiveSse;
                 _appliedSse = EffectiveSse;
