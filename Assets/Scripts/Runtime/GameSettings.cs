@@ -81,7 +81,8 @@ namespace RocketWorld
             s.heading = (float)D(WebBridge.Query("hdg"), s.heading);
             s.timeOfDay = Mathf.Repeat((float)D(WebBridge.Query("t"), s.timeOfDay), 24f);
             s.sse = (float)D(WebBridge.Query("sse"), s.sse);
-            s.loadRadius = Mathf.Clamp((float)D(WebBridge.Query("radius"), s.loadRadius), 100f, 3000f);
+            s.loadRadius = Mathf.Clamp((float)D(WebBridge.Query("radius"), s.loadRadius), 100f, 20000f);
+            s.viewDistance = Mathf.Clamp((float)D(WebBridge.Query("far"), s.viewDistance), 200f, 20000f);
             s.renderScale = Mathf.Clamp((float)D(WebBridge.Query("scale"), s.renderScale), 0.3f, 2f);
             s.carColor = Mathf.Clamp((int)D(WebBridge.Query("car"), s.carColor), 0, CarColors.Length - 1);
             s.camYaw = (float)D(WebBridge.Query("yaw"), s.camYaw);
