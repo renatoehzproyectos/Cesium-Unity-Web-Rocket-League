@@ -128,6 +128,7 @@ jobs:
           # game-ci builds inside a root container: take ownership first. The player lands in build/WebGL/WebGL.
           sudo chown -R "$(id -u):$(id -g)" build
           cp deploy/vercel.json build/WebGL/WebGL/vercel.json
+          cp deploy/cesiumjs-compare.html build/WebGL/WebGL/cesiumjs-compare.html   # CesiumJS reference page: /cesiumjs-compare.html
           ls -la build/WebGL/WebGL build/WebGL/WebGL/Build
       - uses: actions/upload-artifact@v4
         if: steps.lic.outputs.ok == 'true'
