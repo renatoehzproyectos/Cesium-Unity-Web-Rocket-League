@@ -99,10 +99,10 @@ namespace RocketWorld
                 // Step the detail down gradually (48 -> target) instead of one cliff: a single big drop makes Cesium
                 // re-request nearly every tile at once (progress falls back to 0 %). Each step waits until the view is ~loaded.
                 float now = Time.unscaledTime;
-                if (now - _turboStart > 2f && now - _turboStep >= 2f && (tileset.ComputeLoadProgress() >= 95f || now - _turboStep >= 6f))
+                if (now - _turboStart > 2f && now - _turboStep >= 1.5f && (tileset.ComputeLoadProgress() >= 90f || now - _turboStep >= 4f))
                 {
                     _turboStep = now;
-                    _turboCur -= 8f;
+                    _turboCur -= 16f;
                     if (_turboCur <= settings.sse + autoSseAdd) _turbo = false;
                     CommitSse(EffectiveSse, protectCar: false);
                 }
@@ -154,11 +154,11 @@ namespace RocketWorld
                 tileset.forbidHoles = false;
                 tileset.enableFrustumCulling = true;
                 tileset.enforceCulledScreenSpaceError = true;
-                tileset.culledScreenSpaceError = 64f;
+                tileset.culledScreenSpaceError = 256f;      // tiles outside the view only get the coarsest level: bandwidth goes to what you look at
                 tileset.maximumSimultaneousTileLoads = DeviceProfile.SimultaneousLoads;
-                tileset.loadingDescendantLimit = 20;
+                tileset.loadingDescendantLimit = 60;       // let many visible tiles refine in parallel
                 // Optional tuning: set by reflection so a property that differs in this Cesium version cannot break the build.
-                TrySetTileset("preloadSiblings", true);
+                TrySetTileset("preloadSiblings", false);    // siblings are mostly outside the view
                 TrySetTileset("enableFoveatedRendering", true);
                 TrySetTileset("foveatedConeSize", 0.25f);
                 TrySetTileset("foveatedTimeDelay", 0f);

@@ -31,7 +31,7 @@ namespace RocketWorld
         }
 
         /// <summary>Tile cache budget. The WebGL heap is the scarce resource; deviceMemory is capped at 8 by browsers.</summary>
-        public static long TileCacheBytes => IsMobile ? (MemoryGB <= 3f ? 128L : 192L) * 1024 * 1024
+        public static long TileCacheBytes => IsMobile ? (MemoryGB <= 3f ? 128L : MemoryGB >= 6f ? 256L : 192L) * 1024 * 1024
                                            : MemoryGB <= 4f ? 256L * 1024 * 1024
                                            : MemoryGB >= 8f ? 512L * 1024 * 1024 : 384L * 1024 * 1024;
 
