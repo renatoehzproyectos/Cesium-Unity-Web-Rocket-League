@@ -29,7 +29,7 @@ namespace RocketWorld
         GUIStyle _btn;
         Vector2 _ctlScroll;
         int _listenAction = -1, _listenSlot;          // slot: 0/1 = keyboard, 2 = gamepad
-        bool _listenArmed; float _listenUntil;
+        float[] _listenBase; float _listenUntil;
         int _selRow, _selCol = InputBindings.SlotPad;
         Edge _nUp, _nDown, _nLeft, _nRight, _nOk, _nClear, _nReset, _nBack;
 
@@ -197,7 +197,7 @@ namespace RocketWorld
         void StartListening(int action, int slot)
         {
             if (_listenAction == action && _listenSlot == slot) { _listenAction = -1; return; }   // click again = cancel
-            _listenAction = action; _listenSlot = slot; _listenArmed = false; _listenUntil = Time.unscaledTime + 8f;
+            _listenAction = action; _listenSlot = slot; _listenBase = InputDevices.PadBaseline(); _listenUntil = Time.unscaledTime + 8f;
             _selRow = action; _selCol = slot;
         }
 
@@ -240,10 +240,8 @@ namespace RocketWorld
                 }
                 else
                 {
-                    // Wait until everything on the pad is released (the confirm press itself must not bind), then take the first press.
-                    bool held = InputDevices.AnyPadInputHeld(out var p);
-                    if (!_listenArmed) { if (!held) _listenArmed = true; }
-                    else if (held)
+                    // Compare against the values when listening began: the confirm press already held, or an axis that rests above zero, must not bind.
+                    if (InputDevices.AnyPadInputRaised(_listenBase, out var p))
                     {
                         var stolen = ib.SetPad(act, p);
                         _listenAction = -1; Bound(act, stolen);
@@ -274,6 +272,7 @@ namespace RocketWorld
             GUILayout.Label("<b>Controls</b>", _small);
             string pad = InputDevices.PadName();
             GUILayout.Label(pad != null ? "Gamepad: " + pad : "No gamepad detected — connect one and press any button.", _small);
+            if (pad != null) GUILayout.Label("Pressing now: " + (InputDevices.ActivePadInputs() is var act && act.Length > 0 ? act : "—"), _small);
             GUILayout.Label("<color=#ffffff99>Click a slot, then press the key / button you want. Esc cancels, Backspace clears. Right stick orbits the camera; left stick up/down pitches in the air.</color>", _small);
             _ctlScroll = GUILayout.BeginScrollView(_ctlScroll);
             GUILayout.BeginHorizontal();

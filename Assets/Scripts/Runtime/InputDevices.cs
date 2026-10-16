@@ -133,8 +133,21 @@ namespace RocketWorld
         }
 
         static float Btn(int i) => Input.GetKey((KeyCode)((int)KeyCode.JoystickButton0 + i)) ? 1f : 0f;
+        static bool IsPs()
+        {
+            var n = PadName() ?? "";
+            return n.IndexOf("Wireless Controller", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("PLAYSTATION", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("DualShock", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
         public static float PadValue(PadInput p)
         {
+            if (IsPs())   // legacy PS4 numbering: 0 square, 1 cross, 2 circle, 3 triangle, 4 L1, 5 R1, 6 L2, 7 R2, 8 share, 9 options, 10 L3, 11 R3
+                switch (p)
+                {
+                    case PadInput.ButtonSouth: return Btn(1); case PadInput.ButtonEast: return Btn(2); case PadInput.ButtonWest: return Btn(0); case PadInput.ButtonNorth: return Btn(3);
+                    case PadInput.LeftShoulder: return Btn(4); case PadInput.RightShoulder: return Btn(5); case PadInput.LeftTrigger: return Btn(6); case PadInput.RightTrigger: return Btn(7);
+                    case PadInput.Select: return Btn(8); case PadInput.Start: return Btn(9); case PadInput.LeftStickPress: return Btn(10); case PadInput.RightStickPress: return Btn(11);
+                    default: return 0f;
+                }
             switch (p)
             {
                 case PadInput.ButtonSouth: return Btn(0); case PadInput.ButtonEast: return Btn(1); case PadInput.ButtonWest: return Btn(2); case PadInput.ButtonNorth: return Btn(3);
@@ -157,17 +170,32 @@ namespace RocketWorld
 
         static readonly PadInput[] AllPad = (PadInput[])Enum.GetValues(typeof(PadInput));
         /// <summary>Returns the first gamepad input currently held past the digital threshold (for "press a button to bind").</summary>
-        public static bool AnyPadInputHeld(out PadInput found)
+        public static bool AnyPadInputHeld(out PadInput found) => AnyPadInputRaised(null, out found);
+
+        /// <summary>Snapshot of every pad input's current value (so resting / drifting axes can be ignored while binding).</summary>
+        public static float[] PadBaseline() { var b = new float[AllPad.Length]; for (int i = 0; i < b.Length; i++) b[i] = PadValue(AllPad[i]); return b; }
+
+        /// <summary>First pad input that is past the threshold AND has risen clearly above its baseline value.</summary>
+        public static bool AnyPadInputRaised(float[] baseline, out PadInput found)
         {
             found = PadInput.None;
-            float best = Digital;
-            foreach (var p in AllPad)
+            float best = 0f;
+            for (int i = 0; i < AllPad.Length; i++)
             {
-                if (p == PadInput.None) continue;
-                float v = PadValue(p);
-                if (v >= best) { best = v; found = p; }
+                if (AllPad[i] == PadInput.None) continue;
+                float v = PadValue(AllPad[i]);
+                float rise = v - (baseline != null ? baseline[i] : 0f);
+                if (v >= Digital && rise >= 0.4f && v > best) { best = v; found = AllPad[i]; }
             }
             return found != PadInput.None;
+        }
+
+        /// <summary>Human-readable list of pad inputs currently active, for the live readout in the controls panel.</summary>
+        public static string ActivePadInputs()
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (var p in AllPad) if (p != PadInput.None && PadValue(p) >= 0.3f) { if (sb.Length > 0) sb.Append(", "); sb.Append(InputBindings.PadLabel(p)); }
+            return sb.ToString();
         }
     }
 }
