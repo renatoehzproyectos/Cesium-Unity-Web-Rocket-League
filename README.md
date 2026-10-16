@@ -12,7 +12,7 @@ on Unity PhysX**, so collision against buildings and terrain is exact (real mesh
 
 ## Controls
 WASD/arrows drive · Space jump (twice = flip, with direction = dodge) · Shift boost (infinite) · Ctrl/X drift · Q/E air-roll · C camera · R rescue ·
-Esc / gear = settings · link button copies a URL for this place (never includes your API key). Mobile: on-screen pads. Gamepad supported.
+Esc / gear = settings · link button copies a URL for this place (never includes your API key). Mobile: on-screen pads. Full gamepad support (any controller the browser exposes; right stick orbits the camera). The **Controls** button next to the gear opens a rebinding screen: click a slot (key, alt key, gamepad) and press the new input; Backspace clears, Esc cancels. Gamepad users press Menu/Start to open it and navigate with the D-pad (A bind, X clear, Y reset, B close). Bindings are stored in this browser. Analog sticks/triggers need the Input System package as the active input handler (set automatically by `ProjectSetup`).
 URL params: `?key= ?ion= ?lat= ?lon= ?h= ?hdg= ?t= ?car= ?sse= ?scale= ?bench=1`.
 
 ## Deploy: GitHub -> Vercel

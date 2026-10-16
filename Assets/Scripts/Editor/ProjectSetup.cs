@@ -25,6 +25,7 @@ namespace RocketWorld.Editor
         {
             Directory.CreateDirectory("Assets/Settings"); Directory.CreateDirectory("Assets/Scenes"); Directory.CreateDirectory("Assets/Resources/Materials");
             EnsureUrp();
+            EnsureInputSystem();
             EnsureMaterial("Assets/Resources/Materials/Ground.mat", "Universal Render Pipeline/Lit", new Color(0.36f, 0.42f, 0.33f));
             EnsureMaterial("Assets/Resources/Materials/Flame.mat", "Universal Render Pipeline/Unlit", new Color(1f, 0.63f, 0.13f));
             EnsureMaterial("Assets/Resources/Materials/Sky.mat", "Skybox/Procedural", Color.white);
@@ -59,6 +60,23 @@ namespace RocketWorld.Editor
             }
             QualitySettings.SetQualityLevel(current, false);
             PlayerSettings.colorSpace = ColorSpace.Linear;
+        }
+
+        /// <summary>
+        /// Gamepad sticks / triggers need the Input System package to be the active input handler (Player settings: "Active Input Handling").
+        /// 1 = Input System package only. Unity applies a changed value after an Editor restart; the runtime code falls back to the legacy
+        /// Input Manager (keyboard + gamepad buttons only) until then.
+        /// </summary>
+        static void EnsureInputSystem()
+        {
+            var all = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset");
+            if (all == null || all.Length == 0) return;
+            var so = new SerializedObject(all[0]);
+            var p = so.FindProperty("activeInputHandler");
+            if (p == null || p.intValue == 1) return;
+            p.intValue = 1;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            Debug.Log("[RocketWorld] Active Input Handling set to Input System Package (restart the Editor if prompted).");
         }
 
         static void SetBool(SerializedObject so, string name, bool v) { var p = so.FindProperty(name); if (p != null) p.boolValue = v; }

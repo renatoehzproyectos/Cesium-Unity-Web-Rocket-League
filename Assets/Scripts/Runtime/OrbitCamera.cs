@@ -17,6 +17,7 @@ namespace RocketWorld
         public Vector3 lookOffset = new Vector3(0f, 0.8f, 0f);
         public bool externalControl;             // benchmark drives yaw/pitch/distance itself
         public System.Func<Vector2, bool> pointerBlocked;   // true when the pointer is over HUD
+        public System.Func<bool> padBlocked;                // true while a menu owns the gamepad (right stick must not orbit)
 
         float _idle;
         float _pinchPrev;
@@ -99,6 +100,12 @@ namespace RocketWorld
             float kz = (Input.GetKey(KeyCode.Equals) || Input.GetKey(KeyCode.KeypadPlus) ? 1 : 0) - (Input.GetKey(KeyCode.Minus) || Input.GetKey(KeyCode.KeypadMinus) ? 1 : 0);
             if (kx != 0 || ky != 0 || kz != 0) { drag += new Vector2(kx, ky) * 240f * dt; zoom += kz * 1.2f * dt; active = true; }
 #endif
+            // Gamepad: right stick orbits the camera (works with either input backend; no-op without the Input System package).
+            if (padBlocked == null || !padBlocked())
+            {
+                var rs = InputDevices.RightStick();
+                if (rs.sqrMagnitude > 0f) { drag += new Vector2(rs.x, rs.y) * 420f * dt; active = true; }
+            }
         }
 
         bool Blocked(Vector2 screenPos) => pointerBlocked != null && pointerBlocked(screenPos);

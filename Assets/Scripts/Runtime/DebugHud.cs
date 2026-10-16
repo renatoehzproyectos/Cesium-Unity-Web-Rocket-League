@@ -23,6 +23,16 @@ namespace RocketWorld
         float _nextStats;
         bool _reportOpen;
 
+        // ---- controls (key / gamepad rebinding) panel ----
+        Rect _ctl, _ctlPanel;
+        bool _ctlOpen;
+        GUIStyle _btn;
+        Vector2 _ctlScroll;
+        int _listenAction = -1, _listenSlot;          // slot: 0/1 = keyboard, 2 = gamepad
+        bool _listenArmed; float _listenUntil;
+        int _selRow, _selCol = InputBindings.SlotPad;
+        Edge _nUp, _nDown, _nLeft, _nRight, _nOk, _nClear, _nReset, _nBack;
+
         string _searchQuery = "";
         string _searchStatus = "";
         bool _searching;
@@ -34,7 +44,14 @@ namespace RocketWorld
             _ring[_ringI] = dtMs; _ringI = (_ringI + 1) % _ring.Length; if (_ringN < _ring.Length) _ringN++;
             if (Time.unscaledTime >= _nextStats && root.settings.debugHud) { _nextStats = Time.unscaledTime + 0.25f; RebuildStats(); }
             if (root.benchmark != null && !_reportOpen && !string.IsNullOrEmpty(root.benchmark.Report) && !root.benchmark.Running) _reportOpen = true;
-            if (OrbitCamera.SettingsKeyPressed()) SetOpen(!_open);
+            var ci = root.carInput;
+            if (_ctlOpen) UpdateControlsPanel();
+            else if (ci != null ? ci.SettingsPressed : OrbitCamera.SettingsKeyPressed())
+            {
+                if (ci != null && ci.MenuFromPad && !_open) SetControlsOpen(true);   // gamepad menu button: the pad-navigable screen
+                else SetOpen(!_open);
+            }
+            if (ci != null) ci.Blocked = _ctlOpen;
         }
 
         void RebuildStats()
@@ -65,7 +82,10 @@ namespace RocketWorld
                 root.SaveSettings();
             }
             if (!_open && open)
+            {
                 root.settingsOpen = true;
+                if (_ctlOpen) SetControlsOpen(false);
+            }
             _open = open;
         }
 
@@ -74,7 +94,7 @@ namespace RocketWorld
         {
             var p = new Vector2(screenPos.x / _k, (Screen.height - screenPos.y) / _k);
             if (root.carInput != null && root.carInput.TouchControlsActive && CarInput.OverTouchZone(screenPos)) return true;
-            return _gear.Contains(p) || (_open && _panel.Contains(p)) || (_reportOpen && _report.Contains(p));
+            return _gear.Contains(p) || _ctl.Contains(p) || (_ctlOpen && _ctlPanel.Contains(p)) || (_open && _panel.Contains(p)) || (_reportOpen && _report.Contains(p));
         }
 
         void OnGUI()
@@ -88,6 +108,9 @@ namespace RocketWorld
             var s = root.settings;
             _gear = new Rect(W - 68, 8, 60, 60);
             _panel = new Rect(W - 380, 76, 370, H - 90);
+            _ctl = new Rect(W - 136, 8, 60, 60);
+            _ctlPanel = new Rect(Mathf.Max(8, W - 520), 76, Mathf.Min(510, W - 16), H - 90);
+            _btn ??= new GUIStyle(GUI.skin.button) { fontSize = 12, richText = true, wordWrap = true };
 
             if (!string.IsNullOrEmpty(root.carCtl.Status))
                 GUI.Label(new Rect(0, H * 0.42f, W, 40), "<size=22>" + root.carCtl.Status + "</size>", _center);
@@ -110,8 +133,10 @@ namespace RocketWorld
                 GUI.Label(new Rect(0, H * 0.14f, W, 70), "<size=16>No Cesium ion token — showing a flat test ground.\nRedeploy with the ION_TOKEN GitHub secret, or open with ?ion=YOUR_TOKEN.</size>", _center);
 
             if (GUI.Button(_gear, "⚙")) SetOpen(!_open);
+            if (GUI.Button(_ctl, "Controls", _btn)) SetControlsOpen(!_ctlOpen);
             if (Time.unscaledTime < _toast) GUI.Label(new Rect(0, 56, W, 24), "<size=14>" + _toastText + "</size>", _center);
             if (_reportOpen && root.benchmark != null) DrawReport(H);
+            if (_ctlOpen) DrawControls();
             if (!_open) return;
 
             bool changed = false;
@@ -156,6 +181,133 @@ namespace RocketWorld
             GUILayout.EndArea();
 
             if (GUI.changed || changed) root.ApplyLive();
+        }
+
+        // =================================================== controls panel ===================================================
+        void SetControlsOpen(bool open)
+        {
+            if (open == _ctlOpen) return;
+            if (open && _open) SetOpen(false);
+            _ctlOpen = open;
+            _listenAction = -1;
+            if (!open && root.carInput != null) root.carInput.bindings.Save();
+            if (root.carInput != null) root.carInput.Blocked = open;
+        }
+
+        void StartListening(int action, int slot)
+        {
+            if (_listenAction == action && _listenSlot == slot) { _listenAction = -1; return; }   // click again = cancel
+            _listenAction = action; _listenSlot = slot; _listenArmed = false; _listenUntil = Time.unscaledTime + 8f;
+            _selRow = action; _selCol = slot;
+        }
+
+        void Toast(string t) { _toast = Time.unscaledTime + 2.5f; _toastText = t; }
+
+        void Bound(CarAction a, CarAction? stolen)
+        {
+            root.carInput.bindings.Save();
+            Toast(stolen.HasValue ? $"{InputBindings.Label(a)} bound — removed from {InputBindings.Label(stolen.Value)}" : $"{InputBindings.Label(a)} bound");
+        }
+
+        void UpdateControlsPanel()
+        {
+            var ib = root.carInput != null ? root.carInput.bindings : null;
+            if (ib == null) return;
+            // Edges are sampled every frame (even while listening) so a held button never counts as a fresh press later.
+            var ls = InputDevices.LeftStick();
+            bool up = _nUp.Update(InputDevices.PadValue(PadInput.DpadUp) > 0.5f || ls.y > 0.6f);
+            bool down = _nDown.Update(InputDevices.PadValue(PadInput.DpadDown) > 0.5f || ls.y < -0.6f);
+            bool left = _nLeft.Update(InputDevices.PadValue(PadInput.DpadLeft) > 0.5f || ls.x < -0.6f);
+            bool right = _nRight.Update(InputDevices.PadValue(PadInput.DpadRight) > 0.5f || ls.x > 0.6f);
+            bool ok = _nOk.Update(InputDevices.PadValue(PadInput.ButtonSouth) > 0.5f);
+            bool clear = _nClear.Update(InputDevices.PadValue(PadInput.ButtonWest) > 0.5f);
+            bool reset = _nReset.Update(InputDevices.PadValue(PadInput.ButtonNorth) > 0.5f);
+            bool back = _nBack.Update(InputDevices.PadValue(PadInput.ButtonEast) > 0.5f || InputDevices.PadValue(ib.GetPad(CarAction.Menu)) > 0.5f);
+
+            if (_listenAction >= 0)
+            {
+                var act = InputBindings.Actions[_listenAction];
+                if (Time.unscaledTime > _listenUntil) { _listenAction = -1; return; }
+                if (_listenSlot < InputBindings.KeySlots)
+                {
+                    if (InputDevices.AnyKeyboardKeyPressed(out var key))
+                    {
+                        if (key == "Escape") { _listenAction = -1; return; }
+                        if (key == "Backspace" || key == "Delete") { ib.Clear(act, _listenSlot); Bound(act, null); _listenAction = -1; return; }
+                        var stolen = ib.SetKey(act, _listenSlot, key);
+                        _listenAction = -1; Bound(act, stolen);
+                    }
+                }
+                else
+                {
+                    // Wait until everything on the pad is released (the confirm press itself must not bind), then take the first press.
+                    bool held = InputDevices.AnyPadInputHeld(out var p);
+                    if (!_listenArmed) { if (!held) _listenArmed = true; }
+                    else if (held)
+                    {
+                        var stolen = ib.SetPad(act, p);
+                        _listenAction = -1; Bound(act, stolen);
+                    }
+                    if (OrbitCamera.SettingsKeyPressed()) _listenAction = -1;   // Esc cancels
+                }
+                return;
+            }
+
+            if (OrbitCamera.SettingsKeyPressed() || back) { SetControlsOpen(false); return; }
+            int n = InputBindings.Actions.Length;
+            if (up) _selRow = (_selRow + n - 1) % n;
+            if (down) _selRow = (_selRow + 1) % n;
+            if (left) _selCol = Mathf.Max(0, _selCol - 1);
+            if (right) _selCol = Mathf.Min(InputBindings.SlotPad, _selCol + 1);
+            var sel = InputBindings.Actions[_selRow];
+            if (InputBindings.KeyboardLocked(sel)) _selCol = InputBindings.SlotPad;
+            if (ok && !(InputBindings.KeyboardLocked(sel) && _selCol < InputBindings.KeySlots)) StartListening(_selRow, _selCol);
+            if (clear) { ib.Clear(sel, _selCol); ib.Save(); }
+            if (reset) { ib.ResetAll(); ib.Save(); Toast("Controls reset to defaults"); }
+        }
+
+        void DrawControls()
+        {
+            var ib = root.carInput != null ? root.carInput.bindings : null;
+            if (ib == null) return;
+            GUILayout.BeginArea(_ctlPanel, GUI.skin.box);
+            GUILayout.Label("<b>Controls</b>", _small);
+            string pad = InputDevices.PadName();
+            GUILayout.Label(pad != null ? "Gamepad: " + pad : "No gamepad detected — connect one and press any button.", _small);
+            GUILayout.Label("<color=#ffffff99>Click a slot, then press the key / button you want. Esc cancels, Backspace clears. Right stick orbits the camera; left stick up/down pitches in the air.</color>", _small);
+            _ctlScroll = GUILayout.BeginScrollView(_ctlScroll);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("", GUILayout.Width(150));
+            GUILayout.Label("Key", _center, GUILayout.Width(88)); GUILayout.Label("Alt key", _center, GUILayout.Width(88)); GUILayout.Label("Gamepad", _center, GUILayout.Width(110));
+            GUILayout.EndHorizontal();
+            var old = GUI.backgroundColor;
+            for (int i = 0; i < InputBindings.Actions.Length; i++)
+            {
+                var a = InputBindings.Actions[i];
+                GUILayout.BeginHorizontal();
+                GUILayout.Label(InputBindings.Label(a), GUILayout.Width(150));
+                for (int slot = 0; slot < InputBindings.SlotCount; slot++)
+                {
+                    bool locked = slot < InputBindings.KeySlots && InputBindings.KeyboardLocked(a);
+                    bool listening = _listenAction == i && _listenSlot == slot;
+                    string text = listening ? "press…" : locked ? (slot == 0 ? "Esc" : "Tab")
+                        : slot == InputBindings.SlotPad ? InputBindings.PadLabel(ib.GetPad(a)) : InputBindings.KeyLabel(ib.GetKey(a, slot));
+                    GUI.backgroundColor = listening ? new Color(1f, 0.85f, 0.3f) : (i == _selRow && slot == _selCol && InputDevices.HasGamepad) ? new Color(0.5f, 0.9f, 1f) : old;
+                    GUI.enabled = !locked;
+                    if (GUILayout.Button(text, _btn, GUILayout.Width(slot == InputBindings.SlotPad ? 110 : 88), GUILayout.Height(24))) StartListening(i, slot);
+                    GUI.enabled = true;
+                }
+                GUILayout.EndHorizontal();
+            }
+            GUI.backgroundColor = old;
+            GUILayout.EndScrollView();
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Reset to defaults")) { ib.ResetAll(); ib.Save(); _listenAction = -1; Toast("Controls reset to defaults"); }
+            if (GUILayout.Button("Done")) SetControlsOpen(false);
+            GUILayout.EndHorizontal();
+            if (InputDevices.HasGamepad)
+                GUILayout.Label("<color=#ffffff88>Gamepad: D-pad / left stick move · A bind · X clear · Y reset all · B / Menu close</color>", _small);
+            GUILayout.EndArea();
         }
 
         IEnumerator SearchAndTeleport(string query)

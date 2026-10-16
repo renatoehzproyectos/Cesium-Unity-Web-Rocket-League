@@ -98,6 +98,7 @@ namespace RocketWorld
             tileLog.root = this;
             if (tileset != null) tileLog.Begin(tileset);   // the first tileset was created before the log existed
             orbit.pointerBlocked = hud.Over;
+            orbit.padBlocked = () => carInput != null && carInput.Blocked;
         }
 
         void Start() { WebBridge.HideLoading(); }
