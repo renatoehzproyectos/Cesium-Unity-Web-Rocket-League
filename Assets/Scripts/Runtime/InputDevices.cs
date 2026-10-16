@@ -36,8 +36,8 @@ namespace RocketWorld
             return key != Key.None;
         }
 
-        public static bool HasGamepad => Gamepad.current != null;
-        public static string PadName() => Gamepad.current != null ? Gamepad.current.displayName : null;
+        public static bool HasGamepadNative => Gamepad.current != null;
+        public static string PadNameNative() => Gamepad.current != null ? Gamepad.current.displayName : null;
 
         public static float KeyValue(string name)
         {
@@ -56,7 +56,7 @@ namespace RocketWorld
             return false;
         }
 
-        public static float PadValue(PadInput p)
+        public static float PadValueNative(PadInput p)
         {
             var g = Gamepad.current;
             if (g == null || p == PadInput.None) return 0f;
@@ -90,8 +90,8 @@ namespace RocketWorld
         }
 
         /// <summary>Raw (dead-zoned) stick position, for camera orbit and menu navigation.</summary>
-        public static Vector2 LeftStick() { var g = Gamepad.current; return g == null ? Vector2.zero : new Vector2(Rescale(g.leftStick.x.ReadValue()), Rescale(g.leftStick.y.ReadValue())); }
-        public static Vector2 RightStick() { var g = Gamepad.current; return g == null ? Vector2.zero : new Vector2(Rescale(g.rightStick.x.ReadValue()), Rescale(g.rightStick.y.ReadValue())); }
+        public static Vector2 LeftStickNative() { var g = Gamepad.current; return g == null ? Vector2.zero : new Vector2(Rescale(g.leftStick.x.ReadValue()), Rescale(g.leftStick.y.ReadValue())); }
+        public static Vector2 RightStickNative() { var g = Gamepad.current; return g == null ? Vector2.zero : new Vector2(Rescale(g.rightStick.x.ReadValue()), Rescale(g.rightStick.y.ReadValue())); }
 #elif ENABLE_LEGACY_INPUT_MANAGER
         static readonly Dictionary<string, KeyCode> _keys = new Dictionary<string, KeyCode>();
         static readonly Dictionary<string, string> Alias = new Dictionary<string, string>
@@ -117,8 +117,8 @@ namespace RocketWorld
             return kc.ToString();
         }
 
-        public static bool HasGamepad { get { foreach (var n in Input.GetJoystickNames()) if (!string.IsNullOrEmpty(n)) return true; return false; } }
-        public static string PadName() { foreach (var n in Input.GetJoystickNames()) if (!string.IsNullOrEmpty(n)) return n; return null; }
+        public static bool HasGamepadNative { get { foreach (var n in Input.GetJoystickNames()) if (!string.IsNullOrEmpty(n)) return true; return false; } }
+        public static string PadNameNative() { foreach (var n in Input.GetJoystickNames()) if (!string.IsNullOrEmpty(n)) return n; return null; }
 
         public static float KeyValue(string name) => !string.IsNullOrEmpty(name) && Resolve(name, out var k) && Input.GetKey(k) ? 1f : 0f;
 
@@ -135,10 +135,10 @@ namespace RocketWorld
         static float Btn(int i) => Input.GetKey((KeyCode)((int)KeyCode.JoystickButton0 + i)) ? 1f : 0f;
         static bool IsPs()
         {
-            var n = PadName() ?? "";
+            var n = PadNameNative() ?? "";
             return n.IndexOf("Wireless Controller", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("PLAYSTATION", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("DualShock", StringComparison.OrdinalIgnoreCase) >= 0;
         }
-        public static float PadValue(PadInput p)
+        public static float PadValueNative(PadInput p)
         {
             if (IsPs())   // legacy PS4 numbering: 0 square, 1 cross, 2 circle, 3 triangle, 4 L1, 5 R1, 6 L2, 7 R2, 8 share, 9 options, 10 L3, 11 R3
                 switch (p)
@@ -156,16 +156,32 @@ namespace RocketWorld
                 default: return 0f;   // sticks / triggers / d-pad are axes: need the Input System package
             }
         }
-        public static Vector2 LeftStick() => Vector2.zero;
-        public static Vector2 RightStick() => Vector2.zero;
+        public static Vector2 LeftStickNative() => Vector2.zero;
+        public static Vector2 RightStickNative() => Vector2.zero;
 #else
-        public static bool HasGamepad => false;
-        public static string PadName() => null;
+        public static bool HasGamepadNative => false;
+        public static string PadNameNative() => null;
         public static float KeyValue(string name) => 0f;
         public static bool AnyKeyboardKeyPressed(out string name) { name = null; return false; }
-        public static float PadValue(PadInput p) => 0f;
-        public static Vector2 LeftStick() => Vector2.zero;
-        public static Vector2 RightStick() => Vector2.zero;
+        public static float PadValueNative(PadInput p) => 0f;
+        public static Vector2 LeftStickNative() => Vector2.zero;
+        public static Vector2 RightStickNative() => Vector2.zero;
+#endif
+
+
+        // ---- gamepad entry points: on the WebGL player the browser Gamepad API is used directly; elsewhere the active Unity backend ----
+#if UNITY_WEBGL && !UNITY_EDITOR
+        public static bool HasGamepad => WebPad.Connected;
+        public static string PadName() => WebPad.Name();
+        public static float PadValue(PadInput p) => WebPad.Value(p);
+        public static Vector2 LeftStick() => WebPad.Left();
+        public static Vector2 RightStick() => WebPad.Right();
+#else
+        public static bool HasGamepad => HasGamepadNative;
+        public static string PadName() => PadNameNative();
+        public static float PadValue(PadInput p) => PadValueNative(p);
+        public static Vector2 LeftStick() => LeftStickNative();
+        public static Vector2 RightStick() => RightStickNative();
 #endif
 
         static readonly PadInput[] AllPad = (PadInput[])Enum.GetValues(typeof(PadInput));
