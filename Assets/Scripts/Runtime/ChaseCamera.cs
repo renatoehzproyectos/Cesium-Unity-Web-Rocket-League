@@ -29,22 +29,23 @@ namespace RocketWorld
             if (dir.sqrMagnitude < 1e-4f) dir = _heading;
             dir.Normalize();
             if (!_ready) _heading = dir;
-            _heading = Vector3.Lerp(_heading, dir, 1f - Mathf.Exp(-dt * (grounded ? 5f : 2.5f))).normalized;
+            _heading = Vector3.Lerp(_heading, dir, 1f - Mathf.Exp(-dt * (grounded ? 3.6f : 2f))).normalized;
 
-            var want = carPos - _heading * 7.5f; want.y = carPos.y + 2.8f;
+            float sp = Mathf.Clamp01(car.SpeedMS / 46f);
+            var want = carPos - _heading * (7.6f + sp * 2.2f); want.y = carPos.y + 2.9f + sp * 0.5f;   // pulls back a little with speed
             if (Physics.Linecast(carPos + Vector3.up * 0.8f, want, out var hit, PhysicsSetup.WorldMask, QueryTriggerInteraction.Ignore))
                 want = hit.point + hit.normal * 0.4f;
             var tgt = carPos + _heading * 5f + Vector3.up;
             var pos = transform.position;                                  // camera has a CesiumGlobeAnchor: valid across origin shifts
             if (!_ready) { pos = want; _lookOffset = tgt - carPos; _ready = true; }
-            pos = Vector3.Lerp(pos, want, 1f - Mathf.Exp(-dt * 8f));
+            pos = Vector3.Lerp(pos, want, 1f - Mathf.Exp(-dt * 6.5f));
             _lookOffset = Vector3.Lerp(_lookOffset, tgt - carPos, 1f - Mathf.Exp(-dt * 12f));
             if (Physics.Raycast(pos + Vector3.up * 50f, Vector3.down, out var gh, 60f, PhysicsSetup.WorldMask, QueryTriggerInteraction.Ignore) && pos.y < gh.point.y + 0.8f)
                 pos.y = gh.point.y + 0.8f;
 
             transform.SetPositionAndRotation(pos, Quaternion.LookRotation((carPos + _lookOffset) - pos, Vector3.up));
-            float f = 78f + Mathf.Min(car.SpeedMS / 46f, 1f) * 18f;
-            _fov += (f - _fov) * Mathf.Min(1f, dt * 4f);
+            float f = 72f + Mathf.SmoothStep(0f, 1f, Mathf.Min(car.SpeedMS / 46f, 1f)) * 16f;
+            _fov += (f - _fov) * Mathf.Min(1f, dt * 2.5f);
             if (_cam != null) _cam.fieldOfView = _fov;
         }
     }

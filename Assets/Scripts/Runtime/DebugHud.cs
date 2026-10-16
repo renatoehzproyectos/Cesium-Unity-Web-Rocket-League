@@ -94,47 +94,102 @@ namespace RocketWorld
         {
             var p = new Vector2(screenPos.x / _k, (Screen.height - screenPos.y) / _k);
             if (root.carInput != null && root.carInput.TouchControlsActive && CarInput.OverTouchZone(screenPos)) return true;
-            return _gear.Contains(p) || _ctl.Contains(p) || (_ctlOpen && _ctlPanel.Contains(p)) || (_open && _panel.Contains(p)) || (_reportOpen && _report.Contains(p));
+            return (root.minimap != null && root.minimap.Rect.Contains(p)) || _gear.Contains(p) || _ctl.Contains(p) || (_ctlOpen && _ctlPanel.Contains(p)) || (_open && _panel.Contains(p)) || (_reportOpen && _report.Contains(p));
+        }
+
+        float _runStart = -1f, _shownSpeed;
+        GUIStyle _mapN;
+
+        static void Shadowed(Rect r, string text, GUIStyle st)
+        {
+            var old = GUI.color;
+            GUI.color = new Color(0f, 0f, 0f, 0.55f * old.a);
+            GUI.Label(new Rect(r.x + 2, r.y + 2, r.width, r.height), text, st);
+            GUI.color = old;
+            GUI.Label(r, text, st);
+        }
+
+        void DrawSpeed(float W, float H)
+        {
+            var cc = root.carCtl;
+            _shownSpeed = Mathf.Lerp(_shownSpeed, cc.SpeedMS, 1f - Mathf.Exp(-Time.unscaledDeltaTime * 12f));
+            float frac = Mathf.Clamp01(_shownSpeed / 46f);
+            bool boosting = cc.State.isBoosting;
+            Shadowed(new Rect(W * 0.5f - 120, H - 128, 240, 66), Mathf.RoundToInt(_shownSpeed * 3.6f).ToString(), UiTheme.Big);
+            Shadowed(new Rect(W * 0.5f - 120, H - 62, 240, 20), "KM/H", UiTheme.Unit);
+            if (Event.current.type != EventType.Repaint) return;
+            var track = new Rect(W * 0.5f - 110, H - 38, 220, 6);
+            GUI.DrawTexture(track, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(1, 1, 1, 0.16f), 0f, 3f);
+            if (frac > 0.01f)
+                GUI.DrawTexture(new Rect(track.x, track.y, Mathf.Max(6f, track.width * frac), track.height), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f,
+                    boosting ? UiTheme.Hot : Color.Lerp(UiTheme.Accent, Color.white, frac * 0.35f), 0f, 3f);
         }
 
         void OnGUI()
         {
             if (root == null) return;
+            GUI.skin = UiTheme.Skin;
             _k = Mathf.Clamp(Screen.height / 720f, 1f, 2.5f);
             GUIUtility.ScaleAroundPivot(new Vector2(_k, _k), Vector2.zero);
             float W = Screen.width / _k, H = Screen.height / _k;
-            _small ??= new GUIStyle(GUI.skin.label) { fontSize = 12, richText = true };
-            _center ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.UpperCenter, richText = true };
+            _small ??= new GUIStyle(GUI.skin.label) { fontSize = 14 };
+            _center = UiTheme.Center;
+            _btn ??= new GUIStyle(GUI.skin.button) { fontSize = 14, wordWrap = true };
+            _mapN ??= new GUIStyle(GUI.skin.label) { font = UiTheme.Bold, fontSize = 13, alignment = TextAnchor.MiddleCenter, wordWrap = false, normal = { textColor = UiTheme.Accent } };
             var s = root.settings;
-            _gear = new Rect(W - 68, 8, 60, 60);
-            _panel = new Rect(W - 380, 76, 370, H - 90);
-            _ctl = new Rect(W - 136, 8, 60, 60);
-            _ctlPanel = new Rect(Mathf.Max(8, W - 520), 76, Mathf.Min(510, W - 16), H - 90);
-            _btn ??= new GUIStyle(GUI.skin.button) { fontSize = 12, richText = true, wordWrap = true };
+            _gear = new Rect(W - 60, 14, 46, 46);
+            _ctl = new Rect(W - 166, 14, 100, 46);
+            _panel = new Rect(W - 380, 70, 370, H - 84);
+            _ctlPanel = new Rect(Mathf.Max(8, W - 520), 70, Mathf.Min(510, W - 16), H - 84);
+
+            bool running = root.carCtl.CurrentPhase == RocketCar.Phase.Running;
+            if (running && _runStart < 0f) _runStart = Time.unscaledTime;
+            bool touch = root.carInput != null && root.carInput.TouchControlsActive;
+
+            if (Event.current.type == EventType.Repaint)
+                GUI.DrawTexture(new Rect(0, 0, W, H), UiTheme.Vignette, ScaleMode.StretchToFill, true);
+
+            if (root.minimap != null) root.minimap.Draw(_mapN);
 
             if (!string.IsNullOrEmpty(root.carCtl.Status))
-                GUI.Label(new Rect(0, H * 0.42f, W, 40), "<size=22>" + root.carCtl.Status + "</size>", _center);
-            if (root.carCtl.CurrentPhase == RocketCar.Phase.Running)
-                GUI.Label(new Rect(0, H - 76, W, 56), "<size=34><b>" + Mathf.RoundToInt(root.carCtl.SpeedMS * 3.6f) + "</b></size> <size=14>km/h</size>", _center);
-            if (root.carInput != null && root.carInput.TouchControlsActive)
-                foreach (var z in CarInput.TouchZones)
-                    GUI.Box(new Rect(z.zone.x * W, (1f - z.zone.y - z.zone.height) * H, z.zone.width * W, z.zone.height * H), z.label);
-            if (root.carInput != null && root.carInput.TouchControlsActive)
+                GUI.Box(new Rect(W * 0.5f - 200, H * 0.40f, 400, 44), root.carCtl.Status, UiTheme.Toast);
+            if (running) DrawSpeed(W, H);
+
+            if (touch)
             {
+                foreach (var z in CarInput.TouchZones)
+                    GUI.Box(new Rect(z.zone.x * W, (1f - z.zone.y - z.zone.height) * H, z.zone.width * W, z.zone.height * H), z.label, UiTheme.Touch);
                 var sr = CarInput.StickRect;
                 var box = new Rect(sr.x / _k, (Screen.height - sr.yMax) / _k, sr.width / _k, sr.height / _k);
-                GUI.Box(box, "");
+                GUI.Box(box, "", UiTheme.Touch);
                 var v = root.carInput.StickValue;
                 float ks = box.width * 0.30f;
                 var kc = box.center + new Vector2(v.x * box.width * 0.5f, -v.y * box.height * 0.5f);
-                GUI.Box(new Rect(kc.x - ks * 0.5f, kc.y - ks * 0.5f, ks, ks), "");
+                GUI.Box(new Rect(kc.x - ks * 0.5f, kc.y - ks * 0.5f, ks, ks), "", UiTheme.Touch);
+            }
+            else if (running && W > 760f)
+            {
+                // controls cheat-sheet: shown for the first seconds of play, then fades away
+                float t = Time.unscaledTime - _runStart, a = t < 12f ? 1f : Mathf.Clamp01(1f - (t - 12f) / 2f);
+                if (a > 0.01f && !_open && !_ctlOpen)
+                {
+                    var oc = GUI.color; GUI.color = new Color(1, 1, 1, a);
+                    GUI.Box(new Rect(W * 0.5f - 330, 14, 660, 36), "WASD drive   ·   Space jump   ·   Shift boost   ·   Ctrl drift   ·   C camera   ·   R rescue", UiTheme.Pill);
+                    GUI.color = oc;
+                }
             }
             if (!s.HasCredentials)
-                GUI.Label(new Rect(0, H * 0.14f, W, 70), "<size=16>No Cesium ion token — showing a flat test ground.\nRedeploy with the ION_TOKEN GitHub secret, or open with ?ion=YOUR_TOKEN.</size>", _center);
+                GUI.Box(new Rect(W * 0.5f - 190, 58, 380, 34), "Test ground — world streaming is off in this build", UiTheme.Pill);
 
-            if (GUI.Button(_gear, "⚙")) SetOpen(!_open);
+            if (GUI.Button(_gear, GUIContent.none)) SetOpen(!_open);
+            if (Event.current.type == EventType.Repaint)
+            {
+                var oc = GUI.color; GUI.color = UiTheme.Text;
+                GUI.DrawTexture(new Rect(_gear.center.x - 14, _gear.center.y - 14, 28, 28), UiTheme.Gear);
+                GUI.color = oc;
+            }
             if (GUI.Button(_ctl, "Controls", _btn)) SetControlsOpen(!_ctlOpen);
-            if (Time.unscaledTime < _toast) GUI.Label(new Rect(0, 56, W, 24), "<size=14>" + _toastText + "</size>", _center);
+            if (Time.unscaledTime < _toast) GUI.Box(new Rect(W * 0.5f - 160, 100, 320, 38), _toastText, UiTheme.Toast);
             if (_reportOpen && root.benchmark != null) DrawReport(H);
             if (_ctlOpen) DrawControls();
             if (!_open) return;
@@ -142,7 +197,7 @@ namespace RocketWorld
             bool changed = false;
             GUILayout.BeginArea(_panel, GUI.skin.box);
             _scroll = GUILayout.BeginScrollView(_scroll);
-            GUILayout.Label("<b>RocketWorld</b>", _small);
+            GUILayout.Label("Rocket World", UiTheme.Title);
 
             GUILayout.Label("Go to location");
             GUILayout.BeginHorizontal();
@@ -176,7 +231,7 @@ namespace RocketWorld
             for (int i = 0; i < GameSettings.CarColors.Length; i++)
                 if (GUILayout.Button(GameSettings.CarColors[i].name)) { s.carColor = i; changed = true; }
             GUILayout.EndHorizontal();
-            GUILayout.Label("<color=#ffffff88>Settings are stored in this browser only.</color>", _small);
+            GUILayout.Label("<color=#ffffff88>Settings are saved in this browser.</color>", _small);
             GUILayout.EndScrollView();
             GUILayout.EndArea();
 
@@ -269,7 +324,7 @@ namespace RocketWorld
             var ib = root.carInput != null ? root.carInput.bindings : null;
             if (ib == null) return;
             GUILayout.BeginArea(_ctlPanel, GUI.skin.box);
-            GUILayout.Label("<b>Controls</b>", _small);
+            GUILayout.Label("Controls", UiTheme.Title);
             string pad = InputDevices.PadName();
             GUILayout.Label(pad != null ? "Gamepad: " + pad : "No gamepad detected — connect one and press any button.", _small);
             if (pad != null) GUILayout.Label("Pressing now: " + (InputDevices.ActivePadInputs() is var act && act.Length > 0 ? act : "—"), _small);
@@ -291,9 +346,9 @@ namespace RocketWorld
                     bool listening = _listenAction == i && _listenSlot == slot;
                     string text = listening ? "press…" : locked ? (slot == 0 ? "Esc" : "Tab")
                         : slot == InputBindings.SlotPad ? InputBindings.PadLabel(ib.GetPad(a)) : InputBindings.KeyLabel(ib.GetKey(a, slot));
-                    GUI.backgroundColor = listening ? new Color(1f, 0.85f, 0.3f) : (i == _selRow && slot == _selCol && InputDevices.HasGamepad) ? new Color(0.5f, 0.9f, 1f) : old;
+                    var slotStyle = listening ? UiTheme.BtnListen : (i == _selRow && slot == _selCol && InputDevices.HasGamepad) ? UiTheme.BtnSelect : _btn;
                     GUI.enabled = !locked;
-                    if (GUILayout.Button(text, _btn, GUILayout.Width(slot == InputBindings.SlotPad ? 110 : 88), GUILayout.Height(24))) StartListening(i, slot);
+                    if (GUILayout.Button(text, slotStyle, GUILayout.Width(slot == InputBindings.SlotPad ? 110 : 88), GUILayout.Height(28))) StartListening(i, slot);
                     GUI.enabled = true;
                 }
                 GUILayout.EndHorizontal();

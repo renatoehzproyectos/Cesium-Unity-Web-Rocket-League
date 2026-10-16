@@ -9,3 +9,5 @@
   (`showCreditsOnScreen = true`). You need your own API key with *Map Tiles API* enabled; never commit it.
 - **Fennec model** (`Assets/Resources/Cars/fennec.glb`) - carried over from the RocketWorld project; check its original license before publishing.
 - **Unity glTFast** - Apache-2.0 (imports the .glb in the Editor).
+
+- **Barlow Semi Condensed** (The Barlow Project Authors) - SIL Open Font License 1.1, `Assets/Resources/Fonts` (license: `OFL.txt` there). Used for the in-game UI.

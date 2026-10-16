@@ -30,8 +30,7 @@ namespace RocketWorld.Editor
             if (report.summary.result != BuildResult.Succeeded && Application.isBatchMode) EditorApplication.Exit(1);
         }
 
-        // Adds a clear message when the host forgot the COOP/COEP headers (threaded WASM cannot start without them).
-        // Also bakes ION_TOKEN (from env / -rwIonToken) into window.RW_DEFAULT_ION_TOKEN for Cesium ion tiles.
+        // Bakes ION_TOKEN (from env / -rwIonToken) into window.RW_DEFAULT_ION_TOKEN for Cesium ion tiles.
         static void PostProcessIndex(string dir)
         {
             try
@@ -52,25 +51,8 @@ namespace RocketWorld.Editor
                     ? ""
                     : "\n  window.RW_DEFAULT_ION_TOKEN = '" + ionJs + "';";
 
-                string snippet = marker + @"
-<script>
-  (function () {" + ionLine + @"
-    var msg = null;
-    if (!window.crossOriginIsolated) msg = 'This page is not cross-origin isolated (COOP/COEP headers missing), so the 3D engine cannot start. Check vercel.json / your host headers.';
-    else if (!window.WebGL2RenderingContext) msg = 'This browser does not support WebGL 2.';
-    if (!msg) return;
-    var d = document.createElement('div');
-    d.style.cssText = 'position:fixed;left:0;right:0;top:0;padding:14px 18px;background:#b00020;color:#fff;font:14px sans-serif;z-index:99999';
-    d.textContent = msg; document.body.appendChild(d);
-  })();
-</script>
-<style>
-  #rw-loading{position:fixed;inset:0;background:#0b1620;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;color:#cfe6f2;font:16px sans-serif;transition:opacity .5s}
-  #rw-loading .sp{width:44px;height:44px;border:4px solid #25415a;border-top-color:#cfe6f2;border-radius:50%;animation:rwspin 1s linear infinite;margin-bottom:16px}
-  @keyframes rwspin{to{transform:rotate(360deg)}}
-</style>
-<div id=""rw-loading""><div class=""sp""></div><div>Loading RocketWorld…</div><div style=""opacity:.6;font-size:13px;margin-top:6px"">First load downloads the engine; later visits are cached.</div></div>
-";
+                // The page itself (title, icons, loader, COOP/COEP check) lives in Assets/WebGLTemplates/RocketWorld/index.html.
+                string snippet = marker + (string.IsNullOrEmpty(ionJs) ? "" : "\n<script>" + ionLine.Trim() + "</script>\n");
                 System.IO.File.WriteAllText(file, html.Replace("</body>", snippet + "</body>"));
                 if (!string.IsNullOrEmpty(ion))
                     Debug.Log("[RocketWorld] baked Cesium ion token into index.html (from ION_TOKEN / -rwIonToken)");
@@ -82,8 +64,8 @@ namespace RocketWorld.Editor
 
         public static void ConfigureWebGL()
         {
-            PlayerSettings.productName = "RocketWorld";
-            PlayerSettings.companyName = "RocketWorld";
+            PlayerSettings.productName = "Rocket World";
+            PlayerSettings.companyName = "Rocket World";
             PlayerSettings.runInBackground = true;
             PlayerSettings.colorSpace = ColorSpace.Linear;
             PlayerSettings.stripEngineCode = true;
@@ -97,7 +79,7 @@ namespace RocketWorld.Editor
             PlayerSettings.SetGraphicsAPIs(BuildTarget.WebGL, apis.ToArray());
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.WebGL, false);
 
-            PlayerSettings.WebGL.template = "APPLICATION:Default";
+            PlayerSettings.WebGL.template = "PROJECT:RocketWorld";   // Assets/WebGLTemplates/RocketWorld
             // `-rwFast 1` (CI pull requests / throw-away builds): no Brotli pass (the slowest post-step), nothing is deployed from these.
             bool fast = Arg("-rwFast") == "1";
             PlayerSettings.WebGL.compressionFormat = fast ? WebGLCompressionFormat.Disabled : WebGLCompressionFormat.Brotli;

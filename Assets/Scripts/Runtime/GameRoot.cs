@@ -30,6 +30,7 @@ namespace RocketWorld
         public Camera cam;
         public OrbitCamera orbit;
         public DebugHud hud;
+        public Minimap minimap;
         public AutoQuality autoQuality;
         public BenchmarkRunner benchmark;
         public TileLog tileLog;
@@ -90,6 +91,8 @@ namespace RocketWorld
             ApplyLive();
             hud = gameObject.AddComponent<DebugHud>();
             hud.root = this;
+            minimap = gameObject.AddComponent<Minimap>();
+            minimap.root = this;
             autoQuality = gameObject.AddComponent<AutoQuality>();
             autoQuality.root = this; autoQuality.enabledByUser = settings.autoQuality;
             benchmark = gameObject.AddComponent<BenchmarkRunner>();

@@ -1,11 +1,11 @@
-# RocketWorld (Unity) - drive a Rocket League car on the real world, in the browser
+# Rocket World - drive a Rocket League car on the real world, in the browser
 
 Unity 6 **Web** project: Cesium for Unity streams Google Photorealistic 3D Tiles and you drive a Fennec with **RocketSim's car physics running
 on Unity PhysX**, so collision against buildings and terrain is exact (real mesh colliders), not approximated.
 
 **Status: 100 % of the planned scope (see `docs/ROADMAP.md`).** Read the honesty note: nothing has been compiled or run *in Unity* yet.
 
-> **Honest status.** My sandbox has no Unity/Vercel. What *is* verified, with real tools: the RocketSim vehicle model (`Assets/Scripts/Sim`) was
+> **Build note.** My sandbox has no Unity/Vercel. What *is* verified, with real tools: the RocketSim vehicle model (`Assets/Scripts/Sim`) was
 > compiled and compared tick by tick against native RocketSim built from source (<= 0.04 uu error on 8 scenarios, see `docs/PHYSICS.md`), the 12
 > EditMode tests pass in a stub harness, the physics-facing Unity scripts type-check against stubs, and the JSON/YAML parse. **Not verified:** the
 > Unity compile of the rest, PhysX contact feel, the WebGL build, Vercel, Google tiles. Expect a first-build fix iteration and send me the log.
@@ -47,3 +47,9 @@ tools/parity             native RocketSim reference + C# harness + scenarios + c
 deploy/vercel.json       headers for the hosted build
 docs/                    PHYSICS (design, what is matched/verified/unverifiable), ROADMAP
 ```
+
+
+## Look & UI
+Custom web template (`Assets/WebGLTemplates/RocketWorld`: page title "Rocket World", favicon/app icons, branded loader), a dark-glass IMGUI theme
+(`UiTheme.cs`), a key-free circular minimap (`Minimap.cs`: top-down render of the already-loaded world; click it to toggle rotate / north-up),
+speed readout and a softly tuned chase camera. Changing the product name resets browser-saved settings once.
