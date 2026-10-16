@@ -15,11 +15,11 @@ namespace RocketWorld
         public float groundHeight = 61f;             // m above the WGS84 ellipsoid: Unity y=0 sits here, the car stands on it
         public float heading = 0f;                   // car heading, degrees clockwise from north
         public float timeOfDay = 14f;                // hours, 0..24
-        public float sse = 16f;                      // maximumScreenSpaceError
-        public float viewDistance = 1400f;           // camera far plane (m); RocketWorld used 1400
+        public float sse = 32f;                      // maximumScreenSpaceError
+        public float viewDistance = 20000f;          // camera far plane (m)
         public float loadRadius = 600f;              // m around the car where ALL tiles are loaded at full detail (StreamingCameras)
         public float distantQuality = 1f;            // x: sharper tiles at distance (StreamingCameras virtual viewport height)
-        public float renderScale = 1f;
+        public float renderScale = 2f;
         public bool bakedLighting = true;            // locked on (flat ambient => tiles look like RocketWorld's baked rendering)
         public bool autoRotate = true;
         public bool proceduralSky = true;            // locked on (Unity procedural skybox)
@@ -59,11 +59,11 @@ namespace RocketWorld
                 groundHeight = PlayerPrefs.GetFloat(P + "gh", 61f),
                 heading = PlayerPrefs.GetFloat(P + "hdg", 0f),
                 timeOfDay = PlayerPrefs.GetFloat(P + "tod", 14f),
-                sse = PlayerPrefs.GetFloat(P + "sse", 16f),
-                viewDistance = PlayerPrefs.GetFloat(P + "far", 1400f),
+                sse = PlayerPrefs.GetFloat(P + "sse", 32f),
+                viewDistance = PlayerPrefs.GetFloat(P + "far", 20000f),
                 loadRadius = PlayerPrefs.GetFloat(P + "radius", 600f),
                 distantQuality = PlayerPrefs.GetFloat(P + "dq", 1f),
-                renderScale = PlayerPrefs.GetFloat(P + "scale", 1f),
+                renderScale = PlayerPrefs.GetFloat(P + "scale", 2f),
                 bakedLighting = true,                 // locked on
                 autoRotate = PlayerPrefs.GetInt(P + "auto", 1) == 1,
                 proceduralSky = true,                 // locked on

@@ -317,6 +317,18 @@ namespace RocketWorld
             CommitOrigin(_pendingLon, _pendingLat, _pendingGh, forceRespawn: true);
         }
 
+        /// <summary>Teleport the georeference + car to a new lat/lon (and optional ground height). Applies immediately.</summary>
+        public void TeleportTo(double lat, double lon, float groundHeight)
+        {
+            settings.lat = lat;
+            settings.lon = lon;
+            settings.groundHeight = groundHeight;
+            _originPending = false;
+            CommitOrigin(lon, lat, groundHeight, forceRespawn: true);
+            ApplyLive();
+            SaveSettings();
+        }
+
         /// <summary>Apply the user's SSE (and auto offsets) once — call when the settings panel closes.</summary>
         public void FlushSse()
         {

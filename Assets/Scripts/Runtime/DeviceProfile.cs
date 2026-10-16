@@ -40,8 +40,7 @@ namespace RocketWorld
         /// <summary>First-run defaults (only used when the user has no saved settings).</summary>
         public static void ApplyFirstRunDefaults(GameSettings s)
         {
-            if (!IsMobile) return;
-            s.sse = 24f; s.renderScale = Mathf.Min(s.renderScale, 0.75f); s.viewDistance = 900f;
+            // Keep the project defaults (sse 32 / far 20000 / scale 2) on all devices.
         }
 
         public static string Describe() =>

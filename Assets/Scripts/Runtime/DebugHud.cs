@@ -1,4 +1,7 @@
+using System.Collections;
+using System.Globalization;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace RocketWorld
 {
@@ -7,7 +10,7 @@ namespace RocketWorld
     {
         public GameRoot root;
         bool _open;
-        float _fps = 60f, _toast;
+        float _toast;
         string _toastText = "";
         Vector2 _scroll;
         GUIStyle _small, _center;
@@ -16,15 +19,18 @@ namespace RocketWorld
         // IMGUI allocates every frame it builds strings, so the stats text is rebuilt 4x per second and cached.
         readonly float[] _ring = new float[120]; int _ringN, _ringI;
         readonly float[] _sorted = new float[120];
-        string _stats = "", _hint = "<color=#ffffffaa>WASD drive · Space jump (twice = flip) · Shift boost · Ctrl/X drift · Q/E air-roll · C camera · R rescue · Esc settings</color>";
+        string _stats = "";
         float _nextStats;
         bool _reportOpen;
+
+        string _searchQuery = "";
+        string _searchStatus = "";
+        bool _searching;
 
         void Update()
         {
             if (root == null) return;
             float dtMs = Time.unscaledDeltaTime * 1000f;
-            _fps = Mathf.Lerp(_fps, 1000f / Mathf.Max(dtMs, 0.1f), 0.05f);
             _ring[_ringI] = dtMs; _ringI = (_ringI + 1) % _ring.Length; if (_ringN < _ring.Length) _ringN++;
             if (Time.unscaledTime >= _nextStats && root.settings.debugHud) { _nextStats = Time.unscaledTime + 0.25f; RebuildStats(); }
             if (root.benchmark != null && !_reportOpen && !string.IsNullOrEmpty(root.benchmark.Report) && !root.benchmark.Running) _reportOpen = true;
@@ -40,7 +46,8 @@ namespace RocketWorld
             string tiles = root.tileset != null ? $"{root.tileset.ComputeLoadProgress():0}%" : "-";
             long heap = UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong() / (1024 * 1024);
             string bench = root.benchmark != null && root.benchmark.Running ? $"   <color=#ffd54f>BENCH {root.benchmark.Progress * 100f:0}%</color>" : "";
-            _stats = $"<color=#ffffffcc>{_fps:0} fps  p95 {p95:0.0} ms  worst {worst:0} ms   tiles {tiles}   heap {heap} MB{bench}\n" +
+            float fps = 1000f / Mathf.Max(p95 > 0 ? p95 : 16f, 0.1f);
+            _stats = $"<color=#ffffffcc>{fps:0} fps  p95 {p95:0.0} ms  worst {worst:0} ms   tiles {tiles}   heap {heap} MB{bench}\n" +
                      $"{s.lat:0.00000}, {s.lon:0.00000}   ground {s.groundHeight:0} m   cam yaw {root.orbit.yaw:0} pitch {root.orbit.pitch:0} dist {root.orbit.distance:0.0} m\n" +
                      $"car {root.carCtl.SpeedMS * 3.6f:0} km/h  wheels {(root.carCtl.CurrentPhase == RocketCar.Phase.Running ? WheelCount() : 0)}/4  {(root.carCtl.State.isOnGround ? "ground" : "air")}  gyro-comp {(root.carCtl.GyroscopicCompensation ? "on" : "off")}  colliders {(root.budget != null ? root.budget.WithCollider + "/" + root.budget.Registered : "-")}\n" +
                      $"quality: sse {root.EffectiveSse:0}  scale {root.EffectiveScale:0.00}  far {root.EffectiveFar:0} m  auto-level {(root.autoQuality != null ? root.autoQuality.Level : 0)}</color>";
@@ -53,8 +60,8 @@ namespace RocketWorld
             if (_open && !open)
             {
                 root.settingsOpen = false;
-                root.FlushOrigin();          // apply any pending location/height change now
-                root.FlushSse();             // apply tile-detail once (not while the slider was dragged)
+                root.FlushOrigin();
+                root.FlushSse();
                 root.SaveSettings();
             }
             if (!_open && open)
@@ -79,8 +86,8 @@ namespace RocketWorld
             _small ??= new GUIStyle(GUI.skin.label) { fontSize = 12, richText = true };
             _center ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.UpperCenter, richText = true };
             var s = root.settings;
-            _gear = new Rect(W - 68, 8, 60, 60);   // 50% larger than the original 40×40
-            _panel = new Rect(W - 380, 76, 370, H - 90);   // sit below the taller gear button
+            _gear = new Rect(W - 68, 8, 60, 60);
+            _panel = new Rect(W - 380, 76, 370, H - 90);
 
             if (!string.IsNullOrEmpty(root.carCtl.Status))
                 GUI.Label(new Rect(0, H * 0.42f, W, 40), "<size=22>" + root.carCtl.Status + "</size>", _center);
@@ -99,16 +106,8 @@ namespace RocketWorld
                 var kc = box.center + new Vector2(v.x * box.width * 0.5f, -v.y * box.height * 0.5f);
                 GUI.Box(new Rect(kc.x - ks * 0.5f, kc.y - ks * 0.5f, ks, ks), "");
             }
-            if (root.tileLog != null && !string.IsNullOrEmpty(root.tileLog.Hud))
-                GUI.Label(new Rect(0, 30, W, 24), "<size=15><b>" + root.tileLog.Hud + "</b></size>", _center);
             if (!s.HasCredentials)
                 GUI.Label(new Rect(0, H * 0.14f, W, 70), "<size=16>No Cesium ion token — showing a flat test ground.\nRedeploy with the ION_TOKEN GitHub secret, or open with ?ion=YOUR_TOKEN.</size>", _center);
-
-            if (s.debugHud)
-            {
-                GUI.Label(new Rect(10, 6, 640, 60), _stats, _small);
-            }
-            GUI.Label(new Rect(10, H - 24, 700, 20), _hint, _small);
 
             if (GUI.Button(_gear, "⚙")) SetOpen(!_open);
             if (Time.unscaledTime < _toast) GUI.Label(new Rect(0, 56, W, 24), "<size=14>" + _toastText + "</size>", _center);
@@ -120,6 +119,25 @@ namespace RocketWorld
             _scroll = GUILayout.BeginScrollView(_scroll);
             GUILayout.Label("<b>RocketWorld</b>", _small);
 
+            GUILayout.Label("Go to location");
+            GUILayout.BeginHorizontal();
+            GUI.SetNextControlName("rw_loc_search");
+            _searchQuery = GUILayout.TextField(_searchQuery ?? "", GUILayout.MinWidth(180));
+            bool go = GUILayout.Button(_searching ? "…" : "Go", GUILayout.Width(44));
+            GUILayout.EndHorizontal();
+            if (go && !_searching && !string.IsNullOrWhiteSpace(_searchQuery))
+                StartCoroutine(SearchAndTeleport(_searchQuery.Trim()));
+            // Enter key while the search field is focused
+            if (!_searching && Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Return
+                && GUI.GetNameOfFocusedControl() == "rw_loc_search" && !string.IsNullOrWhiteSpace(_searchQuery))
+            {
+                StartCoroutine(SearchAndTeleport(_searchQuery.Trim()));
+                Event.current.Use();
+            }
+            if (!string.IsNullOrEmpty(_searchStatus))
+                GUILayout.Label(_searchStatus, _small);
+
+            GUILayout.Space(6);
             GUILayout.Label($"Tile detail (max SSE) {s.sse:0} — lower = sharper");
             s.sse = GUILayout.HorizontalSlider(s.sse, 4f, 64f);
             GUILayout.Label($"View distance {s.viewDistance:0} m");
@@ -133,12 +151,82 @@ namespace RocketWorld
             for (int i = 0; i < GameSettings.CarColors.Length; i++)
                 if (GUILayout.Button(GameSettings.CarColors[i].name)) { s.carColor = i; changed = true; }
             GUILayout.EndHorizontal();
-            GUILayout.Label("<color=#ffffff88>Settings are stored in this browser only. Share links never contain your API key.</color>", _small);
+            GUILayout.Label("<color=#ffffff88>Settings are stored in this browser only.</color>", _small);
             GUILayout.EndScrollView();
             GUILayout.EndArea();
 
             if (GUI.changed || changed) root.ApplyLive();
         }
+
+        IEnumerator SearchAndTeleport(string query)
+        {
+            _searching = true;
+            _searchStatus = "Searching…";
+            // Nominatim (OpenStreetMap) — free, no API key. Identify the app per their usage policy.
+            string url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + UnityWebRequest.EscapeURL(query);
+            using (var req = UnityWebRequest.Get(url))
+            {
+                req.SetRequestHeader("Accept", "application/json");
+                req.SetRequestHeader("User-Agent", "RocketWorld/1.0 (Unity WebGL; location search)");
+                yield return req.SendWebRequest();
+                if (req.result != UnityWebRequest.Result.Success)
+                {
+                    _searchStatus = "Search failed: " + req.error;
+                    _searching = false;
+                    yield break;
+                }
+                var json = req.downloadHandler.text;
+                if (string.IsNullOrEmpty(json) || json == "[]")
+                {
+                    _searchStatus = "No results for \"" + query + "\"";
+                    _searching = false;
+                    yield break;
+                }
+                // Root array → wrap for JsonUtility
+                var list = JsonUtility.FromJson<NominatimList>("{\"items\":" + json + "}");
+                if (list == null || list.items == null || list.items.Length == 0)
+                {
+                    _searchStatus = "No results for \"" + query + "\"";
+                    _searching = false;
+                    yield break;
+                }
+                var hit = list.items[0];
+                if (!double.TryParse(hit.lat, NumberStyles.Float, CultureInfo.InvariantCulture, out var lat)
+                    || !double.TryParse(hit.lon, NumberStyles.Float, CultureInfo.InvariantCulture, out var lon))
+                {
+                    _searchStatus = "Bad coordinates in result";
+                    _searching = false;
+                    yield break;
+                }
+
+                float gh = root.settings.groundHeight;
+                _searchStatus = "Looking up elevation…";
+                string elevUrl = string.Format(CultureInfo.InvariantCulture,
+                    "https://api.open-meteo.com/v1/elevation?latitude={0:0.#####}&longitude={1:0.#####}", lat, lon);
+                using (var elevReq = UnityWebRequest.Get(elevUrl))
+                {
+                    yield return elevReq.SendWebRequest();
+                    if (elevReq.result == UnityWebRequest.Result.Success)
+                    {
+                        var elev = JsonUtility.FromJson<ElevationResponse>(elevReq.downloadHandler.text);
+                        if (elev != null && elev.elevation != null && elev.elevation.Length > 0)
+                            gh = elev.elevation[0];
+                    }
+                }
+
+                string name = string.IsNullOrEmpty(hit.display_name) ? query : hit.display_name;
+                if (name.Length > 60) name = name.Substring(0, 57) + "…";
+                _searchStatus = "Going to " + name;
+                root.TeleportTo(lat, lon, gh);
+                _toast = Time.unscaledTime + 2.5f;
+                _toastText = "Teleported";
+            }
+            _searching = false;
+        }
+
+        [System.Serializable] class NominatimList { public NominatimItem[] items; }
+        [System.Serializable] class NominatimItem { public string lat; public string lon; public string display_name; }
+        [System.Serializable] class ElevationResponse { public float[] elevation; }
 
         void DrawReport(float H)
         {
