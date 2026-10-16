@@ -95,6 +95,7 @@ jobs:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          ION_TOKEN: ${{ secrets.ION_TOKEN }}
         with:
           unityVersion: 6000.0.62f1
           targetPlatform: WebGL
@@ -115,6 +116,7 @@ jobs:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          ION_TOKEN: ${{ secrets.ION_TOKEN }}
         with:
           unityVersion: 6000.0.62f1
           targetPlatform: WebGL
@@ -122,13 +124,21 @@ jobs:
           customParameters: -rwGfx ${{ inputs.graphics == 'webgpu' && 'webgpu' || 'webgl2' }} -rwFast ${{ github.event_name == 'pull_request' && '1' || '0' }} -rwSpeed ${{ inputs.optimize_speed == true && '1' || '0' }}
           versioning: None
           allowDirtyBuild: true
-      - name: Add Vercel config to the build output
+      - name: Add Vercel config + bake ION_TOKEN into index.html
         if: steps.lic.outputs.ok == 'true'
+        env:
+          ION_TOKEN: ${{ secrets.ION_TOKEN }}
         run: |
           # game-ci builds inside a root container: take ownership first. The player lands in build/WebGL/WebGL.
           sudo chown -R "$(id -u):$(id -g)" build
           cp deploy/vercel.json build/WebGL/WebGL/vercel.json
           cp deploy/cesiumjs-compare.html build/WebGL/WebGL/cesiumjs-compare.html   # CesiumJS reference page: /cesiumjs-compare.html
+          # Ensure the Cesium ion token is present even if Unity's PostProcessIndex did not see the env var.
+          if [ -n "$ION_TOKEN" ]; then
+            python3 tools/bake_ion_token.py build/WebGL/WebGL/index.html
+          else
+            echo "::warning::ION_TOKEN secret is empty — Cesium tiles will not load until a token is provided"
+          fi
           ls -la build/WebGL/WebGL build/WebGL/WebGL/Build
       - uses: actions/upload-artifact@v4
         if: steps.lic.outputs.ok == 'true'

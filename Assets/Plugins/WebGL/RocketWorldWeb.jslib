@@ -34,5 +34,13 @@ mergeInto(LibraryManager.library, {
   },
   RW_HideLoading: function () {
     try { var l = document.getElementById('rw-loading'); if (l) { l.style.opacity = '0'; setTimeout(function () { l.style.display = 'none'; }, 500); } } catch (e) {}
+  },
+  // Baked by BuildScript from the ION_TOKEN GitHub secret (window.RW_DEFAULT_ION_TOKEN).
+  RW_GetDefaultIonToken: function () {
+    var v = '';
+    try { v = (typeof window.RW_DEFAULT_ION_TOKEN === 'string') ? window.RW_DEFAULT_ION_TOKEN : ''; } catch (e) {}
+    var size = lengthBytesUTF8(v) + 1, buf = _malloc(size);
+    stringToUTF8(v, buf, size);
+    return buf;
   }
 });

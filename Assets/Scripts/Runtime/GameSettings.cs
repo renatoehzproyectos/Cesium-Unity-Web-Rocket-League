@@ -8,7 +8,7 @@ namespace RocketWorld
     /// <summary>User settings, persisted with PlayerPrefs (IndexedDB on WebGL). The query string wins (and is what the share link produces).</summary>
     public class GameSettings
     {
-        public TileProvider provider = TileProvider.GoogleDirect;
+        public TileProvider provider = TileProvider.CesiumIon;
         public string googleKey = "", ionToken = "";
         public long ionAssetId = 2275207;            // Google Photorealistic 3D Tiles on Cesium ion
         public double lat = 36.7213, lon = -4.4214;  // Malaga, same default as RocketWorld
@@ -20,11 +20,11 @@ namespace RocketWorld
         public float loadRadius = 600f;              // m around the car where ALL tiles are loaded at full detail (StreamingCameras)
         public float distantQuality = 1f;            // x: sharper tiles at distance (StreamingCameras virtual viewport height)
         public float renderScale = 1f;
-        public bool bakedLighting = true;            // flat ambient => tiles look like RocketWorld's baked rendering
+        public bool bakedLighting = true;            // locked on (flat ambient => tiles look like RocketWorld's baked rendering)
         public bool autoRotate = true;
-        public bool proceduralSky = false;           // false = flat sky + fog like RocketWorld; true = Unity procedural skybox
-        public bool debugHud = true;
-        public bool autoQuality = true;              // adaptive 60 FPS controller (AutoQuality)
+        public bool proceduralSky = true;            // locked on (Unity procedural skybox)
+        public bool debugHud = false;                // locked off
+        public bool autoQuality = false;             // locked off (no adaptive quality controller)
         public bool bench;                           // ?bench=1 runs the benchmark right after the world is ready
         public int carColor = 0;
         public float camYaw = 200f, camPitch = 14f, camDist = 7.5f;
@@ -50,7 +50,7 @@ namespace RocketWorld
         {
             var s = new GameSettings
             {
-                provider = (TileProvider)PlayerPrefs.GetInt(P + "provider", 0),
+                provider = (TileProvider)PlayerPrefs.GetInt(P + "provider", (int)TileProvider.CesiumIon),
                 googleKey = PlayerPrefs.GetString(P + "gkey", ""),
                 ionToken = PlayerPrefs.GetString(P + "iontoken", ""),
                 ionAssetId = (long)D(PlayerPrefs.GetString(P + "ionasset", "2275207"), 2275207),
@@ -64,20 +64,31 @@ namespace RocketWorld
                 loadRadius = PlayerPrefs.GetFloat(P + "radius", 600f),
                 distantQuality = PlayerPrefs.GetFloat(P + "dq", 1f),
                 renderScale = PlayerPrefs.GetFloat(P + "scale", 1f),
-                bakedLighting = PlayerPrefs.GetInt(P + "baked", 1) == 1,
+                bakedLighting = true,                 // locked on
                 autoRotate = PlayerPrefs.GetInt(P + "auto", 1) == 1,
-                proceduralSky = PlayerPrefs.GetInt(P + "psky", 0) == 1,
-                debugHud = PlayerPrefs.GetInt(P + "hud", 1) == 1,
-                autoQuality = PlayerPrefs.GetInt(P + "autoq", 1) == 1,
+                proceduralSky = true,                 // locked on
+                debugHud = false,                     // locked off
+                autoQuality = false,                  // locked off
                 carColor = PlayerPrefs.GetInt(P + "car", 0),
             };
             DeviceProfile.Load();
             if (!PlayerPrefs.HasKey(P + "init")) DeviceProfile.ApplyFirstRunDefaults(s);
+            // Re-assert locked flags (DeviceProfile / old PlayerPrefs must not re-enable them).
+            s.bakedLighting = true;
+            s.proceduralSky = true;
+            s.debugHud = false;
+            s.autoQuality = false;
             if (!PlayerPrefs.HasKey(P + "radius")) s.loadRadius = DeviceProfile.IsMobile ? 300f : 600f;
             string q;
             s.bench = WebBridge.Query("bench") == "1";
-            if (!string.IsNullOrEmpty(q = WebBridge.Query("key"))) s.googleKey = q;
+            if (!string.IsNullOrEmpty(q = WebBridge.Query("key"))) { s.googleKey = q; s.provider = TileProvider.GoogleDirect; }
             if (!string.IsNullOrEmpty(q = WebBridge.Query("ion"))) { s.ionToken = q; s.provider = TileProvider.CesiumIon; }
+            // Baked-in token from CI (ION_TOKEN secret → index.html). Query string still wins above.
+            if (string.IsNullOrWhiteSpace(s.ionToken))
+            {
+                var baked = WebBridge.DefaultIonToken();
+                if (!string.IsNullOrWhiteSpace(baked)) { s.ionToken = baked; s.provider = TileProvider.CesiumIon; }
+            }
             s.lat = D(WebBridge.Query("lat"), s.lat); s.lon = D(WebBridge.Query("lon"), s.lon);
             s.groundHeight = (float)D(WebBridge.Query("h"), s.groundHeight);
             s.heading = (float)D(WebBridge.Query("hdg"), s.heading);

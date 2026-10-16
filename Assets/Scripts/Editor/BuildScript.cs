@@ -31,6 +31,7 @@ namespace RocketWorld.Editor
         }
 
         // Adds a clear message when the host forgot the COOP/COEP headers (threaded WASM cannot start without them).
+        // Also bakes ION_TOKEN (from env / -rwIonToken) into window.RW_DEFAULT_ION_TOKEN for Cesium ion tiles.
         static void PostProcessIndex(string dir)
         {
             try
@@ -39,9 +40,21 @@ namespace RocketWorld.Editor
                 var html = System.IO.File.ReadAllText(file);
                 const string marker = "<!-- rocketworld-checks -->";
                 if (html.Contains(marker) || !html.Contains("</body>")) return;
-                const string snippet = marker + @"
+
+                // Prefer explicit build arg, then the ION_TOKEN GitHub Actions secret (passed as env to game-ci).
+                var ion = Arg("-rwIonToken")
+                    ?? Environment.GetEnvironmentVariable("ION_TOKEN")
+                    ?? "";
+                ion = ion.Trim();
+                // Escape for a single-quoted JS string (token chars are usually alphanumeric + _.-).
+                var ionJs = ion.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\r", "").Replace("\n", "");
+                var ionLine = string.IsNullOrEmpty(ionJs)
+                    ? ""
+                    : "\n  window.RW_DEFAULT_ION_TOKEN = '" + ionJs + "';";
+
+                string snippet = marker + @"
 <script>
-  (function () {
+  (function () {" + ionLine + @"
     var msg = null;
     if (!window.crossOriginIsolated) msg = 'This page is not cross-origin isolated (COOP/COEP headers missing), so the 3D engine cannot start. Check vercel.json / your host headers.';
     else if (!window.WebGL2RenderingContext) msg = 'This browser does not support WebGL 2.';
@@ -59,6 +72,10 @@ namespace RocketWorld.Editor
 <div id=""rw-loading""><div class=""sp""></div><div>Loading RocketWorld…</div><div style=""opacity:.6;font-size:13px;margin-top:6px"">First load downloads the engine; later visits are cached.</div></div>
 ";
                 System.IO.File.WriteAllText(file, html.Replace("</body>", snippet + "</body>"));
+                if (!string.IsNullOrEmpty(ion))
+                    Debug.Log("[RocketWorld] baked Cesium ion token into index.html (from ION_TOKEN / -rwIonToken)");
+                else
+                    Debug.Log("[RocketWorld] no ION_TOKEN in environment — tiles will need ?ion=… or a key at runtime");
             }
             catch (Exception e) { Debug.LogWarning("[RocketWorld] could not post-process index.html: " + e.Message); }
         }
