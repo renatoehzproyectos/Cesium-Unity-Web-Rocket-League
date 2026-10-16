@@ -57,6 +57,9 @@
       arguments: [],
       dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}",
       frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_THREADS
+      workerUrl: buildUrl + "/{{{ WORKER_FILENAME }}}",
+#endif
 #if USE_WASM
       codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}",
 #endif
@@ -99,6 +102,13 @@
       };
       document.body.appendChild(script);
     }
+
+    // If startup stalls or throws, say so instead of sitting on the loader forever.
+    window.addEventListener("error", function (e) { console.error(e.message); });
+    setTimeout(function () {
+      if (!window.rwUnity && document.getElementById("rw-loading").style.display !== "none" && !problem)
+        msg.textContent = "Taking longer than usual… check your connection, or reload the page.";
+    }, 60000);
 
     // The game calls this (RW_HideLoading) once the first frame is ready.
     document.addEventListener("contextmenu", function (e) { e.preventDefault(); });
