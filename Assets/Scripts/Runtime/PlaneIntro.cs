@@ -62,21 +62,25 @@ namespace RocketWorld
             SetLayer(model, PhysicsSetup.PlaneLayer);
             FixMaterials(model);
 
-            // Which way does the imported model face? The cockpit ("Interior") must sit at -Z of the model.
-            bool flipped = false;
-            var interior = FindDeep(model.transform, "Interior");
-            var ir = interior != null ? interior.GetComponentInChildren<Renderer>() : null;
-            var all = model.GetComponentsInChildren<Renderer>();
-            if (ir != null && all.Length > 0)
+            // The importer may hand us the model rotated (we saw it nose-up). Work out where the nose and the tail fin point
+            // and rotate the model so that nose = -Z, up = +Y, the frame all the numbers below are written in.
+            var hullR = FindRenderer(model.transform, "Main_Body_Main_0");
+            var cockpitR = FindRenderer(model.transform, "Interior_Interior_0");
+            var finR = FindRenderer(model.transform, "Wings.013");           // vertical stabiliser
+            var fix = Quaternion.identity;
+            if (hullR != null && cockpitR != null && finR != null)
             {
-                var b = all[0].bounds;
-                foreach (var r in all) b.Encapsulate(r.bounds);
-                flipped = _plane.transform.InverseTransformPoint(ir.bounds.center).z > _plane.transform.InverseTransformPoint(b.center).z;
+                Vector3 hull = LocalCenter(hullR), cockpit = LocalCenter(cockpitR), fin = LocalCenter(finR);
+                var nose = DominantAxis(cockpit - hull, -1, out int noseAxis);           // the cockpit sits ahead of the hull centre
+                var up = DominantAxis(fin - hull, noseAxis, out _);                      // the fin sits above it (ignore the nose axis: the fin is at the tail)
+                fix = Quaternion.Inverse(Quaternion.LookRotation(-nose, up));
             }
+            else Debug.LogWarning("[RocketWorld] Cargo plane: parts for orientation detection not found, using the imported orientation.");
+            model.transform.localRotation = fix;
 
             _bay = new GameObject("Bay").transform;
             _bay.SetParent(_plane.transform, false);
-            _bay.localRotation = flipped ? Quaternion.Euler(0f, 180f, 0f) : Quaternion.identity;
+            _bay.localRotation = Quaternion.identity;
 
             BuildHold();
 
@@ -272,6 +276,29 @@ namespace RocketWorld
         static void SetLayer(GameObject go, int layer)
         {
             foreach (var t in go.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = layer;
+        }
+
+        Vector3 LocalCenter(Renderer r) => _plane.transform.InverseTransformPoint(r.bounds.center);
+
+        static Renderer FindRenderer(Transform root, string name)
+        {
+            var t = FindDeep(root, name);
+            return t != null ? t.GetComponentInChildren<Renderer>() : null;
+        }
+
+        /// <summary>Unit vector along the axis where |v| is largest (optionally skipping one axis), signed like v.</summary>
+        static Vector3 DominantAxis(Vector3 v, int skip, out int axis)
+        {
+            axis = 0; float best = -1f;
+            for (int i = 0; i < 3; i++)
+            {
+                if (i == skip) continue;
+                float a = Mathf.Abs(v[i]);
+                if (a > best) { best = a; axis = i; }
+            }
+            var r = Vector3.zero;
+            r[axis] = v[axis] >= 0f ? 1f : -1f;
+            return r;
         }
 
         static Transform FindDeep(Transform t, string name)
