@@ -60,6 +60,7 @@ namespace RocketWorld
             model.name = "Model";
             model.transform.localPosition = Vector3.zero; model.transform.localRotation = Quaternion.identity; model.transform.localScale = Vector3.one;
             SetLayer(model, PhysicsSetup.PlaneLayer);
+            FixMaterials(model);
 
             // Which way does the imported model face? The cockpit ("Interior") must sit at -Z of the model.
             bool flipped = false;
@@ -222,6 +223,50 @@ namespace RocketWorld
             if (_plane != null) Destroy(_plane);
             _plane = null;
             Finish();
+        }
+
+        /// <summary>
+        /// glTFast's shader-graph materials are stripped from WebGL builds (the meshes then render as nothing - same problem the car had).
+        /// Swap them for URP Lit, which is always in the build, keeping the base texture. Double sided, opaque (even the glass).
+        /// </summary>
+        static void FixMaterials(GameObject model)
+        {
+            var cache = new System.Collections.Generic.Dictionary<Material, Material>();
+            foreach (var r in model.GetComponentsInChildren<Renderer>(true))
+            {
+                r.enabled = true;
+                r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                r.receiveShadows = false;
+                var old = r.sharedMaterials;
+                var nm = new Material[old.Length];
+                for (int i = 0; i < old.Length; i++)
+                {
+                    var src = old[i];
+                    if (src == null) { nm[i] = null; continue; }
+                    if (!cache.TryGetValue(src, out var m)) cache[src] = m = ToUrpLit(src);
+                    nm[i] = m;
+                }
+                r.sharedMaterials = nm;
+            }
+        }
+
+        static Material ToUrpLit(Material src)
+        {
+            var sh = Shader.Find("Universal Render Pipeline/Lit");
+            if (sh == null) sh = Shader.Find("Universal Render Pipeline/Simple Lit");
+            var m = new Material(sh != null ? sh : Shader.Find("Hidden/InternalErrorShader")) { name = "RW_" + src.name };
+            bool glass = src.name.IndexOf("Glass", System.StringComparison.OrdinalIgnoreCase) >= 0;
+            Texture tex = null; Color c = Color.white;
+            foreach (var n in new[] { "baseColorTexture", "_BaseMap", "_MainTex" }) if (src.HasProperty(n)) { tex = src.GetTexture(n); if (tex != null) break; }
+            foreach (var n in new[] { "baseColorFactor", "_BaseColor", "_Color" }) if (src.HasProperty(n)) { c = src.GetColor(n); break; }
+            if (glass) { c = new Color(0.03f, 0.05f, 0.06f, 1f); tex = null; }
+            c.a = 1f;
+            if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", tex);
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+            if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", glass ? 0f : 0.1f);
+            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", glass ? 0.85f : 0.35f);
+            if (m.HasProperty("_Cull")) m.SetFloat("_Cull", 0f);          // double sided: the hold is seen from inside
+            return m;
         }
 
         static void SetLayer(GameObject go, int layer)
