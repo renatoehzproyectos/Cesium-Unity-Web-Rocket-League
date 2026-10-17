@@ -19,6 +19,7 @@ namespace RocketWorld
         public TileColliderBudget colliderBudget;
         public CarInput input;
         public Transform visual;
+        public PlaneIntro intro;
         public bool infiniteBoost = true;
         public float spawnHeadingDeg;
 
@@ -30,6 +31,9 @@ namespace RocketWorld
         public Vector3 UnityVelocity => _rb.linearVelocity;
         public float SpeedMS => _rb.linearVelocity.magnitude;
         public Rigidbody Body => _rb;
+
+        /// <summary>Shown by the HUD in the middle of the screen (empty = nothing).</summary>
+        public void SetStatus(string s) { if (CurrentPhase == Phase.Running) Status = s; }
 
         const float Tick = 1f / 120f;
         Rigidbody _rb;
@@ -84,6 +88,7 @@ namespace RocketWorld
         {
             if (georeference != null) georeference.changed += OnGeoChanged;
             if (visual != null) _flame = visual.Find("Flame");
+            if (intro != null && intro.Begin(this)) return;          // opening sequence: start inside the cargo plane
             BeginWaiting();
         }
 
@@ -128,7 +133,7 @@ namespace RocketWorld
         void Update()
         {
             float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
-            if (input != null && input.ResetPressed && CurrentPhase == Phase.Running) { _rescue = true; BeginWaiting(); }
+            if (input != null && input.ResetPressed && CurrentPhase == Phase.Running && !(intro != null && intro.TryResetInBay())) { _rescue = true; BeginWaiting(); }
             if (CurrentPhase == Phase.WaitingForGround) { TrySpawn(); return; }
             if (_resync) ApplyOriginShift();
 
@@ -141,7 +146,7 @@ namespace RocketWorld
                 {
                     // Optional micro-snap to ground if we are slightly floating / sinking after LOD swap.
                     if (Physics.Raycast(transform.position + Vector3.up * 3f, Vector3.down, out var hit, 8f,
-                            PhysicsSetup.WorldMask, QueryTriggerInteraction.Ignore) && hit.normal.y > 0.5f)
+                            PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore) && hit.normal.y > 0.5f)
                     {
                         var pos = hit.point + Vector3.up * 0.34f;
                         transform.position = pos;
@@ -222,7 +227,7 @@ namespace RocketWorld
             float waited = Time.realtimeSinceStartup - _waitStart;
             float progress = tileset != null ? tileset.ComputeLoadProgress() : 100f;
             var origin = _rescue ? transform.position + Vector3.up * 60f : new Vector3(0f, 2500f, 0f);
-            bool ground = Physics.Raycast(origin, Vector3.down, out var hit, _rescue ? 400f : 5000f, PhysicsSetup.WorldMask, QueryTriggerInteraction.Ignore) && hit.normal.y > 0.5f;
+            bool ground = Physics.Raycast(origin, Vector3.down, out var hit, _rescue ? 400f : 5000f, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore) && hit.normal.y > 0.5f;
             Status = ground ? $"Loading city… {progress:0}%" : $"Waiting for terrain… {progress:0}%";
             if (!ground) { _stableSince = -1f; return; }
             if (progress >= 99.9f) { if (_stableSince < 0) _stableSince = Time.realtimeSinceStartup; } else _stableSince = -1f;
@@ -236,6 +241,13 @@ namespace RocketWorld
             if (heading.sqrMagnitude < 1e-3f) heading = Vector3.forward;
             var rot = Quaternion.LookRotation(heading.normalized, Vector3.up);
             var pos = groundPoint + Vector3.up * (0.34f + (_rescue ? 0.5f : 0.12f));      // rest height of the Octane CoM is 17 uu = 0.34 m
+            if (colliderBudget != null) colliderBudget.burst = false;
+            PlaceDirect(pos, rot);
+        }
+
+        /// <summary>Puts the car at an exact pose and starts driving immediately (no ground search). Used by the plane intro.</summary>
+        public void PlaceDirect(Vector3 pos, Quaternion rot)
+        {
             _rb.isKinematic = false;
             transform.SetPositionAndRotation(pos, rot);
             _rb.position = pos; _rb.rotation = rot;
@@ -245,7 +257,6 @@ namespace RocketWorld
             Vehicle.OnStateSet(true);
             _prevPos = _currPos = pos; _prevRot = _currRot = rot;
             _rescue = false; _acc = 0f; _resync = false; Status = "";
-            if (colliderBudget != null) colliderBudget.burst = false;
             CurrentPhase = Phase.Running;
             ApplyVisual(0f);
         }

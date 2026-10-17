@@ -11,3 +11,5 @@
 - **Unity glTFast** - Apache-2.0 (imports the .glb in the Editor).
 
 - **Barlow Semi Condensed** (The Barlow Project Authors) - SIL Open Font License 1.1, `Assets/Resources/Fonts` (license: `OFL.txt` there). Used for the in-game UI.
+
+- **YC-130 (Prototype of C-130)** by KOG_THORNS (https://sketchfab.com/ioai25312) - CC BY 4.0, https://sketchfab.com/3d-models/yc-130prototype-of-c-130-11d237757851434ab5cb853db80376bb. Modified: the closed rear ramp was split into its own node so it can be animated, textures downscaled to 1024 px. `Assets/Resources/Models/YC130.glb`.

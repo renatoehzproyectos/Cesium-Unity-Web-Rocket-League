@@ -409,6 +409,9 @@ namespace RocketWorld
             carCtl.spawnHeadingDeg = settings.heading;
             carVisual = CarVisual.Build(car, GameSettings.CarColors[settings.carColor].color, -0.3406f);   // Octane rest height: CoM 17 uu above the ground
             carCtl.visual = carVisual;
+            var intro = gameObject.AddComponent<PlaneIntro>();            // opening: start inside a cargo plane 1 km up
+            intro.root = this;
+            carCtl.intro = intro;
         }
 
         void BuildCamera()

@@ -40,7 +40,7 @@ namespace RocketWorld
             if (!_ready) { pos = want; _lookOffset = tgt - carPos; _ready = true; }
             pos = Vector3.Lerp(pos, want, 1f - Mathf.Exp(-dt * 6.5f));
             _lookOffset = Vector3.Lerp(_lookOffset, tgt - carPos, 1f - Mathf.Exp(-dt * 12f));
-            if (Physics.Raycast(pos + Vector3.up * 50f, Vector3.down, out var gh, 60f, PhysicsSetup.WorldMask, QueryTriggerInteraction.Ignore) && pos.y < gh.point.y + 0.8f)
+            if (Physics.Raycast(pos + Vector3.up * 50f, Vector3.down, out var gh, 60f, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore) && pos.y < gh.point.y + 0.8f)
                 pos.y = gh.point.y + 0.8f;
 
             transform.SetPositionAndRotation(pos, Quaternion.LookRotation((carPos + _lookOffset) - pos, Vector3.up));

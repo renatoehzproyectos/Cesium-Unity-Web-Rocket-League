@@ -12,7 +12,10 @@ namespace RocketWorld
     public static class PhysicsSetup
     {
         public const int CarLayer = 30;                        // wheel rays and the chase camera ignore it
+        public const int PlaneLayer = 29;                      // the intro cargo plane (hidden from the minimap, ignored by ground-finding rays)
         public static int WorldMask => ~(1 << CarLayer);
+        /// <summary>Terrain only: spawn / camera-floor rays must not land on the plane.</summary>
+        public static int TerrainMask => ~((1 << CarLayer) | (1 << PlaneLayer));
 
         public static Vector3 ToUnity(Vec3 s) => new Vector3(s.y, s.z, s.x);
         public static Vec3 ToSim(Vector3 u) => new Vec3(u.z, u.x, u.y);

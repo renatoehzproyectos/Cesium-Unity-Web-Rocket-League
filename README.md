@@ -53,3 +53,8 @@ docs/                    PHYSICS (design, what is matched/verified/unverifiable)
 Custom web template (`Assets/WebGLTemplates/RocketWorld`: page title "Rocket World", favicon/app icons, branded loader), a dark-glass IMGUI theme
 (`UiTheme.cs`), a key-free circular minimap (`Minimap.cs`: top-down render of the already-loaded world; click it to toggle rotate / north-up),
 speed readout and a softly tuned chase camera. Changing the product name resets browser-saved settings once.
+
+## Opening sequence
+The game starts inside a cargo plane 1 km above the start point (`PlaneIntro.cs`). You can drive around the hold; when the terrain below has loaded
+the rear ramp opens (animated) and you drive off and fall. Add `?intro=0` to the URL to skip it. Tuning constants (altitude, ramp angles, hold size)
+are at the top of `PlaneIntro.cs`.

@@ -231,7 +231,7 @@ namespace RocketWorld
             for (int i = 0; i < GameSettings.CarColors.Length; i++)
                 if (GUILayout.Button(GameSettings.CarColors[i].name)) { s.carColor = i; changed = true; }
             GUILayout.EndHorizontal();
-            GUILayout.Label("<color=#ffffff88>Settings are saved in this browser.</color>", _small);
+            GUILayout.Label("<color=#ffffff88>Settings are saved in this browser.\nAircraft model: \"YC-130\" by KOG_THORNS, CC BY 4.0.</color>", _small);
             GUILayout.EndScrollView();
             GUILayout.EndArea();
 

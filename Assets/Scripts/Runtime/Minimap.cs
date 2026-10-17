@@ -52,10 +52,10 @@ namespace RocketWorld
             _cam.orthographic = true;
             _cam.orthographicSize = _range;
             _cam.nearClipPlane = 1f;
-            _cam.farClipPlane = Height + 900f;
+            _cam.farClipPlane = Height + 2200f;                // also reaches the ground from the cargo plane (1 km up)
             _cam.clearFlags = CameraClearFlags.SolidColor;
             _cam.backgroundColor = new Color(0.06f, 0.09f, 0.13f, 1f);
-            _cam.cullingMask = ~(1 << PhysicsSetup.CarLayer);
+            _cam.cullingMask = ~((1 << PhysicsSetup.CarLayer) | (1 << PhysicsSetup.PlaneLayer));   // never show the intro plane
             _cam.allowHDR = false; _cam.allowMSAA = false;
             _cam.useOcclusionCulling = false;
             _cam.depth = -50;                            // rendered before the main camera; target is a texture, so nothing hits the screen
