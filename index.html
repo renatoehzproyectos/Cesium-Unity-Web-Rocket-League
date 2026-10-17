@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>Rocket World</title>
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes, viewport-fit=cover">
+  <meta name="description" content="Drive a Rocket League car anywhere on Earth.">
+  <meta name="theme-color" content="#070b12">
+  <meta name="application-name" content="Rocket World">
+  <meta name="apple-mobile-web-app-title" content="Rocket World">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta property="og:title" content="Rocket World">
+  <meta property="og:description" content="Drive a Rocket League car anywhere on Earth.">
+  <link rel="icon" href="TemplateData/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="TemplateData/icon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="TemplateData/icon-16.png">
+  <link rel="apple-touch-icon" href="TemplateData/icon-180.png">
+  <link rel="manifest" href="TemplateData/manifest.webmanifest">
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #070b12; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; overscroll-behavior: none; }
+    #unity-container { position: fixed; inset: 0; }
+    #unity-canvas { width: 100%; height: 100%; display: block; background: #070b12; outline: none; }
+
+    #rw-loading { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 50% 40%, #12202f 0%, #070b12 70%); color: #e8f1f8;
+      font-family: "Segoe UI", "Helvetica Neue", Roboto, Arial, sans-serif; transition: opacity .6s ease; }
+    #rw-loading .art { width: min(78vw, 420px); aspect-ratio: 1 / 1; border-radius: 28px; background: url(TemplateData/splash.jpg) center / cover; box-shadow: 0 24px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.08); }
+    #rw-loading h1 { margin: 26px 0 4px; font-size: 34px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    #rw-loading h1 span { color: #38b6ff; }
+    #rw-loading .sub { font-size: 13px; opacity: .55; letter-spacing: .06em; margin-bottom: 22px; }
+    #rw-bar { width: min(70vw, 340px); height: 6px; border-radius: 6px; background: rgba(255,255,255,.12); overflow: hidden; }
+    #rw-bar > div { height: 100%; width: 4%; border-radius: 6px; background: linear-gradient(90deg, #38b6ff, #7fe0ff); transition: width .25s ease; }
+    #rw-msg { margin-top: 12px; font-size: 12px; opacity: .5; min-height: 16px; }
+    #rw-error { display: none; position: fixed; left: 50%; top: 22px; transform: translateX(-50%); max-width: min(90vw, 560px); z-index: 10000; padding: 12px 18px; border-radius: 12px;
+      background: rgba(20,12,16,.92); border: 1px solid rgba(255,90,90,.5); color: #ffd9d9; font: 14px "Segoe UI", Roboto, Arial, sans-serif; text-align: center; }
+  </style>
+<script>window.RW_DEFAULT_ION_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI3YjBhYjU1Ny0zZTk3LTQzNTMtOWZkMC0xYjY3MzM0YWIzOWQiLCJpZCI6NDQ2NzA0LCJzdWIiOiJyZW5hdHByb3h4MTMiLCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoiR0QiLCJpYXQiOjE3ODQ4NTQ3MDZ9.bnKu2GliHFuowDLX06il4W3DsGhdPoflNV2BsvWcjxw';</script>
+</head>
+<body>
+  <div id="unity-container">
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+  </div>
+
+  <div id="rw-loading">
+    <div class="art"></div>
+    <h1>Rocket <span>World</span></h1>
+    <div class="sub">DRIVE ANYWHERE ON EARTH</div>
+    <div id="rw-bar"><div id="rw-fill"></div></div>
+    <div id="rw-msg">Starting engine…</div>
+  </div>
+  <div id="rw-error"></div>
+
+  <script>
+    var buildUrl = "Build";
+    var loaderUrl = buildUrl + "/78fe250ee203aca457dc26d1235cfe17.loader.js";
+    var config = {
+      arguments: [],
+      dataUrl: buildUrl + "/58593b2a2f0956c16a5ff6f45653121d.data.br",
+      frameworkUrl: buildUrl + "/10e17f643b775c843d581461753019ca.framework.js.br",
+      workerUrl: buildUrl + "/2307430ec943b165a5ea5f5631faff74.worker.js.br",
+      codeUrl: buildUrl + "/f31882714494acfd8e97e4138fa62e41.wasm.br",
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: "Rocket World",
+      productName: "Rocket World",
+      productVersion: "1.0",
+      showBanner: function (msg, type) { if (type === "error") showError(msg); else console.warn(msg); },
+    };
+
+    var fill = document.getElementById("rw-fill"), msg = document.getElementById("rw-msg");
+    function showError(text) {
+      var e = document.getElementById("rw-error");
+      e.textContent = text; e.style.display = "block";
+    }
+
+    var problem = null;
+    if (!window.crossOriginIsolated) problem = "Rocket World can't start here: this page isn't cross-origin isolated (COOP/COEP headers are missing on the host).";
+    else if (!window.WebGL2RenderingContext) problem = "This browser doesn't support WebGL 2. Try an up-to-date Chrome, Edge, Firefox or Safari.";
+
+    if (problem) {
+      showError(problem); msg.textContent = "";
+    } else {
+      var script = document.createElement("script");
+      script.src = loaderUrl;
+      script.onload = function () {
+        createUnityInstance(document.querySelector("#unity-canvas"), config, function (p) {
+          fill.style.width = Math.max(4, Math.round(p * 92)) + "%";
+          msg.textContent = p < 0.9 ? "Loading engine…" : "Almost there…";
+        }).then(function (instance) {
+          window.rwUnity = instance;
+          fill.style.width = "96%"; msg.textContent = "Loading the world…";
+        }).catch(function (m) { showError(String(m)); });
+      };
+      document.body.appendChild(script);
+    }
+
+    // If startup stalls or throws, say so instead of sitting on the loader forever.
+    window.addEventListener("error", function (e) { console.error(e.message); });
+    setTimeout(function () {
+      if (!window.rwUnity && document.getElementById("rw-loading").style.display !== "none" && !problem)
+        msg.textContent = "Taking longer than usual… check your connection, or reload the page.";
+    }, 60000);
+
+    // The game calls this (RW_HideLoading) once the first frame is ready.
+    document.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+    window.addEventListener("pointerdown", function () { try { document.getElementById("unity-canvas").focus(); } catch (e) {} });
+  </script>
+<!-- rocketworld-checks --></body>
+</html>
