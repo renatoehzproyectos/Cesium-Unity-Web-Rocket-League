@@ -256,6 +256,8 @@ namespace RocketWorld
             if (carCtl == null) return;
             // Same place, only height tweak: keep XZ and re-raycast (rescue path). New city: full respawn at origin.
             carCtl.Respawn(sameLatLon);
+            // new city: arrive by plane again (no-op before the first start and when the intro is disabled)
+            if (!sameLatLon && carCtl.intro != null) carCtl.intro.Restart(false);
         }
 
         /// <summary>
@@ -310,7 +312,10 @@ namespace RocketWorld
             tileset.maximumScreenSpaceError = sse;
             if (budget != null) budget.burst = true;
             if (protectCar && carCtl != null)
-                carCtl.SoftHoldForTerrain(1.5f);
+            {
+                // all tiles reload: cover it with the plane drop (falls back to the short freeze when the intro is off)
+                if (carCtl.intro == null || !carCtl.intro.Restart(true)) carCtl.SoftHoldForTerrain(1.5f);
+            }
         }
 
         /// <summary>Force an immediate origin commit (e.g. after "Reload tiles" or a city preset that already called ApplyLive).</summary>

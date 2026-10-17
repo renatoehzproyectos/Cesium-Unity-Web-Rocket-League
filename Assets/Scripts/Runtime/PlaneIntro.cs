@@ -39,20 +39,53 @@ namespace RocketWorld
         CesiumGlobeAnchor _carAnchor;
         GameObject _plane;
         Transform _bay, _hinge;
-        bool _used;
         float _t0, _openT0, _loadedSince = -1f, _fallT0, _planeSpeed;
         double _startHeight;
 
+        bool _began;
+
+        /// <summary>First start of the game: plane above the start point.</summary>
         public bool Begin(RocketCar car)
         {
-            if (_used) return false;
-            _used = true;
+            if (_began) return false;
+            _began = true;
+            _car = car;
+            _carAnchor = car.GetComponent<CesiumGlobeAnchor>();
+            return Spawn(Vector3.zero, root != null ? root.settings.heading : 0f);
+        }
+
+        /// <summary>
+        /// Run the sequence again: after teleporting to another city (atCar = false: above the new origin) or after a detail (SSE)
+        /// change (atCar = true: above where the car is, same heading). Returns false if the intro is unavailable / disabled,
+        /// so the caller can fall back to the old behaviour.
+        /// </summary>
+        public bool Restart(bool atCar)
+        {
+            if (!_began || _car == null || root == null || root.settings.bench || root.settings.noIntro) return false;
+            Vector3 xz = Vector3.zero;
+            float heading = root.settings.heading;
+            if (atCar)
+            {
+                var p = _car.transform.position; xz = new Vector3(p.x, 0f, p.z);
+                var f = _car.transform.forward; f.y = 0f;
+                if (f.sqrMagnitude > 1e-3f) heading = Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg;
+            }
+            ClearPlane();
+            return Spawn(xz, heading);
+        }
+
+        void ClearPlane()
+        {
+            if (_plane != null) { _plane.SetActive(false); Destroy(_plane); _plane = null; }
+            CurrentStage = Stage.Idle; _loadedSince = -1f; _planeSpeed = 0f;
+            if (_car != null && _car.colliderBudget != null) _car.colliderBudget.burst = false;
+        }
+
+        bool Spawn(Vector3 xz, float heading)
+        {
             if (root == null || root.settings.bench || root.settings.noIntro || root.georeference == null) return false;
             var prefab = Resources.Load<GameObject>("Models/YC130");
             if (prefab == null) { Debug.LogWarning("[RocketWorld] Cargo plane model not found - starting on the ground."); return false; }
-
-            _car = car;
-            _carAnchor = car.GetComponent<CesiumGlobeAnchor>();
 
             _plane = new GameObject("CargoPlane");
             _plane.transform.SetParent(root.georeference.transform, false);
@@ -99,9 +132,8 @@ namespace RocketWorld
             bc.sharedMaterial = PhysicsSetup.WorldMaterial;
 
             // place the plane so that the car (which faces the tail) looks along the configured heading
-            float heading = root.settings.heading;
             _plane.transform.rotation = Quaternion.Euler(0f, heading, 0f) * Quaternion.Inverse(_bay.localRotation);
-            _plane.transform.position = new Vector3(0f, Altitude, 0f);
+            _plane.transform.position = new Vector3(xz.x, Altitude, xz.z);
             _plane.AddComponent<CesiumGlobeAnchor>();                // stays put when Cesium re-centres the origin
             Physics.SyncTransforms();
 
