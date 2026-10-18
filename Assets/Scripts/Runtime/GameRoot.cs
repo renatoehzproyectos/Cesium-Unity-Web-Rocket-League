@@ -31,6 +31,7 @@ namespace RocketWorld
         public OrbitCamera orbit;
         public DebugHud hud;
         public Minimap minimap;
+        public RocketBall ball;
         public AutoQuality autoQuality;
         public BenchmarkRunner benchmark;
         public TileLog tileLog;
@@ -417,6 +418,9 @@ namespace RocketWorld
             var intro = gameObject.AddComponent<PlaneIntro>();            // opening: start inside a cargo plane 1 km up
             intro.root = this;
             carCtl.intro = intro;
+            ball = gameObject.AddComponent<RocketBall>();                 // appears when the player presses the Ball button
+            ball.root = this;
+            carCtl.ball = ball;
         }
 
         void BuildCamera()

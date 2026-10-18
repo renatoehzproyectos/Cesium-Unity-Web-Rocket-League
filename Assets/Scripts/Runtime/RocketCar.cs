@@ -20,6 +20,7 @@ namespace RocketWorld
         public CarInput input;
         public Transform visual;
         public PlaneIntro intro;
+        public RocketBall ball;
         public bool infiniteBoost = true;
         public float spawnHeadingDeg;
 
@@ -31,6 +32,7 @@ namespace RocketWorld
         public Vector3 UnityVelocity => _rb.linearVelocity;
         public float SpeedMS => _rb.linearVelocity.magnitude;
         public Rigidbody Body => _rb;
+        public BoxCollider HitCollider { get; private set; }
 
         /// <summary>Shown by the HUD in the middle of the screen (empty = nothing).</summary>
         public void SetStatus(string s) { if (CurrentPhase == Phase.Running) Status = s; }
@@ -44,7 +46,7 @@ namespace RocketWorld
         float _acc;
         bool _resync, _rescue;
         float _waitStart, _stableSince = -1f;
-        Transform _flame;
+        BoostFx _boostFx;
         // Soft hold: freeze the car in place while Cesium LOD/colliders settle (SSE change). No respawn, no fall.
         bool _softHold;
         float _softHoldUntil;
@@ -76,6 +78,7 @@ namespace RocketWorld
             box.size = new Vector3(eff.y, eff.z, eff.x);
             box.center = PhysicsSetup.ToUnity(_cfg.hitboxPosOffset * RL.UuToBt);
             box.sharedMaterial = PhysicsSetup.CarMaterial;
+            HitCollider = box;
             gameObject.AddComponent<CarContactSensor>().car = this;
 
             _body = new PhysxBody(_rb, RL.CarMassBt, new Vec3(1f / inertia.x, 1f / inertia.y, 1f / inertia.z));
@@ -87,7 +90,7 @@ namespace RocketWorld
         void Start()
         {
             if (georeference != null) georeference.changed += OnGeoChanged;
-            if (visual != null) _flame = visual.Find("Flame");
+            if (visual != null) _boostFx = visual.GetComponent<BoostFx>();
             if (intro != null && intro.Begin(this)) return;          // opening sequence: start inside the cargo plane
             BeginWaiting();
         }
@@ -188,6 +191,7 @@ namespace RocketWorld
             _body.Pull();
             Vehicle.PreTick(Tick);                            // btVehicleRL + Car::_PreTickUpdate
             _body.Push();
+            if (ball != null) ball.PreTick(this);             // RocketSim's extra car-ball impulse goes in before the contact solve
             Physics.Simulate(Tick);                           // gravity, forces, exact contact against tile colliders (OnCollision* -> ReportWorldContact)
             _body.Pull();
             Vehicle.PostTick(Tick);
@@ -196,18 +200,15 @@ namespace RocketWorld
 
             _prevPos = _currPos; _prevRot = _currRot;
             _currPos = _rb.position; _currRot = _rb.rotation;
+            if (ball != null) ball.PostTick();
         }
 
         void ApplyVisual(float alpha)
         {
             if (visual == null) return;
             visual.SetPositionAndRotation(Vector3.LerpUnclamped(_prevPos, _currPos, alpha), Quaternion.Slerp(_prevRot, _currRot, alpha));
-            if (_flame != null)
-            {
-                bool on = Vehicle.state.isBoosting;
-                if (_flame.gameObject.activeSelf != on) _flame.gameObject.SetActive(on);
-                if (on) { float k = 1f + 0.25f * Mathf.Sin(Time.time * 60f); _flame.localScale = new Vector3(0.45f * k, 0.45f * k, 1.6f * (1f + 0.2f * Mathf.Sin(Time.time * 47f))); }
-            }
+            if (ball != null) ball.ApplyVisual(alpha);
+            if (_boostFx != null) _boostFx.SetBoosting(Vehicle.state.isBoosting);
         }
 
         // CesiumOriginShift moved the georeference origin: anchors re-expressed our transform in the new frame; the Rigidbody follows,
@@ -220,6 +221,7 @@ namespace RocketWorld
             _rb.position = transform.position; _rb.rotation = transform.rotation;
             _rb.linearVelocity = dq * _rb.linearVelocity; _rb.angularVelocity = dq * _rb.angularVelocity;
             _prevPos = _currPos = _rb.position; _prevRot = _currRot = _rb.rotation;
+            if (ball != null) ball.OnOriginShift(dq);
         }
 
         void TrySpawn()

@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace RocketWorld
 {
-    public enum CarAction { Accelerate, Brake, SteerLeft, SteerRight, RollLeft, RollRight, Jump, Boost, Handbrake, CameraToggle, Reset, Menu }
+    public enum CarAction { Accelerate, Brake, SteerLeft, SteerRight, RollLeft, RollRight, Jump, Boost, Handbrake, CameraToggle, Reset, Ball, Menu }
 
     /// <summary>Gamepad inputs a car action can be bound to (buttons, triggers, d-pad and the four directions of each stick).</summary>
     public enum PadInput
@@ -50,6 +50,7 @@ namespace RocketWorld
                 case CarAction.Handbrake: return "Handbrake (powerslide)";
                 case CarAction.CameraToggle: return "Switch camera";
                 case CarAction.Reset: return "Reset car";
+                case CarAction.Ball: return "Summon ball";
                 default: return "Settings menu";
             }
         }
@@ -72,6 +73,7 @@ namespace RocketWorld
                 case CarAction.Handbrake: return new Binding { key0 = "LeftCtrl", key1 = "X", pad = PadInput.ButtonWest };
                 case CarAction.CameraToggle: return new Binding { key0 = "C", pad = PadInput.ButtonNorth };
                 case CarAction.Reset: return new Binding { key0 = "R", pad = PadInput.Select };
+                case CarAction.Ball: return new Binding { key0 = "B", pad = PadInput.RightStickPress };
                 default: return new Binding { pad = PadInput.Start };
             }
         }

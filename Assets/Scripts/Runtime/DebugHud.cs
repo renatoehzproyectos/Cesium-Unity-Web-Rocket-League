@@ -94,7 +94,7 @@ namespace RocketWorld
         {
             var p = new Vector2(screenPos.x / _k, (Screen.height - screenPos.y) / _k);
             if (root.carInput != null && root.carInput.TouchControlsActive && CarInput.OverTouchZone(screenPos)) return true;
-            return (root.minimap != null && root.minimap.Rect.Contains(p)) || _gear.Contains(p) || _ctl.Contains(p) || (_ctlOpen && _ctlPanel.Contains(p)) || (_open && _panel.Contains(p)) || (_reportOpen && _report.Contains(p));
+            return (root.minimap != null && root.minimap.Rect.Contains(p)) || new Rect(_ctl.x - 86, _ctl.y, 80, _ctl.height).Contains(p) || _gear.Contains(p) || _ctl.Contains(p) || (_ctlOpen && _ctlPanel.Contains(p)) || (_open && _panel.Contains(p)) || (_reportOpen && _report.Contains(p));
         }
 
         float _runStart = -1f, _shownSpeed;
@@ -167,14 +167,14 @@ namespace RocketWorld
                 var kc = box.center + new Vector2(v.x * box.width * 0.5f, -v.y * box.height * 0.5f);
                 GUI.Box(new Rect(kc.x - ks * 0.5f, kc.y - ks * 0.5f, ks, ks), "", UiTheme.Touch);
             }
-            else if (running && W > 760f)
+            else if (running && W > 1100f)
             {
                 // controls cheat-sheet: shown for the first seconds of play, then fades away
                 float t = Time.unscaledTime - _runStart, a = t < 12f ? 1f : Mathf.Clamp01(1f - (t - 12f) / 2f);
                 if (a > 0.01f && !_open && !_ctlOpen)
                 {
                     var oc = GUI.color; GUI.color = new Color(1, 1, 1, a);
-                    GUI.Box(new Rect(W * 0.5f - 330, 14, 660, 36), "WASD drive   ·   Space jump   ·   Shift boost   ·   Ctrl drift   ·   C camera   ·   R rescue", UiTheme.Pill);
+                    GUI.Box(new Rect(W * 0.5f - 350, 14, 700, 36), "WASD drive  ·  Space jump  ·  Shift boost  ·  Ctrl drift  ·  C camera  ·  R rescue  ·  B ball", UiTheme.Pill);
                     GUI.color = oc;
                 }
             }
@@ -189,6 +189,7 @@ namespace RocketWorld
                 GUI.color = oc;
             }
             if (GUI.Button(_ctl, "Controls", _btn)) SetControlsOpen(!_ctlOpen);
+            if (GUI.Button(new Rect(W - 252, 14, 80, 46), "Ball", _btn) && root.ball != null) root.ball.Summon();
             if (Time.unscaledTime < _toast) GUI.Box(new Rect(W * 0.5f - 160, 100, 320, 38), _toastText, UiTheme.Toast);
             if (_reportOpen && root.benchmark != null) DrawReport(H);
             if (_ctlOpen) DrawControls();

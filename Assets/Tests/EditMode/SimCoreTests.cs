@@ -87,3 +87,37 @@ namespace RocketWorld.Tests
         [Test] public void GoldenSideFlip() { AssertPos(Run("s8_sideflip_air"), 2764.42f, 614.67f, 88.86f); }
     }
 }
+
+namespace RocketWorld.Tests
+{
+    using NUnit.Framework;
+    using RocketWorld.Sim;
+
+    public class BallHitTests
+    {
+        [Test] public void HeadOnHitUsesTheCurveAndPointsForward()
+        {
+            // 1000 uu/s closing speed: curve(1000) = 0.65 - 0.1 * 500/1800
+            var dv = RLBall.ExtraHitVelocity(new Vec3(100, 0, 0), new Vec3(-1000, 0, 0), new Vec3(1, 0, 0));
+            Assert.AreEqual(1000f * (0.65f - 0.1f * 500f / 1800f), dv.x, 0.5f);
+            Assert.AreEqual(0f, dv.y, 1e-3f); Assert.AreEqual(0f, dv.z, 1e-3f);
+        }
+
+        [Test] public void HitFromBelowIsLiftedByTheScaledZ()
+        {
+            var dv = RLBall.ExtraHitVelocity(new Vec3(100, 0, 100), new Vec3(-500, 0, 0), new Vec3(1, 0, 0));
+            // h = normalize(100, 0, 35); forward part scaled by 0.65 -> direction (0.8805, 0, 0.4740)
+            float len = dv.Length();
+            Assert.AreEqual(500f * 0.65f, len, 0.5f);
+            Assert.AreEqual(0.8805f, dv.x / len, 2e-3f);
+            Assert.AreEqual(0.4740f, dv.z / len, 2e-3f);
+        }
+
+        [Test] public void ClosingSpeedIsCappedAndNoContactMeansNoImpulse()
+        {
+            var big = RLBall.ExtraHitVelocity(new Vec3(100, 0, 0), new Vec3(-9000, 0, 0), new Vec3(1, 0, 0));
+            Assert.AreEqual(4600f * 0.30f, big.Length(), 0.5f);
+            Assert.IsTrue(RLBall.ExtraHitVelocity(new Vec3(100, 0, 0), Vec3.Zero, new Vec3(1, 0, 0)).IsZero());
+        }
+    }
+}

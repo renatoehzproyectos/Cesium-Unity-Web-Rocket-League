@@ -12,10 +12,11 @@ namespace RocketWorld
     public static class PhysicsSetup
     {
         public const int CarLayer = 30;                        // wheel rays and the chase camera ignore it
+        public const int BallLayer = 28;                       // the ball: wheel rays and the camera ignore it
         public const int PlaneLayer = 29;                      // the intro cargo plane (hidden from the minimap, ignored by ground-finding rays)
-        public static int WorldMask => ~(1 << CarLayer);
+        public static int WorldMask => ~((1 << CarLayer) | (1 << BallLayer));
         /// <summary>Terrain only: spawn / camera-floor rays must not land on the plane.</summary>
-        public static int TerrainMask => ~((1 << CarLayer) | (1 << PlaneLayer));
+        public static int TerrainMask => ~((1 << CarLayer) | (1 << PlaneLayer) | (1 << BallLayer));
 
         public static Vector3 ToUnity(Vec3 s) => new Vector3(s.y, s.z, s.x);
         public static Vec3 ToSim(Vector3 u) => new Vec3(u.z, u.x, u.y);
@@ -28,6 +29,17 @@ namespace RocketWorld
         {
             dynamicFriction = RL.CarWorldFriction, staticFriction = RL.CarWorldFriction, bounciness = RL.CarWorldRestitution,
             frictionCombine = PhysicsMaterialCombine.Average, bounceCombine = PhysicsMaterialCombine.Average,
+        };
+
+        static PhysicsMaterial _ball;
+        /// <summary>
+        /// RocketSim ball: friction 0.35, restitution 0.6 against the world. Both modes are Maximum, which beats the world's Average, so the
+        /// pair resolves to max(0.35, 0.3) = 0.35 and max(0.6, 0.3) = 0.6. (Car-ball contacts are overridden per contact in RocketBall.)
+        /// </summary>
+        public static PhysicsMaterial BallMaterial => _ball != null ? _ball : _ball = new PhysicsMaterial("rw-ball")
+        {
+            dynamicFriction = RLBall.Friction, staticFriction = RLBall.Friction, bounciness = RLBall.Restitution,
+            frictionCombine = PhysicsMaterialCombine.Maximum, bounceCombine = PhysicsMaterialCombine.Maximum,
         };
 
         /// <summary>We step PhysX ourselves at 120 Hz (Physics.Simulate) so the order is RocketSim's: pre-tick -> step -> post-tick.</summary>

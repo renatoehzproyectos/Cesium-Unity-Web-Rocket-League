@@ -58,3 +58,10 @@ speed readout and a softly tuned chase camera. Changing the product name resets 
 The game starts inside a cargo plane 1 km above the start point (`PlaneIntro.cs`). You can drive around the hold; when the terrain below has loaded
 the rear ramp opens (animated) and you drive off and fall. Add `?intro=0` to the URL to skip it. Tuning constants (altitude, ramp angles, hold size)
 are at the top of `PlaneIntro.cs`.
+
+## Ball
+Press **B** (or the Ball button, or right-stick click on a gamepad) to put the ball in front of the car; press again to bring it back. It is a PhysX
+rigidbody tuned to RocketSim's ball (`RocketBall.cs`, constants and the extra car-ball hit impulse in `Sim/RlBall.cs`): mass 30, gravity -650 uu/s^2, restitution 0.6,
+friction 0.35, linear damping (1-0.03)^t, max speed 6000 uu/s, max spin 6 rad/s, and RocketSim's car-ball contact (friction 2.0, restitution 0 + the
+extra impulse curve). RocketSim never turns the ball; PhysX integrates its orientation from the angular velocity, so it spins on pitch, yaw and roll.
+Touching it fires sparkle sprites (`BallSparks.cs`). The boost is now the web game's soft glowing trail (`BoostFx.cs`).

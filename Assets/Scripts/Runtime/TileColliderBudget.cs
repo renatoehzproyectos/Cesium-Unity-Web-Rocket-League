@@ -13,6 +13,7 @@ namespace RocketWorld
     {
         public Cesium3DTileset tileset;
         public Transform focus;
+        public Transform focus2;                              // optional second centre (the ball): colliders are also kept around it
         public float addRadius = 260f, removeRadius = 420f;   // m (hysteresis)
         public int maxAddsPerCycle = 2, burstAddsWhileWaiting = 24;
         public float cycleSeconds = 0.15f;
@@ -43,6 +44,7 @@ namespace RocketWorld
             if (focus == null || Time.unscaledTime < _next) return;
             _next = Time.unscaledTime + (burst ? 0.02f : cycleSeconds);
             var p = focus.position;
+            bool has2 = focus2 != null && focus2.gameObject.activeInHierarchy; var p2 = has2 ? focus2.position : p;
             float on2 = addRadius * addRadius, off2 = removeRadius * removeRadius;
             _candidates.Clear(); int with = 0;
             for (int t = _tiles.Count - 1; t >= 0; t--)
@@ -55,6 +57,7 @@ namespace RocketWorld
                     var f = e.filters[i]; var r = e.renderers[i];
                     if (f == null || r == null) continue;
                     float d2 = r.bounds.SqrDistance(p);
+                    if (has2) d2 = Mathf.Min(d2, r.bounds.SqrDistance(p2));
                     if (e.colliders[i] != null) { if (d2 > off2) { Destroy(e.colliders[i]); e.colliders[i] = null; } else with++; }
                     else if (d2 < on2 && f.sharedMesh != null) _candidates.Add((d2, e));
                 }
@@ -69,7 +72,7 @@ namespace RocketWorld
                 for (int i = 0; i < e.filters.Length && added < budget; i++)
                 {
                     if (e.colliders[i] != null || e.filters[i] == null || e.filters[i].sharedMesh == null) continue;
-                    if (e.renderers[i] == null || e.renderers[i].bounds.SqrDistance(p) >= on2) continue;
+                    if (e.renderers[i] == null || Mathf.Min(e.renderers[i].bounds.SqrDistance(p), has2 ? e.renderers[i].bounds.SqrDistance(p2) : float.MaxValue) >= on2) continue;
                     var mc = e.filters[i].gameObject.AddComponent<MeshCollider>();       // shares the MeshFilter's mesh
                     mc.sharedMesh = e.filters[i].sharedMesh;
                     mc.sharedMaterial = PhysicsSetup.WorldMaterial;

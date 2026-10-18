@@ -28,6 +28,9 @@ namespace RocketWorld.Editor
             EnsureInputSystem();
             EnsureMaterial("Assets/Resources/Materials/Ground.mat", "Universal Render Pipeline/Lit", new Color(0.36f, 0.42f, 0.33f));
             EnsureMaterial("Assets/Resources/Materials/Flame.mat", "Universal Render Pipeline/Unlit", new Color(1f, 0.63f, 0.13f));
+            EnsureParticleMaterial("Assets/Resources/Materials/ParticleAdd.mat", true);      // ball touch sparks
+            EnsureParticleMaterial("Assets/Resources/Materials/ParticleAlpha.mat", false);   // boost trail
+            EnsureBallMaterial("Assets/Resources/Materials/Ball.mat");
             EnsureMaterial("Assets/Resources/Materials/Sky.mat", "Skybox/Procedural", Color.white);
             EnsureScene();
             AssetDatabase.SaveAssets();
@@ -88,6 +91,46 @@ namespace RocketWorld.Editor
             if (sh == null) { Debug.LogWarning("[RocketWorld] shader not found: " + shaderName); return; }
             var m = new Material(sh);
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", color); else if (m.HasProperty("_Color")) m.SetColor("_Color", color);
+            AssetDatabase.CreateAsset(m, path);
+        }
+
+        /// <summary>URP Particles/Unlit, transparent, additive or alpha blended. The shader + keywords live in the asset, so they survive WebGL stripping.</summary>
+        static void EnsureParticleMaterial(string path, bool additive)
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (existing != null) return;
+            var sh = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+            if (sh == null) { Debug.LogWarning("[RocketWorld] shader not found: Universal Render Pipeline/Particles/Unlit"); return; }
+            var m = new Material(sh);
+            if (m.HasProperty("_Surface")) m.SetFloat("_Surface", 1f);                                   // transparent
+            if (m.HasProperty("_Blend")) m.SetFloat("_Blend", additive ? 2f : 0f);                       // 0 alpha, 2 additive
+            if (m.HasProperty("_SrcBlend")) m.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            if (m.HasProperty("_DstBlend")) m.SetFloat("_DstBlend", additive ? (float)UnityEngine.Rendering.BlendMode.One : (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            if (m.HasProperty("_SrcBlendAlpha")) m.SetFloat("_SrcBlendAlpha", (float)UnityEngine.Rendering.BlendMode.One);
+            if (m.HasProperty("_DstBlendAlpha")) m.SetFloat("_DstBlendAlpha", additive ? (float)UnityEngine.Rendering.BlendMode.One : (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            if (m.HasProperty("_ZWrite")) m.SetFloat("_ZWrite", 0f);
+            if (m.HasProperty("_SoftParticlesEnabled")) m.SetFloat("_SoftParticlesEnabled", 0f);
+            if (m.HasProperty("_CameraFadingEnabled")) m.SetFloat("_CameraFadingEnabled", 0f);
+            m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            m.SetOverrideTag("RenderType", "Transparent");
+            m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", Color.white);
+            AssetDatabase.CreateAsset(m, path);
+        }
+
+        /// <summary>URP Lit with the emission keyword on (the ball is lit by its own texture, like the web version's emissive 0.9).</summary>
+        static void EnsureBallMaterial(string path)
+        {
+            if (AssetDatabase.LoadAssetAtPath<Material>(path) != null) return;
+            var sh = Shader.Find("Universal Render Pipeline/Lit");
+            if (sh == null) { Debug.LogWarning("[RocketWorld] shader not found: Universal Render Pipeline/Lit"); return; }
+            var m = new Material(sh);
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", Color.white);
+            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.35f);
+            if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0f);
+            m.EnableKeyword("_EMISSION");
+            if (m.HasProperty("_EmissionColor")) m.SetColor("_EmissionColor", Color.white * 0.9f);
+            m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
             AssetDatabase.CreateAsset(m, path);
         }
 

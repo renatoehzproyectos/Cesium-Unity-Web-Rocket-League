@@ -25,7 +25,7 @@ namespace RocketWorld
                 box.transform.localScale = new Vector3(84.2f * 0.02f, HeightM, LengthM);
                 box.transform.localPosition = new Vector3(0, HeightM * 0.5f + bottomY, 0);
                 SetBodyColor(root, body);
-                AddFlame(root);
+                root.gameObject.AddComponent<BoostFx>();
                 return root;
             }
             var model = Object.Instantiate(prefab);
@@ -74,7 +74,7 @@ namespace RocketWorld
                 br.sharedMaterial = MakeUrpLit(null, body);
                 br.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             }
-            AddFlame(root);
+            root.gameObject.AddComponent<BoostFx>();
             return root;
         }
 
@@ -111,25 +111,6 @@ namespace RocketWorld
             }
             m.name = "RW_" + n;
             return m;
-        }
-
-        // Boost flame: stretched sphere + point light behind the car. The material is a Resources asset so its shader survives stripping.
-        static void AddFlame(Transform root)
-        {
-            var mat = Resources.Load<Material>("Materials/Flame");
-            var f = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            f.name = "Flame";
-            Object.Destroy(f.GetComponent<Collider>());
-            f.transform.SetParent(root, false);
-            f.transform.localPosition = new Vector3(0f, 0.05f - 0.34f + 0.34f, -LengthM * 0.5f - 0.7f);
-            f.transform.localScale = new Vector3(0.45f, 0.45f, 1.6f);
-            var r = f.GetComponent<Renderer>();
-            if (mat != null) r.sharedMaterial = mat;
-            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            var l = new GameObject("FlameLight").AddComponent<Light>();
-            l.transform.SetParent(f.transform, false);
-            l.type = LightType.Point; l.color = new Color(1f, 0.69f, 0.13f); l.range = 14f; l.intensity = 2.2f; l.shadows = LightShadows.None;
-            f.SetActive(false);
         }
 
         public static void SetBodyColor(Transform visual, Color c)
