@@ -16,6 +16,7 @@ namespace RocketWorld.Editor
         public static void BuildWebGL()
         {
             ProjectSetup.EnsureAll();
+            EnsureNetworkAssets();
             ConfigureWebGL();
             string path = Arg("-customBuildPath") ?? "build/WebGL";
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
@@ -28,6 +29,18 @@ namespace RocketWorld.Editor
             if (report.summary.result == BuildResult.Succeeded) PostProcessIndex(path);
             Debug.Log($"[RocketWorld] build {report.summary.result}, {report.summary.totalSize / (1024 * 1024)} MB -> {path}");
             if (report.summary.result != BuildResult.Succeeded && Application.isBatchMode) EditorApplication.Exit(1);
+        }
+
+        // The multiplayer prefab is created by Assets/Net/Editor/NetPrefabSetup (another assembly): call it by reflection.
+        static void EnsureNetworkAssets()
+        {
+            try
+            {
+                var t = Type.GetType("RocketWorld.Net.Editor.NetPrefabSetup, Assembly-CSharp-Editor");
+                t?.GetMethod("EnsureAll")?.Invoke(null, null);
+                AssetDatabase.Refresh();
+            }
+            catch (Exception e) { Debug.LogWarning("[RocketWorld] multiplayer setup failed: " + e.Message); }
         }
 
         // Bakes ION_TOKEN (from env / -rwIonToken) into window.RW_DEFAULT_ION_TOKEN for Cesium ion tiles.

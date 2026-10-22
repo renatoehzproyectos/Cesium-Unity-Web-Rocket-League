@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using CesiumForUnity;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -35,6 +36,16 @@ namespace RocketWorld
         public AutoQuality autoQuality;
         public BenchmarkRunner benchmark;
         public TileLog tileLog;
+
+        // ---- multiplayer hooks (the networking layer lives in Assets/Net) ----
+        /// <summary>Set before boot by the multiplayer layer: show the start menu and hold the car until a mode is chosen.</summary>
+        public static bool RequireMenu;
+        /// <summary>True while a menu (start / online) is open: the car gets no input and the camera ignores drags.</summary>
+        public static bool MenuBlocksInput;
+        public INetRole net;
+        /// <summary>Remote players' cars (host): tile colliders are kept around them too.</summary>
+        public readonly List<Transform> extraFoci = new List<Transform>();
+        readonly Dictionary<Transform, GameObject> _streams = new Dictionary<Transform, GameObject>();
         public bool TurboActive => _turbo;
         // offsets applied on top of the user's settings by AutoQuality
         public float autoSseAdd, autoScaleMul = 1f, autoFarMul = 1f;
@@ -90,6 +101,8 @@ namespace RocketWorld
             BuildCamera();
             CreateWorldContent();
             ApplyLive();
+            gameObject.AddComponent<CarSimLoop>().ball = ball;
+            if (RequireMenu) { carCtl.HoldStart(); SetCameraMode(1); }   // start menu: show the city (orbit camera) until a mode is chosen
             hud = gameObject.AddComponent<DebugHud>();
             hud.root = this;
             minimap = gameObject.AddComponent<Minimap>();
@@ -196,6 +209,7 @@ namespace RocketWorld
                 budget = go.AddComponent<TileColliderBudget>();        // subscribes in OnEnable, before the tileset starts loading
                 budget.tileset = tileset;
                 budget.focus = car;
+                budget.extraFoci = extraFoci;
                 go.SetActive(true);
             }
             if (_ground != null) { Destroy(_ground.gameObject); _ground = null; }
@@ -447,6 +461,62 @@ namespace RocketWorld
             orbit.yaw = settings.camYaw; orbit.pitch = settings.camPitch; orbit.distance = settings.camDist;
             orbit.autoRotate = settings.autoRotate;
             SetCameraMode(0);
+        }
+
+        // ---- multiplayer helpers ----------------------------------------------------------------------------
+
+        /// <summary>Start driving (solo, host or client). Releases the car held by the start menu and switches to the chase camera.</summary>
+        public void BeginPlay()
+        {
+            if (carCtl != null) carCtl.ReleaseStart();
+            SetCameraMode(0);
+        }
+
+        /// <summary>Put the ball in front of the local car (solo / host) or ask the host to do it (client).</summary>
+        public void RequestBall()
+        {
+            if (net != null && net.IsClientOnly) net.RequestBall();
+            else if (ball != null && carCtl != null) ball.Summon(carCtl);
+        }
+
+        /// <summary>Another player's car. simulated = host (physics runs here), otherwise a puppet fed by snapshots.</summary>
+        public RocketCar BuildRemoteCar(int colorIdx, string playerName, bool simulated)
+        {
+            var go = new GameObject("Car_" + playerName);
+            go.transform.SetParent(georeference.transform, false);
+            go.AddComponent<CesiumGlobeAnchor>();
+            var rc = go.AddComponent<RocketCar>();                      // builds Rigidbody + collider + vehicle model in Awake
+            rc.georeference = georeference; rc.tileset = tileset; rc.colliderBudget = budget;
+            rc.input = null; rc.useNetControls = true; rc.spawnHeadingDeg = settings.heading;
+            rc.playerName = playerName;
+            colorIdx = Mathf.Clamp(colorIdx, 0, GameSettings.CarColors.Length - 1);
+            rc.visual = CarVisual.Build(go.transform, GameSettings.CarColors[colorIdx].color, -0.3406f);
+            if (!simulated) rc.SetSimulated(false);
+            return rc;
+        }
+
+        /// <summary>Host: keep terrain tiles streaming + colliders around a remote car.</summary>
+        public void TrackRemote(Transform t)
+        {
+            if (t == null || _streams.ContainsKey(t)) return;
+            extraFoci.Add(t);
+            var sg = new GameObject("StreamingCameras_Remote");
+            var sc = sg.AddComponent<StreamingCameras>(); sc.root = this; sc.follow = t;
+            _streams[t] = sg;
+        }
+
+        public void UntrackRemote(Transform t)
+        {
+            if (t == null) return;
+            extraFoci.Remove(t);
+            if (_streams.TryGetValue(t, out var sg)) { if (sg != null) Destroy(sg); _streams.Remove(t); }
+        }
+
+        public void DestroyRemoteCar(RocketCar c)
+        {
+            if (c == null || c == carCtl) return;
+            UntrackRemote(c.transform);
+            Destroy(c.gameObject);
         }
 
         public void SetCameraMode(int mode)

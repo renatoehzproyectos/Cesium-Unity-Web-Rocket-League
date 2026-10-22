@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using CesiumForUnity;
 using RocketWorld.Sim;
 using UnityEngine;
@@ -24,13 +25,27 @@ namespace RocketWorld
         public bool infiniteBoost = true;
         public float spawnHeadingDeg;
 
+        /// <summary>Every car in the scene (local, remote, puppets).</summary>
+        public static readonly List<RocketCar> All = new List<RocketCar>();
+
+        // ---- multiplayer ----
+        /// <summary>False = puppet (multiplayer client): never stepped, its pose comes from host snapshots.</summary>
+        public bool simulated = true;
+        /// <summary>Remote player's controls on the host (the local car reads <see cref="input"/>).</summary>
+        public bool useNetControls;
+        public CarInput.Controls netControls;
+        public Vector3 netVelocity;                 // puppets: velocity from snapshots (HUD / camera)
+        public int ballExtraTick = -10;             // RocketSim keeps the last extra-hit tick per car
+        public int slot;
+        public string playerName = "";
+
         public Phase CurrentPhase { get; private set; }
         public string Status { get; private set; } = "";
         public RocketVehicle Vehicle { get; private set; }
         public CarState State => Vehicle.state;
         public bool GyroscopicCompensation => _body.cancelGyroscopic;
-        public Vector3 UnityVelocity => _rb.linearVelocity;
-        public float SpeedMS => _rb.linearVelocity.magnitude;
+        public Vector3 UnityVelocity => simulated ? _rb.linearVelocity : netVelocity;
+        public float SpeedMS => simulated ? _rb.linearVelocity.magnitude : netVelocity.magnitude;
         public Rigidbody Body => _rb;
         public BoxCollider HitCollider { get; private set; }
 
@@ -43,13 +58,15 @@ namespace RocketWorld
         CarConfig _cfg;
         Vector3 _prevPos, _currPos;
         Quaternion _prevRot = Quaternion.identity, _currRot = Quaternion.identity;
-        float _acc;
         bool _resync, _rescue;
         float _waitStart, _stableSince = -1f;
         BoostFx _boostFx;
         // Soft hold: freeze the car in place while Cesium LOD/colliders settle (SSE change). No respawn, no fall.
         bool _softHold;
         float _softHoldUntil;
+        bool _held;                                  // menu is open: do not start yet
+        bool _spawnCol, _spawnRel; Vector3 _spawnPos; float _spawnHeading;
+        static bool _gyroKnown, _gyro;               // PhysX calibration steps the world: do it once, not for every car
 
         void Awake()
         {
@@ -82,8 +99,13 @@ namespace RocketWorld
             gameObject.AddComponent<CarContactSensor>().car = this;
 
             _body = new PhysxBody(_rb, RL.CarMassBt, new Vec3(1f / inertia.x, 1f / inertia.y, 1f / inertia.z));
-            _body.cancelGyroscopic = PhysxCalibration.Run(inertia, out float delta);
-            Debug.Log($"[RocketWorld] PhysX gyroscopic torque detected: {_body.cancelGyroscopic} (dw {delta:0.000} rad/s over 0.25 s) -> compensation {(_body.cancelGyroscopic ? "ON" : "off")}");
+            if (!_gyroKnown)
+            {
+                _gyro = PhysxCalibration.Run(inertia, out float delta); _gyroKnown = true;
+                Debug.Log($"[RocketWorld] PhysX gyroscopic torque detected: {_gyro} (dw {delta:0.000} rad/s over 0.25 s) -> compensation {(_gyro ? "ON" : "off")}");
+            }
+            _body.cancelGyroscopic = _gyro;
+            All.Add(this);
             Vehicle = new RocketVehicle(_body, new PhysxRayCaster(), _cfg);
         }
 
@@ -91,11 +113,63 @@ namespace RocketWorld
         {
             if (georeference != null) georeference.changed += OnGeoChanged;
             if (visual != null) _boostFx = visual.GetComponent<BoostFx>();
+            if (_held) return;
+            BeginInitial();
+        }
+
+        void BeginInitial()
+        {
+            if (!simulated) return;
             if (intro != null && intro.Begin(this)) return;          // opening sequence: start inside the cargo plane
             BeginWaiting();
         }
 
-        void OnDestroy() { if (georeference != null) georeference.changed -= OnGeoChanged; }
+        /// <summary>Called by GameRoot before Start when a start menu is shown: the car waits until <see cref="ReleaseStart"/>.</summary>
+        public void HoldStart() { _held = true; if (_rb != null) _rb.isKinematic = true; }
+        public void ReleaseStart() { if (!_held) return; _held = false; BeginInitial(); }
+        public bool Held => _held;
+
+        void OnDestroy() { All.Remove(this); if (georeference != null) georeference.changed -= OnGeoChanged; }
+
+        /// <summary>Name tags are drawn for cars that are actually placed in the world.</summary>
+        public bool CanDrawTag() { return CurrentPhase == Phase.Running; }
+
+        public bool CanStep => simulated && !_held && CurrentPhase == Phase.Running && !_softHold;
+
+        /// <summary>Switch between a car this machine simulates and a puppet that follows host snapshots.</summary>
+        public void SetSimulated(bool sim)
+        {
+            if (simulated == sim) return;
+            simulated = sim; _softHold = false;
+            if (!sim)
+            {
+                if (_rb != null) { _rb.isKinematic = true; }
+                CurrentPhase = Phase.WaitingForGround; Status = "";
+            }
+        }
+
+        /// <summary>Host: a remote player's car appears on the ground at a column (relative = just below the host car, else the start column).</summary>
+        public void SetSpawnColumn(Vector3 groundHint, bool relative, float headingDeg)
+        {
+            _spawnCol = true; _spawnRel = relative; _spawnPos = groundHint; _spawnHeading = headingDeg;
+            transform.position = groundHint;            // tile colliders are kept around waiting cars too (extra foci)
+            BeginWaiting();
+        }
+
+        /// <summary>Rescue (R): back to the ground below the car, same heading.</summary>
+        public void Rescue() { if (CurrentPhase == Phase.Running && simulated) { _rescue = true; BeginWaiting(); } }
+
+        /// <summary>Puppet pose from a snapshot (multiplayer clients).</summary>
+        public void ApplyPuppetPose(Vector3 pos, Quaternion rot, Vector3 vel, bool onGround, bool boosting, bool running)
+        {
+            transform.SetPositionAndRotation(pos, rot);
+            if (visual != null) visual.SetPositionAndRotation(pos, rot);
+            netVelocity = vel;
+            Vehicle.state.isOnGround = onGround; Vehicle.state.isBoosting = boosting;
+            CurrentPhase = running ? Phase.Running : Phase.WaitingForGround;
+            Status = running ? "" : "Waiting for the host…";
+            if (_boostFx != null) _boostFx.SetBoosting(boosting && running);
+        }
         void OnGeoChanged() { _resync = true; }
 
         public void ReportWorldContact(Vector3 unityNormal) { Vehicle.NotifyWorldContact(PhysicsSetup.ToSim(unityNormal)); }
@@ -135,7 +209,7 @@ namespace RocketWorld
 
         void Update()
         {
-            float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
+            if (!simulated || _held) return;                  // puppet: PlayerNet moves it; held: waiting for the start menu
             if (input != null && input.ResetPressed && CurrentPhase == Phase.Running && !(intro != null && intro.TryResetInBay())) { _rescue = true; BeginWaiting(); }
             if (CurrentPhase == Phase.WaitingForGround) { TrySpawn(); return; }
             if (_resync) ApplyOriginShift();
@@ -170,17 +244,13 @@ namespace RocketWorld
                 }
             }
 
-            _acc += dt;
-            int ticks = Mathf.Min((int)(_acc / Tick), 8);
-            _acc -= ticks * Tick;
-            if (_acc > Tick) _acc = 0f;                       // spiral-of-death guard
-            for (int i = 0; i < ticks; i++) RunTick();
-            ApplyVisual(_acc / Tick);
+            // The fixed-tick loop (PreStep / PostStep, one shared Physics.Simulate) lives in CarSimLoop.
         }
 
-        void RunTick()
+        /// <summary>First half of a tick (RocketSim PreTick), called by <see cref="CarSimLoop"/> for every steppable car.</summary>
+        public void PreStep()
         {
-            var c = input != null ? input.controls : default;
+            var c = useNetControls ? netControls : (input != null ? input.controls : default);
             Vehicle.controls = new RocketWorld.Sim.CarControls
             {
                 throttle = c.throttle, steer = c.steer, pitch = c.pitch, yaw = c.yaw, roll = c.roll,
@@ -191,8 +261,11 @@ namespace RocketWorld
             _body.Pull();
             Vehicle.PreTick(Tick);                            // btVehicleRL + Car::_PreTickUpdate
             _body.Push();
-            if (ball != null) ball.PreTick(this);             // RocketSim's extra car-ball impulse goes in before the contact solve
-            Physics.Simulate(Tick);                           // gravity, forces, exact contact against tile colliders (OnCollision* -> ReportWorldContact)
+        }
+
+        /// <summary>Second half of a tick, after the shared Physics.Simulate.</summary>
+        public void PostStep()
+        {
             _body.Pull();
             Vehicle.PostTick(Tick);
             Vehicle.FinishTick();                             // speed / angular speed limits
@@ -200,14 +273,12 @@ namespace RocketWorld
 
             _prevPos = _currPos; _prevRot = _currRot;
             _currPos = _rb.position; _currRot = _rb.rotation;
-            if (ball != null) ball.PostTick();
         }
 
-        void ApplyVisual(float alpha)
+        public void ApplyVisual(float alpha)
         {
             if (visual == null) return;
             visual.SetPositionAndRotation(Vector3.LerpUnclamped(_prevPos, _currPos, alpha), Quaternion.Slerp(_prevRot, _currRot, alpha));
-            if (ball != null) ball.ApplyVisual(alpha);
             if (_boostFx != null) _boostFx.SetBoosting(Vehicle.state.isBoosting);
         }
 
@@ -228,18 +299,21 @@ namespace RocketWorld
         {
             float waited = Time.realtimeSinceStartup - _waitStart;
             float progress = tileset != null ? tileset.ComputeLoadProgress() : 100f;
-            var origin = _rescue ? transform.position + Vector3.up * 60f : new Vector3(0f, 2500f, 0f);
-            bool ground = Physics.Raycast(origin, Vector3.down, out var hit, _rescue ? 400f : 5000f, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore) && hit.normal.y > 0.5f;
+            Vector3 origin; float range;
+            if (_spawnCol) { origin = _spawnPos + Vector3.up * (_spawnRel ? 60f : 2500f); range = _spawnRel ? 400f : 5000f; }
+            else if (_rescue) { origin = transform.position + Vector3.up * 60f; range = 400f; }
+            else { origin = new Vector3(0f, 2500f, 0f); range = 5000f; }
+            bool ground = Physics.Raycast(origin, Vector3.down, out var hit, range, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore) && hit.normal.y > 0.5f;
             Status = ground ? $"Loading city… {progress:0}%" : $"Waiting for terrain… {progress:0}%";
             if (!ground) { _stableSince = -1f; return; }
             if (progress >= 99.9f) { if (_stableSince < 0) _stableSince = Time.realtimeSinceStartup; } else _stableSince = -1f;
             bool settled = _stableSince > 0 && Time.realtimeSinceStartup - _stableSince > 0.6f;
-            if (settled || waited > 30f || _rescue) PlaceAt(hit.point);
+            if (settled || waited > 30f || _rescue || (_spawnCol && _spawnRel)) PlaceAt(hit.point);
         }
 
         void PlaceAt(Vector3 groundPoint)
         {
-            var heading = _rescue ? Vector3.ProjectOnPlane(transform.forward, Vector3.up) : Quaternion.Euler(0f, spawnHeadingDeg, 0f) * Vector3.forward;
+            var heading = _rescue ? Vector3.ProjectOnPlane(transform.forward, Vector3.up) : Quaternion.Euler(0f, _spawnCol ? _spawnHeading : spawnHeadingDeg, 0f) * Vector3.forward;
             if (heading.sqrMagnitude < 1e-3f) heading = Vector3.forward;
             var rot = Quaternion.LookRotation(heading.normalized, Vector3.up);
             var pos = groundPoint + Vector3.up * (0.34f + (_rescue ? 0.5f : 0.12f));      // rest height of the Octane CoM is 17 uu = 0.34 m
@@ -258,7 +332,7 @@ namespace RocketWorld
             _body.Pull();
             Vehicle.OnStateSet(true);
             _prevPos = _currPos = pos; _prevRot = _currRot = rot;
-            _rescue = false; _acc = 0f; _resync = false; Status = "";
+            _rescue = false; _spawnCol = false; _resync = false; Status = "";
             CurrentPhase = Phase.Running;
             ApplyVisual(0f);
         }

@@ -254,7 +254,8 @@ namespace RocketWorld
             }
         }
 
-        void Abort()
+        /// <summary>Drop the plane and the intro (joining a multiplayer game as a client).</summary>
+        public void Abort()
         {
             if (_plane != null) Destroy(_plane);
             _plane = null;

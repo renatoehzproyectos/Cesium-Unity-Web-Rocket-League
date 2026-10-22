@@ -51,7 +51,7 @@ namespace RocketWorld
                 if (ci != null && ci.MenuFromPad && !_open) SetControlsOpen(true);   // gamepad menu button: the pad-navigable screen
                 else SetOpen(!_open);
             }
-            if (ci != null) ci.Blocked = _ctlOpen;
+            if (ci != null) ci.Blocked = _ctlOpen || GameRoot.MenuBlocksInput;
         }
 
         void RebuildStats()
@@ -92,6 +92,7 @@ namespace RocketWorld
         /// <summary>True when a screen position (pixels, origin bottom-left) is over HUD, so the camera ignores that drag.</summary>
         public bool Over(Vector2 screenPos)
         {
+            if (GameRoot.MenuBlocksInput) return true;
             var p = new Vector2(screenPos.x / _k, (Screen.height - screenPos.y) / _k);
             if (root.carInput != null && root.carInput.TouchControlsActive && CarInput.OverTouchZone(screenPos)) return true;
             return (root.minimap != null && root.minimap.Rect.Contains(p)) || new Rect(_ctl.x - 86, _ctl.y, 80, _ctl.height).Contains(p) || _gear.Contains(p) || _ctl.Contains(p) || (_ctlOpen && _ctlPanel.Contains(p)) || (_open && _panel.Contains(p)) || (_reportOpen && _report.Contains(p));
@@ -174,12 +175,12 @@ namespace RocketWorld
                 if (a > 0.01f && !_open && !_ctlOpen)
                 {
                     var oc = GUI.color; GUI.color = new Color(1, 1, 1, a);
-                    GUI.Box(new Rect(W * 0.5f - 350, 14, 700, 36), "WASD drive  ·  Space jump  ·  Shift boost  ·  Ctrl drift  ·  C camera  ·  R rescue  ·  B ball", UiTheme.Pill);
+                    GUI.Box(new Rect(W * 0.5f - 350, 52, 700, 36), "WASD drive  ·  Space jump  ·  Shift boost  ·  Ctrl drift  ·  C camera  ·  R rescue  ·  B ball", UiTheme.Pill);
                     GUI.color = oc;
                 }
             }
             if (!s.HasCredentials)
-                GUI.Box(new Rect(W * 0.5f - 190, 58, 380, 34), "Test ground — world streaming is off in this build", UiTheme.Pill);
+                GUI.Box(new Rect(W * 0.5f - 190, 94, 380, 34), "Test ground — world streaming is off in this build", UiTheme.Pill);
 
             if (GUI.Button(_gear, GUIContent.none)) SetOpen(!_open);
             if (Event.current.type == EventType.Repaint)
@@ -189,8 +190,8 @@ namespace RocketWorld
                 GUI.color = oc;
             }
             if (GUI.Button(_ctl, "Controls", _btn)) SetControlsOpen(!_ctlOpen);
-            if (GUI.Button(new Rect(W - 252, 14, 80, 46), "Ball", _btn) && root.ball != null) root.ball.Summon();
-            if (Time.unscaledTime < _toast) GUI.Box(new Rect(W * 0.5f - 160, 100, 320, 38), _toastText, UiTheme.Toast);
+            if (GUI.Button(new Rect(W - 252, 14, 80, 46), "Ball", _btn)) root.RequestBall();
+            if (Time.unscaledTime < _toast) GUI.Box(new Rect(W * 0.5f - 160, 134, 320, 38), _toastText, UiTheme.Toast);
             if (_reportOpen && root.benchmark != null) DrawReport(H);
             if (_ctlOpen) DrawControls();
             if (!_open) return;

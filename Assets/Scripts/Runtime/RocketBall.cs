@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using CesiumForUnity;
 using RocketWorld.Sim;
 using Unity.Collections;
@@ -20,6 +21,10 @@ namespace RocketWorld
     public class RocketBall : MonoBehaviour
     {
         public GameRoot root;
+        /// <summary>Multiplayer client: the ball is a visual only, its pose comes from host snapshots.</summary>
+        public bool puppet;
+        /// <summary>Fired (host / solo) when a car really hits the ball. The multiplayer layer turns it into score.</summary>
+        public static event System.Action<RocketCar> BallHit;
 
         public const float VisualRadius = RLBall.RadiusUu * RL.UuToBt;                  // 1.825 m
         public const float ColliderRadius = RLBall.CollisionRadiusUu * RL.UuToBt;       // 1.863 m (rest height 93.15 uu)
@@ -29,6 +34,8 @@ namespace RocketWorld
 
         public bool Exists => _go != null && _go.activeSelf;
         public Vector3 Position => _rb != null ? _rb.position : Vector3.zero;
+        public Quaternion Rotation => _rb != null ? _rb.rotation : Quaternion.identity;
+        public Vector3 Velocity => _rb != null ? _rb.linearVelocity : Vector3.zero;
 
         GameObject _go;
         Rigidbody _rb;
@@ -37,21 +44,25 @@ namespace RocketWorld
         BallSparks _sparks;
         Vector3 _prevPos, _currPos;
         Quaternion _prevRot = Quaternion.identity, _currRot = Quaternion.identity;
-        int _tick, _lastExtraTick = -10;
+        int _tick;
         float _hitCooldown;
         Vector3 _velBefore;
         bool _touchedCar, _hitFlag;
         Vector3 _contactPoint, _predictedContact;
-        int _ballColId, _carColId;
+        int _ballColId;
+        readonly HashSet<int> _carCols = new HashSet<int>();
+        RocketCar _hitCar, _touchCar;
         bool _subscribed;
 
         // ------------------------------------------------------------------------------------------------ public API
 
         /// <summary>Put the ball (back) in front of the car, at rest on the ground.</summary>
-        public void Summon()
+        public void Summon() { Summon(root != null ? root.carCtl : null); }
+
+        public void Summon(RocketCar car)
         {
-            var car = root != null ? root.carCtl : null;
-            if (car == null || car.CurrentPhase != RocketCar.Phase.Running) return;
+            if (puppet) return;
+            if (car == null || car.CurrentPhase != RocketCar.Phase.Running || !car.simulated) return;
             if (!EnsureBuilt(car)) return;
 
             var t = car.transform;
@@ -76,8 +87,9 @@ namespace RocketWorld
             _rb.linearVelocity = Vector3.zero; _rb.angularVelocity = Vector3.zero;
             Physics.SyncTransforms();
             _prevPos = _currPos = p; _prevRot = _currRot = Quaternion.identity;
-            _lastExtraTick = _tick - 10; _hitCooldown = 0f;
-            if (car.colliderBudget != null) car.colliderBudget.focus2 = _go.transform;
+            foreach (var c in RocketCar.All) c.ballExtraTick = _tick - 10;
+            _hitCooldown = 0f;
+            if (root.budget != null) root.budget.focus2 = _go.transform;
             ApplyVisual(1f);
             // one soft puff so it is obvious where it appeared
             if (_sparks != null) _sparks.Spawn(p, 0.35f);
@@ -86,7 +98,7 @@ namespace RocketWorld
         public void Despawn()
         {
             if (_go != null) _go.SetActive(false);
-            if (root != null && root.carCtl != null && root.carCtl.colliderBudget != null) root.carCtl.colliderBudget.focus2 = null;
+            if (root != null && root.budget != null) root.budget.focus2 = null;
         }
 
         // ------------------------------------------------------------------------------------------------ build
@@ -120,21 +132,52 @@ namespace RocketWorld
             _col.radius = ColliderRadius;
             _col.sharedMaterial = PhysicsSetup.BallMaterial;
             _col.hasModifiableContacts = true;
-            car.HitCollider.hasModifiableContacts = true;
-            _ballColId = _col.GetInstanceID(); _carColId = car.HitCollider.GetInstanceID();
+            _ballColId = _col.GetInstanceID();
+            RegisterCar(car);
             _go.AddComponent<BallContactSensor>().ball = this;
 
             BuildVisual();
             _sparks = new GameObject("BallSparks").AddComponent<BallSparks>();
             _sparks.transform.SetParent(transform, false);
 
-            if (!_subscribed)
+            if (puppet) { _rb.isKinematic = true; _col.enabled = false; }
+            else if (!_subscribed)
             {
                 Physics.ContactModifyEvent += OnContactModify;
                 Physics.ContactModifyEventCCD += OnContactModify;
                 _subscribed = true;
             }
             return true;
+        }
+
+        void RegisterCar(RocketCar car)
+        {
+            if (car == null || car.HitCollider == null) return;
+            if (_carCols.Add(car.HitCollider.GetInstanceID())) car.HitCollider.hasModifiableContacts = true;
+        }
+
+        /// <summary>Switch between simulating the ball (solo / host) and showing host snapshots (client). Rebuilds the ball object.</summary>
+        public void SetPuppet(bool p)
+        {
+            if (puppet == p) return;
+            puppet = p;
+            if (_go != null)
+            {
+                if (_subscribed) { Physics.ContactModifyEvent -= OnContactModify; Physics.ContactModifyEventCCD -= OnContactModify; _subscribed = false; }
+                Destroy(_go); _go = null; _rb = null; _col = null; _model = null; _carCols.Clear();
+            }
+            if (root != null && root.budget != null) root.budget.focus2 = null;
+        }
+
+        /// <summary>Client: pose from the host's ball snapshot.</summary>
+        public void NetSet(bool exists, Vector3 pos, Quaternion rot)
+        {
+            if (!puppet || root == null) return;
+            if (!exists) { if (_go != null && _go.activeSelf) _go.SetActive(false); return; }
+            if (_go == null && !EnsureBuilt(root.carCtl)) return;
+            if (!_go.activeSelf) _go.SetActive(true);
+            _go.transform.SetPositionAndRotation(pos, rot);
+            if (_model != null) _model.SetPositionAndRotation(pos, rot);
         }
 
         void OnDestroy()
@@ -200,33 +243,40 @@ namespace RocketWorld
         void Update()
         {
             if (root == null) return;
-            if (root.carInput != null && root.carInput.BallPressed) Summon();
-            if (!Exists) return;
-            var car = root.carCtl;
-            if (car == null) return;
-            // Tile colliders only exist around the car (and the ball): if it is far away or fell out of the world, it is lost.
-            var d = _rb.position - car.transform.position;
-            if (d.sqrMagnitude > LostDistance * LostDistance || d.y < -600f) { Despawn(); }
+            if (root.carInput != null && root.carInput.BallPressed) root.RequestBall();
+            if (puppet || !Exists) return;
+            // Tile colliders only exist around the cars (and the ball): if it is far from every car or fell out of the world, it is lost.
+            float best = float.MaxValue;
+            foreach (var c in RocketCar.All) if (c != null && c.simulated) best = Mathf.Min(best, (_rb.position - c.transform.position).sqrMagnitude);
+            if (best == float.MaxValue) return;
+            if (best > LostDistance * LostDistance || _rb.position.y < -600f + root.carCtl.transform.position.y) { Despawn(); }
         }
 
         /// <summary>Called by RocketCar every frame after its own visual: interpolated pose between the last two physics ticks.</summary>
         public void ApplyVisual(float alpha)
         {
-            if (!Exists || _model == null) return;
+            if (puppet || !Exists || _model == null) return;
             _model.SetPositionAndRotation(Vector3.LerpUnclamped(_prevPos, _currPos, alpha), Quaternion.Slerp(_prevRot, _currRot, alpha));
         }
 
-        // ------------------------------------------------------------------------------------------------ physics ticks (called by RocketCar.RunTick)
+        // ------------------------------------------------------------------------------------------------ physics ticks (called by CarSimLoop)
 
-        /// <summary>Before Physics.Simulate: RocketSim's extra hit impulse, if the car will touch the ball during this tick.</summary>
-        public void PreTick(RocketCar car)
+        /// <summary>Once per tick, before the cars: bookkeeping.</summary>
+        public void BeginTick()
         {
-            if (!Exists) return;
+            if (!Exists || puppet) return;
             _tick++;
             _hitCooldown = Mathf.Max(0f, _hitCooldown - Tick);
             _velBefore = _rb.linearVelocity;
             _hitFlag = false;
-            if (_tick <= _lastExtraTick + RLBall.ExtraImpulseMinTickGap - 1) return;       // RocketSim: skip if last + 1 >= tick
+        }
+
+        /// <summary>Before Physics.Simulate, once per car: RocketSim's extra hit impulse, if that car will touch the ball during this tick.</summary>
+        public void CarPreTick(RocketCar car)
+        {
+            if (!Exists || puppet) return;
+            RegisterCar(car);
+            if (_tick <= car.ballExtraTick + RLBall.ExtraImpulseMinTickGap - 1) return;       // RocketSim: skip if last + 1 >= tick
 
             var hb = car.HitCollider;
             var ht = hb.transform;
@@ -251,15 +301,15 @@ namespace RocketWorld
             var dv = RLBall.ExtraHitVelocity(relPos, relVel, fwd);
             if (dv.IsZero()) return;
             _rb.linearVelocity += PhysicsSetup.ToUnity(dv * RL.UuToBt);
-            _lastExtraTick = _tick;
-            _hitFlag = true;
+            car.ballExtraTick = _tick;
+            _hitFlag = true; _hitCar = car;
             _predictedContact = closest;
         }
 
         /// <summary>After Physics.Simulate: remember the pose for interpolation and fire the sparks on a real touch.</summary>
         public void PostTick()
         {
-            if (!Exists) return;
+            if (!Exists || puppet) return;
             _prevPos = _currPos; _prevRot = _currRot;
             _currPos = _rb.position; _currRot = _rb.rotation;
 
@@ -272,9 +322,11 @@ namespace RocketWorld
                     var at = _touchedCar ? _contactPoint : _predictedContact;
                     if (_sparks != null) _sparks.Spawn(at, intensity);
                     _hitCooldown = 0.3f;
+                    var who = _touchedCar ? _touchCar : _hitCar;
+                    if (who != null) BallHit?.Invoke(who);
                 }
             }
-            _touchedCar = false;
+            _touchedCar = false; _touchCar = null; _hitCar = null;
         }
 
         /// <summary>Cesium moved the origin: the car already re-synced; do the same for the ball (dq = the frame change).</summary>
@@ -287,9 +339,7 @@ namespace RocketWorld
             _prevPos = _currPos = _rb.position; _prevRot = _currRot = _rb.rotation;
         }
 
-        public bool IsCar(Rigidbody rb) => rb != null && root != null && root.carCtl != null && root.carCtl.Body == rb;
-
-        public void ReportCarContact(Vector3 point) { _touchedCar = true; _contactPoint = point; }
+        public void ReportCarContact(RocketCar car, Vector3 point) { _touchedCar = true; _touchCar = car; _contactPoint = point; }
 
         // ------------------------------------------------------------------------------------------------ contact modification
 
@@ -300,7 +350,7 @@ namespace RocketWorld
             {
                 var pair = pairs[i];
                 int a = pair.colliderInstanceID, b = pair.otherColliderInstanceID;
-                if (!((a == _ballColId && b == _carColId) || (a == _carColId && b == _ballColId))) continue;
+                if (!((a == _ballColId && _carCols.Contains(b)) || (b == _ballColId && _carCols.Contains(a)))) continue;
                 for (int c = 0; c < pair.contactCount; c++)
                 {
                     pair.SetBounciness(c, RLBall.CarBallRestitution);
@@ -319,8 +369,9 @@ namespace RocketWorld
         void OnCollisionStay(Collision c) { Report(c); }
         void Report(Collision c)
         {
-            if (ball == null || c.contactCount == 0 || !ball.IsCar(c.rigidbody)) return;
-            ball.ReportCarContact(c.GetContact(0).point);
+            if (ball == null || c.contactCount == 0 || c.rigidbody == null) return;
+            var car = c.rigidbody.GetComponent<RocketCar>();
+            if (car != null) ball.ReportCarContact(car, c.GetContact(0).point);
         }
     }
 }

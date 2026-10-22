@@ -36,6 +36,9 @@ In Unity: Test Runner -> EditMode (`SimCoreTests` pins the final state of every 
 Unity **6000.0.62f1** (Web module). First open creates the URP asset, materials and boot scene (`RocketWorld/Ensure project setup`). Build with
 **RocketWorld -> Build WebGL**; serve the output folder (build/WebGL/WebGL) with COOP/COEP headers (e.g. `vercel dev`). Commit the generated `.meta` files after the first open.
 
+## Multijugador / Multiplayer
+Host-authoritative, up to 4 players (1 host + 3), Netcode for GameObjects + Unity Relay + Lobby (join code shown at the top of the screen). Setup and design: `docs/MULTIPLAYER.md`. Code: `Assets/Net`.
+
 ## Layout
 ```
 Assets/Scripts/Sim       engine-free RocketSim port: RocketVehicle, RL constants, CarConfig, interfaces (+ RocketSim MIT notice)
