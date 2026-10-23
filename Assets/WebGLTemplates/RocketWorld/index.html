@@ -1,6 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>
+    // Unity WebGL with threads: HEAPU8.buffer is a SharedArrayBuffer, and browsers refuse to send one over a WebSocket
+    // ("parameter 1 is not of type 'ArrayBuffer'"). Netcode / Relay over wss goes through that call, so copy the bytes first.
+    (function () {
+      if (typeof SharedArrayBuffer === 'undefined' || !window.WebSocket) return;
+      var orig = WebSocket.prototype.send;
+      WebSocket.prototype.send = function (d) {
+        try {
+          if (d instanceof SharedArrayBuffer) {
+            var c = new Uint8Array(d.byteLength); c.set(new Uint8Array(d)); d = c.buffer;
+          } else if (ArrayBuffer.isView(d) && d.buffer instanceof SharedArrayBuffer) {
+            d = new Uint8Array(d);   // copies into a regular ArrayBuffer
+          }
+        } catch (e) { }
+        return orig.call(this, d);
+      };
+    })();
+  </script>
   <meta charset="utf-8">
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   <title>Rocket World</title>
