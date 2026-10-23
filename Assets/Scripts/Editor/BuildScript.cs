@@ -38,6 +38,7 @@ namespace RocketWorld.Editor
             {
                 var t = Type.GetType("RocketWorld.Net.Editor.NetPrefabSetup, Assembly-CSharp-Editor");
                 t?.GetMethod("EnsureAll")?.Invoke(null, null);
+                AssetDatabase.Refresh();
                 // Unity Cloud project id for Relay/Lobby. Unity Services read it from Application.cloudProjectId in the player, which CI
                 // (no linked project) leaves empty -> UnityProjectNotLinkedException. Sources: -rwCloudProject, env UNITY_CLOUD_PROJECT_ID,
                 // or a committed Assets/Resources/Net/cloud_project.txt (the id is not a secret: every player build carries it).
@@ -63,11 +64,11 @@ namespace RocketWorld.Editor
             var p = so.FindProperty("cloudProjectId");
             if (p == null) { Debug.LogWarning("[RocketWorld] PlayerSettings has no cloudProjectId property"); return; }
             p.stringValue = id;
-            var en = so.FindProperty("cloudEnabled");
-            if (en != null) en.boolValue = true;
+            foreach (var n in new[] { "cloudEnabled", "cloudServicesEnabled" }) { var en = so.FindProperty(n); if (en != null && en.propertyType == SerializedPropertyType.Boolean) en.boolValue = true; }
             so.ApplyModifiedPropertiesWithoutUndo();
             AssetDatabase.SaveAssets();
-            Debug.Log("[RocketWorld] cloud project id set for this build: " + id);
+            var back = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset")[0]).FindProperty("cloudProjectId");
+            Debug.Log("[RocketWorld] cloud project id set for this build: " + id + " (read back: " + (back != null ? back.stringValue : "?") + ")");
         }
 
         // Bakes ION_TOKEN (from env / -rwIonToken) into window.RW_DEFAULT_ION_TOKEN for Cesium ion tiles.

@@ -333,6 +333,8 @@ namespace RocketWorld.Net
             string m = sb.Length > 0 ? sb.ToString().Trim() : (e.Message ?? "Error");
             if (m.IndexOf("not found", StringComparison.OrdinalIgnoreCase) >= 0 || m.IndexOf("NotFound", StringComparison.OrdinalIgnoreCase) >= 0) return "No existe una partida con ese código.";
             if (m.IndexOf("full", StringComparison.OrdinalIgnoreCase) >= 0) return "La partida está llena (máx. 4 jugadores).";
+            if (m.IndexOf("project ID", StringComparison.OrdinalIgnoreCase) >= 0)
+                return "Esta build no tiene el ID del proyecto de Unity Cloud (build id: '" + Application.cloudProjectId + "'). Hay que volver a compilar con cloud_project.txt.";
             return m.Length > 160 ? m.Substring(0, 160) + "…" : m;
         }
     }
