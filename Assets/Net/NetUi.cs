@@ -141,7 +141,7 @@ namespace RocketWorld.Net
         void CloudField()
         {
             _cloud ??= NetSession.SavedProjectId;
-            GUILayout.Label("ID del proyecto de Unity Cloud (Project Settings > Services). Se guarda en este navegador.", UiTheme.Hint);
+            GUILayout.Label("Falta el ID del proyecto de Unity Cloud en esta build. Debe fijarse al compilar (secreto UNITY_CLOUD_PROJECT_ID o Assets/Resources/Net/cloud_project.txt).", UiTheme.Hint);
             _cloud = GUILayout.TextField(_cloud ?? "", 64);
             if (GUILayout.Button("Guardar y reintentar", GUILayout.Height(34))) { NetSession.SaveProjectId(_cloud); _ns.NeedsProjectId = false; _ns.Error = ""; _ns.RefreshList(); }
             GUILayout.Space(6);

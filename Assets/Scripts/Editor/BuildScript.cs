@@ -38,18 +38,36 @@ namespace RocketWorld.Editor
             {
                 var t = Type.GetType("RocketWorld.Net.Editor.NetPrefabSetup, Assembly-CSharp-Editor");
                 t?.GetMethod("EnsureAll")?.Invoke(null, null);
-                // Unity Cloud project id for Relay/Lobby: CI has no linked project, so it comes from -rwCloudProject or UNITY_CLOUD_PROJECT_ID.
+                // Unity Cloud project id for Relay/Lobby. Unity Services read it from Application.cloudProjectId in the player, which CI
+                // (no linked project) leaves empty -> UnityProjectNotLinkedException. Sources: -rwCloudProject, env UNITY_CLOUD_PROJECT_ID,
+                // or a committed Assets/Resources/Net/cloud_project.txt (the id is not a secret: every player build carries it).
+                const string idFile = "Assets/Resources/Net/cloud_project.txt";
                 var cloud = (Arg("-rwCloudProject") ?? Environment.GetEnvironmentVariable("UNITY_CLOUD_PROJECT_ID") ?? "").Trim();
+                if (string.IsNullOrEmpty(cloud) && System.IO.File.Exists(idFile)) cloud = System.IO.File.ReadAllText(idFile).Trim();
                 if (!string.IsNullOrEmpty(cloud))
                 {
                     System.IO.Directory.CreateDirectory("Assets/Resources/Net");
-                    System.IO.File.WriteAllText("Assets/Resources/Net/cloud_project.txt", cloud);
-                    Debug.Log("[RocketWorld] baked the Unity Cloud project id into Resources/Net/cloud_project.txt");
+                    System.IO.File.WriteAllText(idFile, cloud);
+                    ApplyCloudProjectId(cloud);
                 }
-                else Debug.Log("[RocketWorld] no UNITY_CLOUD_PROJECT_ID: multiplayer needs the project linked in the Editor or ?cloud=<id> in the URL");
-                AssetDatabase.Refresh();
+                else Debug.LogWarning("[RocketWorld] no Unity Cloud project id (UNITY_CLOUD_PROJECT_ID / Assets/Resources/Net/cloud_project.txt): multiplayer will fail with UnityProjectNotLinkedException");
             }
             catch (Exception e) { Debug.LogWarning("[RocketWorld] multiplayer setup failed: " + e.Message); }
+        }
+
+        static void ApplyCloudProjectId(string id)
+        {
+            var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset");
+            if (assets == null || assets.Length == 0) { Debug.LogWarning("[RocketWorld] PlayerSettings asset not found: cannot set the cloud project id"); return; }
+            var so = new SerializedObject(assets[0]);
+            var p = so.FindProperty("cloudProjectId");
+            if (p == null) { Debug.LogWarning("[RocketWorld] PlayerSettings has no cloudProjectId property"); return; }
+            p.stringValue = id;
+            var en = so.FindProperty("cloudEnabled");
+            if (en != null) en.boolValue = true;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            AssetDatabase.SaveAssets();
+            Debug.Log("[RocketWorld] cloud project id set for this build: " + id);
         }
 
         // Bakes ION_TOKEN (from env / -rwIonToken) into window.RW_DEFAULT_ION_TOKEN for Cesium ion tiles.

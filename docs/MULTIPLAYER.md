@@ -24,12 +24,12 @@ Modelo conservado de la versión web: **host autoritativo, el cliente envía inp
 4. Para probar en local: Multiplayer Play Mode, o dos pestañas/ventanas (cada carga de página usa una identidad anónima distinta).
 5. WebGL: se usa **WebSockets seguros (wss)** vía Relay; nada más que configurar.
 
-## Error «Some services couldn't be initialized»
-Unity Services no arranca porque la build no conoce el **ID del proyecto de Unity Cloud** (típico en builds de CI/Vercel, que no tienen el proyecto enlazado). Se resuelve con cualquiera de estas opciones:
-- Secreto de GitHub `UNITY_CLOUD_PROJECT_ID` (el CI lo graba en `Resources/Net/cloud_project.txt` al compilar), o `-rwCloudProject <id>` al compilar a mano.
-- Añadir `?cloud=<id>` a la URL del juego.
-- Pegar el ID en el menú (aparece el campo cuando falla) y pulsar *Guardar y reintentar*.
-El ID está en el dashboard de Unity (Project Settings > Services). Además hay que activar **Relay** y **Lobby** en ese proyecto.
+## Error `UnityProjectNotLinkedException` («Some services couldn't be initialized»)
+Unity Services lee el ID del proyecto de Unity Cloud de `Application.cloudProjectId`, que en una build de CI/Vercel está vacío (el proyecto no está enlazado). El ID **se fija al compilar** (no es secreto: va dentro de toda build). Cualquiera de estas opciones:
+- Crear en el repositorio el archivo `Assets/Resources/Net/cloud_project.txt` con el Project ID (una sola línea). Es lo más fácil desde el móvil (GitHub web > Add file).
+- O el secreto de GitHub `UNITY_CLOUD_PROJECT_ID`, o `-rwCloudProject <id>` al compilar a mano.
+`BuildScript` escribe el ID en los ajustes del jugador (`cloudProjectId`) antes de compilar. Después hay que volver a lanzar el workflow. Además hay que activar **Relay** y **Lobby** en ese proyecto (dashboard > Products).
+El ID está en cloud.unity.com > Settings del proyecto (no es el ID del *entorno*).
 
 ## Cómo funciona
 - `Assets/Net` (ensamblado por defecto, así no depende de nombres de asmdef de los paquetes): `NetSession` (servicios, sesión, NetworkManager creado en runtime), `PlayerNet` (objeto de jugador: RPCs, NetworkVariables, snapshots), `NetUi` (menú, código, marcador, nombres), `PoseSnap` (formato y buffer de interpolación), `Editor/NetPrefabSetup`.
