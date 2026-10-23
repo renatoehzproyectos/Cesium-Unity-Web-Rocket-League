@@ -20,6 +20,7 @@ namespace RocketWorld.Net
         Vector2 _scroll;
         float _toast; string _toastText = "";
         GUIStyle _tag, _err;
+        string _cloud;
 
         void Awake()
         {
@@ -130,10 +131,20 @@ namespace RocketWorld.Net
             else
             {
                 if (!string.IsNullOrEmpty(_ns.Error)) GUILayout.Label("<color=#ff7b7b>" + _ns.Error + "</color>", _err);
+                if (_ns.NeedsProjectId) CloudField();
                 switch (_scr) { case Scr.Main: MainScreen(); break; case Scr.Create: CreateScreen(); break; case Scr.Join: JoinScreen(); break; }
             }
             GUILayout.EndArea();
             GUI.Button(new Rect(0, 0, W, H), GUIContent.none, GUIStyle.none);       // modal: swallow clicks that miss the panel
+        }
+
+        void CloudField()
+        {
+            _cloud ??= NetSession.SavedProjectId;
+            GUILayout.Label("ID del proyecto de Unity Cloud (Project Settings > Services). Se guarda en este navegador.", UiTheme.Hint);
+            _cloud = GUILayout.TextField(_cloud ?? "", 64);
+            if (GUILayout.Button("Guardar y reintentar", GUILayout.Height(34))) { NetSession.SaveProjectId(_cloud); _ns.NeedsProjectId = false; _ns.Error = ""; _ns.RefreshList(); }
+            GUILayout.Space(6);
         }
 
         void SaveName()

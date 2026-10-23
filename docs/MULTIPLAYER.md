@@ -24,6 +24,13 @@ Modelo conservado de la versión web: **host autoritativo, el cliente envía inp
 4. Para probar en local: Multiplayer Play Mode, o dos pestañas/ventanas (cada carga de página usa una identidad anónima distinta).
 5. WebGL: se usa **WebSockets seguros (wss)** vía Relay; nada más que configurar.
 
+## Error «Some services couldn't be initialized»
+Unity Services no arranca porque la build no conoce el **ID del proyecto de Unity Cloud** (típico en builds de CI/Vercel, que no tienen el proyecto enlazado). Se resuelve con cualquiera de estas opciones:
+- Secreto de GitHub `UNITY_CLOUD_PROJECT_ID` (el CI lo graba en `Resources/Net/cloud_project.txt` al compilar), o `-rwCloudProject <id>` al compilar a mano.
+- Añadir `?cloud=<id>` a la URL del juego.
+- Pegar el ID en el menú (aparece el campo cuando falla) y pulsar *Guardar y reintentar*.
+El ID está en el dashboard de Unity (Project Settings > Services). Además hay que activar **Relay** y **Lobby** en ese proyecto.
+
 ## Cómo funciona
 - `Assets/Net` (ensamblado por defecto, así no depende de nombres de asmdef de los paquetes): `NetSession` (servicios, sesión, NetworkManager creado en runtime), `PlayerNet` (objeto de jugador: RPCs, NetworkVariables, snapshots), `NetUi` (menú, código, marcador, nombres), `PoseSnap` (formato y buffer de interpolación), `Editor/NetPrefabSetup`.
 - `Assets/Scripts/Runtime` sigue sin conocer la red: `CarSimLoop` (un único bucle de 120 Hz y **un solo** `Physics.Simulate` para todos los coches y la pelota), `RocketCar` con modo *marioneta* (`simulated=false`), `RocketBall` multi-coche, `GeoSync`, `INetRole`.

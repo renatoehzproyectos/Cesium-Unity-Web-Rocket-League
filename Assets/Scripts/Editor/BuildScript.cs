@@ -38,6 +38,15 @@ namespace RocketWorld.Editor
             {
                 var t = Type.GetType("RocketWorld.Net.Editor.NetPrefabSetup, Assembly-CSharp-Editor");
                 t?.GetMethod("EnsureAll")?.Invoke(null, null);
+                // Unity Cloud project id for Relay/Lobby: CI has no linked project, so it comes from -rwCloudProject or UNITY_CLOUD_PROJECT_ID.
+                var cloud = (Arg("-rwCloudProject") ?? Environment.GetEnvironmentVariable("UNITY_CLOUD_PROJECT_ID") ?? "").Trim();
+                if (!string.IsNullOrEmpty(cloud))
+                {
+                    System.IO.Directory.CreateDirectory("Assets/Resources/Net");
+                    System.IO.File.WriteAllText("Assets/Resources/Net/cloud_project.txt", cloud);
+                    Debug.Log("[RocketWorld] baked the Unity Cloud project id into Resources/Net/cloud_project.txt");
+                }
+                else Debug.Log("[RocketWorld] no UNITY_CLOUD_PROJECT_ID: multiplayer needs the project linked in the Editor or ?cloud=<id> in the URL");
                 AssetDatabase.Refresh();
             }
             catch (Exception e) { Debug.LogWarning("[RocketWorld] multiplayer setup failed: " + e.Message); }

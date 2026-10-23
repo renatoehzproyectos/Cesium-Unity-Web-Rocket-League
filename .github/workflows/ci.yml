@@ -96,6 +96,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           ION_TOKEN: ${{ secrets.ION_TOKEN }}
+          UNITY_CLOUD_PROJECT_ID: ${{ secrets.UNITY_CLOUD_PROJECT_ID }}
         with:
           unityVersion: 6000.0.62f1
           targetPlatform: WebGL
@@ -117,6 +118,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           ION_TOKEN: ${{ secrets.ION_TOKEN }}
+          UNITY_CLOUD_PROJECT_ID: ${{ secrets.UNITY_CLOUD_PROJECT_ID }}
         with:
           unityVersion: 6000.0.62f1
           targetPlatform: WebGL

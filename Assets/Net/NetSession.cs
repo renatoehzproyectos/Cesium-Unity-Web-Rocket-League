@@ -208,13 +208,35 @@ namespace RocketWorld.Net
 
         // ------------------------------------------------------------------------------------------------ services / netcode setup
 
-        static async Task InitServices()
+        public const string CloudKey = "rw.cloudid";
+        /// <summary>True when Unity Services failed to start (usually: no Unity Cloud project id in this build). The menu then asks for it.</summary>
+        public bool NeedsProjectId;
+
+        /// <summary>Unity Cloud project id: ?cloud= in the URL, the saved value, the id baked at build time, or the one linked in the Editor.</summary>
+        static string ResolveProjectId()
+        {
+            string q = WebBridge.Query("cloud");
+            if (!string.IsNullOrWhiteSpace(q)) return q.Trim();
+            string saved = PlayerPrefs.GetString(CloudKey, "");
+            if (!string.IsNullOrWhiteSpace(saved)) return saved.Trim();
+            var ta = Resources.Load<TextAsset>("Net/cloud_project");
+            if (ta != null && !string.IsNullOrWhiteSpace(ta.text)) return ta.text.Trim();
+            return "";                                                   // Editor / linked project: Application.cloudProjectId is used by the SDK
+        }
+
+        public static void SaveProjectId(string id) { PlayerPrefs.SetString(CloudKey, (id ?? "").Trim()); PlayerPrefs.Save(); }
+        public static string SavedProjectId => ResolveProjectId();
+
+        async Task InitServices()
         {
             if (UnityServices.State != ServicesInitializationState.Initialized)
             {
                 var o = new InitializationOptions();
+                string pid = ResolveProjectId();
+                if (!string.IsNullOrEmpty(pid)) o.SetOption("com.unity.services.core.cloud-project-id", pid);
                 o.SetProfile("rw" + Guid.NewGuid().ToString("N").Substring(0, 12));      // one identity per page load (two tabs = two players)
-                await UnityServices.InitializeAsync(o);
+                try { await UnityServices.InitializeAsync(o); }
+                catch (Exception) { NeedsProjectId = true; throw; }
             }
             if (!AuthenticationService.Instance.IsSignedIn) await AuthenticationService.Instance.SignInAnonymouslyAsync();
         }
@@ -300,7 +322,15 @@ namespace RocketWorld.Net
 
         static string Pretty(Exception e)
         {
-            string m = e.Message ?? "Error";
+            // "Some services couldn't be initialized" hides the real reason in the inner exceptions: show them.
+            var sb = new System.Text.StringBuilder();
+            for (var x = e; x != null; x = x.InnerException)
+            {
+                if (x is AggregateException ag) { foreach (var i in ag.InnerExceptions) sb.Append(i.Message).Append(' '); }
+                else if (sb.ToString().IndexOf(x.Message ?? "", StringComparison.Ordinal) < 0) sb.Append(x.Message).Append(' ');
+            }
+            Debug.LogWarning("[RocketWorld] multiplayer error: " + e);
+            string m = sb.Length > 0 ? sb.ToString().Trim() : (e.Message ?? "Error");
             if (m.IndexOf("not found", StringComparison.OrdinalIgnoreCase) >= 0 || m.IndexOf("NotFound", StringComparison.OrdinalIgnoreCase) >= 0) return "No existe una partida con ese código.";
             if (m.IndexOf("full", StringComparison.OrdinalIgnoreCase) >= 0) return "La partida está llena (máx. 4 jugadores).";
             return m.Length > 160 ? m.Substring(0, 160) + "…" : m;
