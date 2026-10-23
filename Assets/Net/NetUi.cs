@@ -68,7 +68,7 @@ namespace RocketWorld.Net
             var me = LocalPlayer();
             string lag = _ns.State == NetState.Client && me != null ? $"   ·   {me.InputLagMs:0} ms" : "";
             string role = _ns.State == NetState.Host ? "ANFITRIÓN" : "JUGADOR";
-            GUI.Box(new Rect(W * 0.5f - 190, 8, 380, 38), $"{role}   CÓDIGO  <b>{code}</b>   ·   {_ns.PlayerCount}/{NetSession.MaxPlayers}{lag}", UiTheme.Pill);
+            GUI.Box(new Rect(W * 0.5f - 190, 8, 380, 48), $"{role}   CÓDIGO  <b>{code}</b>   ·   {_ns.PlayerCount}/{NetSession.MaxPlayers}{lag}\n<size=11>Relay: {(string.IsNullOrEmpty(_ns.NetInfo) ? "?" : _ns.NetInfo)}</size>", UiTheme.Pill);
             if (GUI.Button(new Rect(W * 0.5f + 196, 8, 76, 38), "Copiar") && !string.IsNullOrEmpty(_ns.Code))
             {
                 GUIUtility.systemCopyBuffer = _ns.Code; _toast = Time.unscaledTime + 1.6f; _toastText = "Código copiado";

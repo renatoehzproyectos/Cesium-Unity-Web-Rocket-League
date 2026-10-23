@@ -45,6 +45,8 @@ namespace RocketWorld.Net
         public NetState State { get; private set; } = NetState.Offline;
         public string Code { get; private set; } = "";
         public string Error = "", Info = "";
+        /// <summary>Relay connection state reported by the SDK (diagnostics: shown in the code banner).</summary>
+        public string NetInfo = "";
         public bool ReturnToMenu;                       // set when a session ended: the UI shows the menu again
         public readonly List<ListedGame> Games = new List<ListedGame>();
         public bool ListBusy;
@@ -128,6 +130,7 @@ namespace RocketWorld.Net
                 _session = await MultiplayerService.Instance.CreateSessionAsync(opts);
                 Hook(_session);
                 Code = _session.Code ?? "";
+                Debug.Log("[RocketWorld] session created, code " + Code + ", network " + NetInfo);
                 if (!await WaitFor(() => _nm.IsListening && _nm.IsServer, 15f)) throw new Exception("No se pudo iniciar el anfitrión.");
                 Begin(NetState.Host);
             }
@@ -180,6 +183,12 @@ namespace RocketWorld.Net
 
         void Hook(ISession s)
         {
+            try
+            {
+                NetInfo = s.Network.State.ToString();
+                s.Network.StateChanged += st => { NetInfo = st.ToString(); Debug.Log("[RocketWorld] network state: " + st); };
+            }
+            catch (Exception e) { Debug.LogWarning("[RocketWorld] cannot read network state: " + e.Message); }
             s.Deleted += () => EndLocal("El anfitrión cerró la partida.");
             s.RemovedFromSession += () => EndLocal("Has salido de la partida.");
         }
