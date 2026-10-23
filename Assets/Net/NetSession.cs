@@ -71,6 +71,13 @@ namespace RocketWorld.Net
             RocketBall.BallHit += OnBallHit;
         }
 
+        void Update()
+        {
+            // diagnostics shown in the code banner (ISession.Network does not exist in Multiplayer Services 1.1.x)
+            NetInfo = _nm == null ? "" : _nm.IsServer ? (_nm.IsListening ? "anfitrión activo" : "anfitrión parado")
+                : _nm.IsConnectedClient ? "conectado" : "sin conexión";
+        }
+
         void OnDestroy()
         {
             RocketBall.BallHit -= OnBallHit;
@@ -183,12 +190,6 @@ namespace RocketWorld.Net
 
         void Hook(ISession s)
         {
-            try
-            {
-                NetInfo = s.Network.State.ToString();
-                s.Network.StateChanged += st => { NetInfo = st.ToString(); Debug.Log("[RocketWorld] network state: " + st); };
-            }
-            catch (Exception e) { Debug.LogWarning("[RocketWorld] cannot read network state: " + e.Message); }
             s.Deleted += () => EndLocal("El anfitrión cerró la partida.");
             s.RemovedFromSession += () => EndLocal("Has salido de la partida.");
         }
