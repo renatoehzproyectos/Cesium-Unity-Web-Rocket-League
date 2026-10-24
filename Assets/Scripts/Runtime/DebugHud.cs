@@ -13,7 +13,7 @@ namespace RocketWorld
         float _toast;
         string _toastText = "";
         Vector2 _scroll;
-        GUIStyle _small, _center;
+        GUIStyle _small, _center, _attr;
         float _k = 1f;
         Rect _gear, _panel, _report;
         // IMGUI allocates every frame it builds strings, so the stats text is rebuilt 4x per second and cached.
@@ -66,7 +66,8 @@ namespace RocketWorld
             float fps = 1000f / Mathf.Max(p95 > 0 ? p95 : 16f, 0.1f);
             _stats = $"<color=#ffffffcc>{fps:0} fps  p95 {p95:0.0} ms  worst {worst:0} ms   tiles {tiles}   heap {heap} MB{bench}\n" +
                      $"{s.lat:0.00000}, {s.lon:0.00000}   ground {s.groundHeight:0} m   cam yaw {root.orbit.yaw:0} pitch {root.orbit.pitch:0} dist {root.orbit.distance:0.0} m\n" +
-                     $"car {root.carCtl.SpeedMS * 3.6f:0} km/h  wheels {(root.carCtl.CurrentPhase == RocketCar.Phase.Running ? WheelCount() : 0)}/4  {(root.carCtl.State.isOnGround ? "ground" : "air")}  gyro-comp {(root.carCtl.GyroscopicCompensation ? "on" : "off")}  colliders {(root.budget != null ? root.budget.WithCollider + "/" + root.budget.Registered : "-")}\n" +
+                     $"car {root.carCtl.SpeedMS * 3.6f:0} km/h  wheels {(root.carCtl.CurrentPhase == RocketCar.Phase.Running ? WheelCount() : 0)}/4  {(root.carCtl.InBoat ? "boat" : root.carCtl.State.isOnGround ? "ground" : "air")}  gyro-comp {(root.carCtl.GyroscopicCompensation ? "on" : "off")}  colliders {(root.budget != null ? root.budget.WithCollider + "/" + root.budget.Registered : "-")}\n" +
+                     $"{(root.carCtl.water != null ? root.carCtl.water.Info : "water off")}   {(root.waterMap != null && !string.IsNullOrEmpty(root.waterMap.LastError) ? "<color=#ff8a80>" + root.waterMap.LastError + "</color>" : "")}\n" +
                      $"quality: sse {root.EffectiveSse:0}  scale {root.EffectiveScale:0.00}  far {root.EffectiveFar:0} m  auto-level {(root.autoQuality != null ? root.autoQuality.Level : 0)}</color>";
         }
 
@@ -115,7 +116,8 @@ namespace RocketWorld
             var cc = root.carCtl;
             _shownSpeed = Mathf.Lerp(_shownSpeed, cc.SpeedMS, 1f - Mathf.Exp(-Time.unscaledDeltaTime * 12f));
             float frac = Mathf.Clamp01(_shownSpeed / 46f);
-            bool boosting = cc.State.isBoosting;
+            bool boosting = cc.IsBoosting;
+            if (cc.InBoat) Shadowed(new Rect(W * 0.5f - 120, H - 150, 240, 20), "BOAT", UiTheme.Unit);
             Shadowed(new Rect(W * 0.5f - 120, H - 128, 240, 66), Mathf.RoundToInt(_shownSpeed * 3.6f).ToString(), UiTheme.Big);
             Shadowed(new Rect(W * 0.5f - 120, H - 62, 240, 20), "KM/H", UiTheme.Unit);
             if (Event.current.type != EventType.Repaint) return;
@@ -146,6 +148,13 @@ namespace RocketWorld
             bool running = root.carCtl.CurrentPhase == RocketCar.Phase.Running;
             if (running && _runStart < 0f) _runStart = Time.unscaledTime;
             bool touch = root.carInput != null && root.carInput.TouchControlsActive;
+            if (root.waterMap != null)       // OpenStreetMap's licence asks for attribution wherever its data is used
+            {
+                _attr ??= new GUIStyle(GUI.skin.label) { fontSize = 11, alignment = TextAnchor.LowerLeft };
+                var oc = GUI.color; GUI.color = new Color(1f, 1f, 1f, 0.55f);
+                GUI.Label(new Rect(10, H - 22, 460, 18), "Water data \u00a9 OpenStreetMap contributors \u00b7 OpenFreeMap", _attr);
+                GUI.color = oc;
+            }
 
             if (Event.current.type == EventType.Repaint)
                 GUI.DrawTexture(new Rect(0, 0, W, H), UiTheme.Vignette, ScaleMode.StretchToFill, true);

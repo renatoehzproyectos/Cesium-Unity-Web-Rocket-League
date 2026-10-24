@@ -13,7 +13,7 @@ on Unity PhysX**, so collision against buildings and terrain is exact (real mesh
 ## Controls
 WASD/arrows drive · Space jump (twice = flip, with direction = dodge) · Shift boost (infinite) · Ctrl/X drift · Q/E air-roll · C camera · R rescue ·
 Esc / gear = settings · link button copies a URL for this place (never includes your API key). Mobile: on-screen pads. Full gamepad support (any controller the browser exposes; right stick orbits the camera). The **Controls** button next to the gear opens a rebinding screen: click a slot (key, alt key, gamepad) and press the new input; Backspace clears, Esc cancels. Gamepad users press Menu/Start to open it and navigate with the D-pad (A bind, X clear, Y reset, B close). Bindings are stored in this browser. Analog sticks/triggers need the Input System package as the active input handler (set automatically by `ProjectSetup`).
-URL params: `?key= ?ion= ?lat= ?lon= ?h= ?hdg= ?t= ?car= ?sse= ?scale= ?bench=1`.
+URL params: `?water=0` (no water system) `?key= ?ion= ?lat= ?lon= ?h= ?hdg= ?t= ?car= ?sse= ?scale= ?bench=1`.
 
 ## Deploy: GitHub -> Vercel
 1. Push this folder to `main` of a new GitHub repo.
@@ -68,3 +68,6 @@ rigidbody tuned to RocketSim's ball (`RocketBall.cs`, constants and the extra ca
 friction 0.35, linear damping (1-0.03)^t, max speed 6000 uu/s, max spin 6 rad/s, and RocketSim's car-ball contact (friction 2.0, restitution 0 + the
 extra impulse curve). RocketSim never turns the ball; PhysX integrates its orientation from the angular velocity, so it spins on pitch, yaw and roll.
 Touching it fires sparkle sprites (`BallSparks.cs`). The boost is now the web game's soft glowing trail (`BoostFx.cs`).
+
+## Water
+The car floats and drives like a boat on seas, lakes and rivers, using free OpenStreetMap polygons (OpenFreeMap, no API key). See `docs/WATER.md`; checks: `bash tools/water/run.sh`.

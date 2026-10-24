@@ -21,7 +21,7 @@ namespace RocketWorld
             float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
             var carPos = car.visual != null ? car.visual.position : car.transform.position;
             var carFwd = car.visual != null ? car.visual.forward : car.transform.forward;
-            bool grounded = car.CurrentPhase == RocketCar.Phase.Running && car.State.isOnGround;
+            bool grounded = car.CurrentPhase == RocketCar.Phase.Running && (car.State.isOnGround || car.InBoat);   // a boat keeps the heading-follow camera
 
             var vel = car.UnityVelocity; var hv = new Vector3(vel.x, 0, vel.z);
             var dir = Vector3.ProjectOnPlane(carFwd, Vector3.up);

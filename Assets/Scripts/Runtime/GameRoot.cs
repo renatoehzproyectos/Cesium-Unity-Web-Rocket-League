@@ -33,6 +33,8 @@ namespace RocketWorld
         public DebugHud hud;
         public Minimap minimap;
         public RocketBall ball;
+        /// <summary>OpenStreetMap water polygons (free, no key). Null when ?water=0.</summary>
+        public WaterMap waterMap;
         public AutoQuality autoQuality;
         public BenchmarkRunner benchmark;
         public TileLog tileLog;
@@ -98,6 +100,7 @@ namespace RocketWorld
 
             BuildSun();
             BuildCar();
+            BuildWater();
             BuildCamera();
             CreateWorldContent();
             ApplyLive();
@@ -437,6 +440,23 @@ namespace RocketWorld
             carCtl.ball = ball;
         }
 
+        /// <summary>Water system: one shared map (OpenFreeMap vector tiles) and one driver per simulated car.</summary>
+        void BuildWater()
+        {
+            if (!settings.water) return;
+            waterMap = gameObject.AddComponent<WaterMap>();
+            waterMap.georeference = georeference;
+            AttachWater(carCtl);
+        }
+
+        void AttachWater(RocketCar c)
+        {
+            if (waterMap == null || c == null || c.water != null) return;
+            var d = c.gameObject.AddComponent<WaterDriver>();
+            d.car = c; d.map = waterMap;
+            c.water = d;
+        }
+
         void BuildCamera()
         {
             var go = new GameObject("Main Camera") { tag = "MainCamera" };
@@ -491,6 +511,7 @@ namespace RocketWorld
             rc.playerName = playerName;
             colorIdx = Mathf.Clamp(colorIdx, 0, GameSettings.CarColors.Length - 1);
             rc.visual = CarVisual.Build(go.transform, GameSettings.CarColors[colorIdx].color, -0.3406f);
+            AttachWater(rc);                                            // the host simulates remote cars: they float too (puppets just follow the snapshot)
             if (!simulated) rc.SetSimulated(false);
             return rc;
         }

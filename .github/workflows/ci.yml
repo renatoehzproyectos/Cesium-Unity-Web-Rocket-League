@@ -51,12 +51,24 @@ jobs:
       - name: Build both and compare every scenario
         run: bash tools/parity/build.sh /tmp/RocketSim "$(nproc)"
 
+  water:
+    name: Water system (vector tiles, geodesy, boat model)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 8.0.x }
+      - name: Tile decoder / point-in-water / bridges / geodesy, then 6-DOF boat tuning
+        run: |
+          pip install numpy
+          bash tools/water/run.sh
+
   unity-web:
     name: Unity 6000.0.62f1 WebGL build
     runs-on: ubuntu-latest
     permissions:
       contents: write        # lets the job push the build to the release branch
-    # No `needs`: the Unity build runs in parallel with the static checks / parity test; publishing waits for all three.
+    # No `needs`: the Unity build runs in parallel with the static checks / parity test; publishing waits for all of them.
     outputs:
       built: ${{ steps.lic.outputs.ok }}
     steps:
@@ -154,7 +166,7 @@ jobs:
   publish-release:
     name: Publish to release branch
     runs-on: ubuntu-latest
-    needs: [checks, parity, unity-web]
+    needs: [checks, parity, water, unity-web]
     if: needs.unity-web.outputs.built == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     permissions:
       contents: write
@@ -177,7 +189,7 @@ jobs:
   deploy-op-test:
     name: Deploy WebGL → op-test
     runs-on: ubuntu-latest
-    needs: [checks, parity, unity-web]
+    needs: [checks, parity, water, unity-web]
     if: needs.unity-web.outputs.built == 'true' && github.event_name != 'pull_request'
     steps:
       - name: Download rocketworld-webgl artifact

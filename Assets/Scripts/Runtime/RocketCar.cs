@@ -22,6 +22,8 @@ namespace RocketWorld
         public Transform visual;
         public PlaneIntro intro;
         public RocketBall ball;
+        /// <summary>Water system (null = off). While it reports <see cref="InBoat"/> the RocketSim wheel model is replaced by boat forces.</summary>
+        public WaterDriver water;
         public bool infiniteBoost = true;
         public float spawnHeadingDeg;
 
@@ -38,6 +40,11 @@ namespace RocketWorld
         public int ballExtraTick = -10;             // RocketSim keeps the last extra-hit tick per car
         public int slot;
         public string playerName = "";
+
+        /// <summary>True while floating on water (boat dynamics instead of the wheel model).</summary>
+        public bool InBoat => water != null && water.Active;
+        /// <summary>Boost flame / HUD: the boat's own boost while afloat, RocketSim's otherwise.</summary>
+        public bool IsBoosting => InBoat ? water.Boosting : Vehicle.state.isBoosting;
 
         public Phase CurrentPhase { get; private set; }
         public string Status { get; private set; } = "";
@@ -66,6 +73,7 @@ namespace RocketWorld
         float _softHoldUntil;
         bool _held;                                  // menu is open: do not start yet
         bool _spawnCol, _spawnRel; Vector3 _spawnPos; float _spawnHeading;
+        float _puppetSink;                           // puppets: the model sits lower while the host's car is afloat
         static bool _gyroKnown, _gyro;               // PhysX calibration steps the world: do it once, not for every car
 
         void Awake()
@@ -143,6 +151,7 @@ namespace RocketWorld
             simulated = sim; _softHold = false;
             if (!sim)
             {
+                if (water != null) water.ForceExit();
                 if (_rb != null) { _rb.isKinematic = true; }
                 CurrentPhase = Phase.WaitingForGround; Status = "";
             }
@@ -188,10 +197,11 @@ namespace RocketWorld
         public void Rescue() { if (CurrentPhase == Phase.Running && simulated) { _rescue = true; BeginWaiting(); } }
 
         /// <summary>Puppet pose from a snapshot (multiplayer clients).</summary>
-        public void ApplyPuppetPose(Vector3 pos, Quaternion rot, Vector3 vel, bool onGround, bool boosting, bool running)
+        public void ApplyPuppetPose(Vector3 pos, Quaternion rot, Vector3 vel, bool onGround, bool boosting, bool running, bool boat = false)
         {
             transform.SetPositionAndRotation(pos, rot);
-            if (visual != null) visual.SetPositionAndRotation(pos, rot);
+            _puppetSink = Mathf.MoveTowards(_puppetSink, boat ? WaterDriver.DefaultVisualSink : 0f, Mathf.Min(Time.unscaledDeltaTime, 0.1f) * 0.8f);
+            if (visual != null) visual.SetPositionAndRotation(pos - rot * Vector3.up * _puppetSink, rot);
             netVelocity = vel;
             Vehicle.state.isOnGround = onGround; Vehicle.state.isBoosting = boosting;
             CurrentPhase = running ? Phase.Running : Phase.WaitingForGround;
@@ -199,6 +209,13 @@ namespace RocketWorld
             if (_boostFx != null) _boostFx.SetBoosting(boosting && running);
         }
         void OnGeoChanged() { _resync = true; }
+
+        /// <summary>Boat mode ended (reached land): hand the body back to the wheel model with a clean state (wheels, jump flags, auto-flip).</summary>
+        public void OnBoatExit()
+        {
+            _body.Pull();
+            Vehicle.OnStateSet(true);
+        }
 
         public void ReportWorldContact(Vector3 unityNormal) { Vehicle.NotifyWorldContact(PhysicsSetup.ToSim(unityNormal)); }
 
@@ -230,6 +247,7 @@ namespace RocketWorld
 
         void BeginWaiting()
         {
+            if (water != null) water.ForceExit();
             if (colliderBudget != null) colliderBudget.burst = true;
             CurrentPhase = Phase.WaitingForGround; _waitStart = Time.realtimeSinceStartup; _stableSince = -1f;
             if (_rb != null) { _rb.linearVelocity = Vector3.zero; _rb.angularVelocity = Vector3.zero; _rb.isKinematic = true; }
@@ -284,6 +302,7 @@ namespace RocketWorld
                 throttle = c.throttle, steer = c.steer, pitch = c.pitch, yaw = c.yaw, roll = c.roll,
                 jump = c.jump, boost = c.boost, handbrake = c.handbrake,
             };
+            if (water != null && water.Active) { water.PreStep(c, Tick); return; }     // afloat: boat forces replace the wheel model
             if (infiniteBoost) Vehicle.state.boost = RL.BoostMax;
 
             _body.Pull();
@@ -294,6 +313,13 @@ namespace RocketWorld
         /// <summary>Second half of a tick, after the shared Physics.Simulate.</summary>
         public void PostStep()
         {
+            if (water != null && water.Active)
+            {
+                water.PostStep();
+                _prevPos = _currPos; _prevRot = _currRot;
+                _currPos = _rb.position; _currRot = _rb.rotation;
+                return;
+            }
             _body.Pull();
             Vehicle.PostTick(Tick);
             Vehicle.FinishTick();                             // speed / angular speed limits
@@ -306,8 +332,11 @@ namespace RocketWorld
         public void ApplyVisual(float alpha)
         {
             if (visual == null) return;
-            visual.SetPositionAndRotation(Vector3.LerpUnclamped(_prevPos, _currPos, alpha), Quaternion.Slerp(_prevRot, _currRot, alpha));
-            if (_boostFx != null) _boostFx.SetBoosting(Vehicle.state.isBoosting);
+            var rot = Quaternion.Slerp(_prevRot, _currRot, alpha);
+            var pos = Vector3.LerpUnclamped(_prevPos, _currPos, alpha);
+            if (water != null && water.VisualSink > 0.001f) pos -= rot * Vector3.up * water.VisualSink;    // half-immersed look; the hitbox stays above the water
+            visual.SetPositionAndRotation(pos, rot);
+            if (_boostFx != null) _boostFx.SetBoosting(IsBoosting);
         }
 
         // CesiumOriginShift moved the georeference origin: anchors re-expressed our transform in the new frame; the Rigidbody follows,
@@ -315,6 +344,7 @@ namespace RocketWorld
         void ApplyOriginShift()
         {
             _resync = false;
+            if (water != null) water.OnOriginShift();
             Physics.SyncTransforms();
             Quaternion dq = transform.rotation * Quaternion.Inverse(_currRot);
             _rb.position = transform.position; _rb.rotation = transform.rotation;
@@ -352,6 +382,7 @@ namespace RocketWorld
         /// <summary>Puts the car at an exact pose and starts driving immediately (no ground search). Used by the plane intro.</summary>
         public void PlaceDirect(Vector3 pos, Quaternion rot)
         {
+            if (water != null) water.ForceExit();
             _rb.isKinematic = false;
             transform.SetPositionAndRotation(pos, rot);
             _rb.position = pos; _rb.rotation = rot;

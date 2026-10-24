@@ -26,6 +26,7 @@ namespace RocketWorld
         public bool debugHud = false;                // locked off
         public bool autoQuality = false;             // locked off (no adaptive quality controller)
         public bool noIntro;                         // ?intro=0 skips the cargo-plane opening
+        public bool water = true;                    // ?water=0 turns the water system off (no OpenStreetMap download, water stays solid)
         public bool bench;                           // ?bench=1 runs the benchmark right after the world is ready
         public int carColor = 0;
         public float camYaw = 200f, camPitch = 14f, camDist = 7.5f;
@@ -83,6 +84,7 @@ namespace RocketWorld
             string q;
             s.bench = WebBridge.Query("bench") == "1";
             s.noIntro = WebBridge.Query("intro") == "0";
+            s.water = WebBridge.Query("water") != "0";
             if (!string.IsNullOrEmpty(q = WebBridge.Query("key"))) { s.googleKey = q; s.provider = TileProvider.GoogleDirect; }
             if (!string.IsNullOrEmpty(q = WebBridge.Query("ion"))) { s.ionToken = q; s.provider = TileProvider.CesiumIon; }
             // Baked-in token from CI (ION_TOKEN secret → index.html). Query string still wins above.

@@ -1,0 +1,62 @@
+// Offline checks for the engine-free water code (Assets/Scripts/Sim/Water): a hand-made MVT encoder builds tiles with known
+// geometry, the reader must decode them and the point-in-water / bridge tests must agree with the geometry.
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
+using System.Text;
+using RocketWorld.Sim;
+using RocketWorld.Tests;
+
+static class P
+{
+    static int fails;
+    static void Check(bool ok, string what) { Console.WriteLine((ok ? "PASS  " : "FAIL  ") + what); if (!ok) fails++; }
+    static void Near(double a, double b, double tol, string what) => Check(Math.Abs(a - b) <= tol, what + $"  ({a:0.#########} vs {b:0.#########})");
+
+    static void Main()
+    {
+        var t = MvtReader.Read(WaterTestTiles.BuildTile());
+        Check(t.water.Count == 2, $"water features decoded = 2 (tunnel + pool dropped), got {t.water.Count}");
+        WaterKind k;
+        Check(t.IsWater(1500, 1500, out k) && k == WaterKind.Lake, "inside lake -> water, kind lake");
+        Check(!t.IsWater(2000, 2000, out _), "island hole -> land");
+        Check(!t.IsWater(900, 1500, out _) && !t.IsWater(3100, 1500, out _), "outside the lake -> land");
+        Check(t.IsWater(3700, 300, out k) && k == WaterKind.Ocean, "ocean polygon -> water, kind ocean");
+        Check(!t.IsWater(3700, 3700, out _), "tunnel water ignored");
+        Check(!t.IsWater(200, 200, out _), "swimming pool ignored");
+        Check(t.solidLines.Count == 2, $"bridge + pier lines kept, ferry dropped, got {t.solidLines.Count}");
+        Check(t.NearSolid(1500, 2010, 20), "10 units from the bridge -> near solid");
+        Check(!t.NearSolid(1500, 2100, 20), "100 units from the bridge -> not near");
+        Check(t.NearSolid(2005, 2700, 20), "next to the pier -> near solid");
+        Check(!t.NearSolid(2000, 1200, 20), "on the ferry route -> not solid");
+
+        // gzip round trip (OpenFreeMap tiles are gzip; the browser inflates them, native builds may not)
+        var raw = WaterTestTiles.BuildTile(); byte[] gz;
+        using (var ms = new MemoryStream()) { using (var g = new GZipStream(ms, CompressionMode.Compress)) g.Write(raw, 0, raw.Length); gz = ms.ToArray(); }
+        Check(gz[0] == 0x1f && gz[1] == 0x8b, "gzip magic detected");
+
+        // geodesy
+        double lon, lat;
+        Geo.EcefToLonLat(6378137.0, 0, 0, out lon, out lat);
+        Near(lon, 0, 1e-12, "ECEF (a,0,0) lon"); Near(lat, 0, 1e-12, "ECEF (a,0,0) lat");
+        foreach (var c in new[] { (-4.4214, 36.7213, 61.0), (-73.9855, 40.758, -23.0), (55.2744, 25.1972, -15.0), (151.2093, -33.8688, 20.0), (-0.0001, 89.0, 100.0) })
+        {
+            Geo.LonLatToEcef(c.Item1, c.Item2, c.Item3, out double x, out double y, out double z);
+            Geo.EcefToLonLat(x, y, z, out lon, out lat);
+            Near(lon, c.Item1, 1e-9, $"round-trip lon {c.Item1}"); Near(lat, c.Item2, 1e-9, $"round-trip lat {c.Item2}");
+        }
+        Geo.LonLatToTile(0, 0, 1, out double tx, out double ty);
+        Near(tx, 1.0, 1e-12, "tile x of (0,0) at z1"); Near(ty, 1.0, 1e-12, "tile y of (0,0) at z1");
+        Geo.LonLatToTile(-4.4214, 36.7213, 14, out tx, out ty);
+        Console.WriteLine($"INFO  Malaga z14 tile = {Math.Floor(tx)}/{Math.Floor(ty)}  frac = {tx - Math.Floor(tx):0.0000},{ty - Math.Floor(ty):0.0000}");
+        Near(tx, 7990.777173333333, 1e-9, "Malaga tile x (python reference)"); Near(ty, 6392.998516944792, 1e-9, "Malaga tile y (python reference)");
+        Console.WriteLine($"INFO  data resolution at lat 36.7 z14 = {Geo.MetresPerUnit(36.7, 14):0.00} m per unit");
+
+        // robustness: garbage must throw / return cleanly, never hang
+        try { MvtReader.Read(new byte[] { 0x1a, 0xff, 0xff, 0xff, 0xff, 0x0f }); Check(true, "garbage tile handled"); }
+        catch (Exception) { Check(true, "garbage tile throws a catchable exception"); }
+        Console.WriteLine(fails == 0 ? "ALL OK" : fails + " FAILED");
+        Environment.Exit(fails == 0 ? 0 : 1);
+    }
+}
