@@ -52,6 +52,7 @@ namespace RocketWorld.Net
             {
                 if (GUI.Button(new Rect(W - 338, 14, 80, 46), "Online")) { _menu = true; _scr = Scr.Main; }
             }
+            if (!_menu && _ns.State != NetState.Connecting) DrawTeleport(W);
             if (Time.unscaledTime < _toast) GUI.Box(new Rect(W * 0.5f - 130, 134, 260, 36), _toastText, UiTheme.Toast);
 
             if (_menu || _ns.State == NetState.Connecting) DrawMenu(W, H);
@@ -66,11 +67,38 @@ namespace RocketWorld.Net
             string lag = _ns.State == NetState.Client && me != null ? $"   ·   {me.InputLagMs:0} ms" : "";
             string role = _ns.State == NetState.Host ? "ANFITRIÓN" : "JUGADOR";
             GUI.Box(new Rect(W * 0.5f - 190, 8, 380, 48), $"{role}   CÓDIGO  <b>{code}</b>   ·   {_ns.PlayerCount}/{NetSession.MaxPlayers}{lag}\n<size=11>Red: {(string.IsNullOrEmpty(_ns.NetInfo) ? "?" : _ns.NetInfo)}</size>", UiTheme.Pill);
-            if (GUI.Button(new Rect(W * 0.5f + 196, 8, 76, 38), "Copiar") && !string.IsNullOrEmpty(_ns.Code))
-            {
-                GUIUtility.systemCopyBuffer = _ns.Code; _toast = Time.unscaledTime + 1.6f; _toastText = "Código copiado";
-            }
             if (GUI.Button(new Rect(W * 0.5f - 272, 8, 76, 38), "Salir")) _ns.Leave();
+        }
+
+        int _tpIdx = -1;
+
+        void DrawTeleport(float W)
+        {
+            var car = _ns.Root.carCtl;
+            if (car == null) return;
+            bool net = _ns.State == NetState.Host || _ns.State == NetState.Client;
+            var me = net ? LocalPlayer() : null;
+            GUI.enabled = car.CurrentPhase == RocketCar.Phase.Running;
+            float x = net ? W * 0.5f - 102f : W * 0.5f - 48f;
+            if (GUI.Button(new Rect(x, 62, 96, 34), "Subir 100 m"))
+            {
+                if (me != null) me.TeleportAbove(); else car.TeleportAbove(PlayerNet.TeleportMeters);
+            }
+            if (net)
+            {
+                var others = new System.Collections.Generic.List<PlayerNet>();
+                foreach (var p in PlayerNet.All) if (!p.IsOwner) others.Add(p);
+                others.Sort((a, b) => a.Slot.Value.CompareTo(b.Slot.Value));
+                GUI.enabled = GUI.enabled && others.Count > 0 && me != null;
+                if (GUI.Button(new Rect(W * 0.5f + 6, 62, 96, 34), "Ir a jugador"))
+                {
+                    _tpIdx = (_tpIdx + 1) % others.Count;
+                    var t = others[_tpIdx];
+                    me.TeleportTo(t);
+                    _toast = Time.unscaledTime + 1.6f; _toastText = "→ " + t.DisplayName;
+                }
+            }
+            GUI.enabled = true;
         }
 
         PlayerNet LocalPlayer() { foreach (var p in PlayerNet.All) if (p.IsOwner) return p; return null; }
@@ -159,10 +187,17 @@ namespace RocketWorld.Net
         {
             GUILayout.Label("Crear partida", UiTheme.Hint);
             GUILayout.Space(6);
-            GUILayout.Label("Se genera un código de 6 letras para invitar a tus amigos. Máximo 4 jugadores. Tu navegador hace de servidor: mantén esta pestaña abierta.", UiTheme.Hint);
+            GUILayout.Label("Se genera un código de 4 números para invitar a tus amigos. Máximo 4 jugadores. Tu navegador hace de servidor: mantén esta pestaña abierta.", UiTheme.Hint);
             GUILayout.Space(10);
             if (GUILayout.Button("Crear y entrar", GUILayout.Height(44))) _ns.HostGame();
             if (GUILayout.Button("Atrás", GUILayout.Height(36))) { _ns.Error = ""; _scr = Scr.Main; }
+        }
+
+        static string DigitsOnly(string s)
+        {
+            var sb = new System.Text.StringBuilder(4);
+            foreach (char c in s ?? "") if (c >= '0' && c <= '9' && sb.Length < 4) sb.Append(c);
+            return sb.ToString();
         }
 
         void JoinScreen()
@@ -170,9 +205,9 @@ namespace RocketWorld.Net
             GUILayout.Label("Unirse a partida", UiTheme.Hint);
             GUILayout.Space(4);
             GUILayout.Label("Código de la partida");
-            _code = GUILayout.TextField(_code ?? "", 8).ToUpperInvariant();
+            _code = DigitsOnly(GUILayout.TextField(_code ?? "", 4));
             GUILayout.Space(6);
-            GUI.enabled = _code.Trim().Length >= 4;
+            GUI.enabled = _code.Length == 4;
             if (GUILayout.Button("Unirse", GUILayout.Height(44))) _ns.JoinByCode(_code);
             GUI.enabled = true;
             if (GUILayout.Button("Atrás", GUILayout.Height(36))) { _ns.Error = ""; _scr = Scr.Main; }

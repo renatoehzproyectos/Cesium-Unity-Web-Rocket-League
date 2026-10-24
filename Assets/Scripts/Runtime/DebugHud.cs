@@ -444,7 +444,6 @@ namespace RocketWorld
             GUILayout.Label("<b>Benchmark report</b>", _small);
             GUILayout.Label(root.benchmark.Report, _small);
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Copy")) { GUIUtility.systemCopyBuffer = root.benchmark.Report; _toast = Time.unscaledTime + 2f; _toastText = "Report copied"; }
             if (GUILayout.Button("Close")) _reportOpen = false;
             GUILayout.EndHorizontal();
             GUILayout.EndArea();

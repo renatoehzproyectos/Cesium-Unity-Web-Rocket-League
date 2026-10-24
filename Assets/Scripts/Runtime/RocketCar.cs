@@ -156,6 +156,34 @@ namespace RocketWorld
             BeginWaiting();
         }
 
+        /// <summary>True when this car may be teleported (simulated here, driving, not inside the cargo plane).</summary>
+        public bool CanTeleport => simulated && !_held && CurrentPhase == Phase.Running && !(intro != null && intro.BlocksRescue);
+
+        static Quaternion Level(Quaternion r)
+        {
+            var f = r * Vector3.forward; f.y = 0f;
+            return f.sqrMagnitude > 1e-4f ? Quaternion.LookRotation(f.normalized, Vector3.up) : Quaternion.identity;
+        }
+
+        /// <summary>Straight up, same heading, level, stopped. The car then falls.</summary>
+        public bool TeleportAbove(float meters)
+        {
+            if (!CanTeleport) return false;
+            PlaceDirect(_rb.position + Vector3.up * meters, Level(_rb.rotation));
+            return true;
+        }
+
+        /// <summary>Right next to another car (same heading, a little above so it does not clip the ground).</summary>
+        public bool TeleportBeside(RocketCar other)
+        {
+            if (!CanTeleport || other == null || other == this) return false;
+            var orot = other.Body != null ? other.Body.rotation : other.transform.rotation;
+            var opos = other.Body != null ? other.Body.position : other.transform.position;
+            var lvl = Level(orot);
+            PlaceDirect(opos + lvl * Vector3.right * 4f + Vector3.up * 0.6f, lvl);
+            return true;
+        }
+
         /// <summary>Rescue (R): back to the ground below the car, same heading.</summary>
         public void Rescue() { if (CurrentPhase == Phase.Running && simulated) { _rescue = true; BeginWaiting(); } }
 

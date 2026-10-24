@@ -42,7 +42,8 @@ namespace RocketWorld
         float _t0, _openT0, _loadedSince = -1f, _fallT0, _planeSpeed;
         double _startHeight;
 
-        bool _began;
+        bool _began, _visualOnly;
+        public Transform PlaneTransform => _plane != null && !_visualOnly ? _plane.transform : null;
 
         /// <summary>First start of the game: plane above the start point.</summary>
         public bool Begin(RocketCar car)
@@ -74,6 +75,54 @@ namespace RocketWorld
             return Spawn(xz, heading);
         }
 
+        /// <summary>Host: another player's car starts in its own cargo plane, flying in formation next to the reference plane (or above the reference car).</summary>
+        public bool BeginRemote(RocketCar car, RocketCar reference, int slot)
+        {
+            if (_began || car == null || root == null) return false;
+            Vector3 basePos; float heading;
+            var rt = reference != null && reference.intro != null ? reference.intro.PlaneTransform : null;
+            var st = reference != null && reference.intro != null ? reference.intro.CurrentStage : Stage.Idle;
+            if (rt != null && (st == Stage.InPlane || st == Stage.Opening || st == Stage.Open))
+            {
+                basePos = rt.position; heading = rt.eulerAngles.y;
+            }
+            else
+            {
+                var rp = reference != null ? reference.transform : null;
+                basePos = rp != null ? rp.position : Vector3.zero;
+                var f = rp != null ? rp.forward : Vector3.forward; f.y = 0f;
+                heading = f.sqrMagnitude > 1e-3f ? Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg : root.settings.heading;
+            }
+            var right = Quaternion.Euler(0f, heading, 0f) * Vector3.right;
+            var xz = new Vector3(basePos.x, 0f, basePos.z) + right * (PlaneSpacing * slot);
+            _began = true; _car = car; _carAnchor = car.GetComponent<CesiumGlobeAnchor>();
+            return Spawn(xz, heading);
+        }
+
+        const float PlaneSpacing = 14f;               // formation: planes side by side (the hold is 3.8 m wide)
+
+        // ---- multiplayer plane replication (host sends the pose, clients show a model without colliders)
+
+        /// <summary>Host: pose of this plane and the rear ramp angle (degrees), false when there is no plane.</summary>
+        public bool TryGetPose(out Vector3 pos, out Quaternion rot, out float ramp)
+        {
+            pos = default; rot = Quaternion.identity; ramp = 0f;
+            if (_plane == null || _visualOnly || _hinge == null) return false;
+            pos = _plane.transform.position; rot = _plane.transform.rotation;
+            ramp = Mathf.DeltaAngle(0f, _hinge.localEulerAngles.x);
+            return true;
+        }
+
+        /// <summary>Client: build the plane model only (no physics, no car).</summary>
+        public bool StartVisual() { if (_plane != null) return true; return Spawn(Vector3.zero, 0f, true); }
+
+        public void SetVisualPose(Vector3 pos, Quaternion rot, float rampDeg)
+        {
+            if (_plane == null) return;
+            _plane.transform.SetPositionAndRotation(pos, rot);
+            if (_hinge != null) _hinge.localRotation = Quaternion.Euler(rampDeg, 0f, 0f);
+        }
+
         void ClearPlane()
         {
             if (_plane != null) { _plane.SetActive(false); Destroy(_plane); _plane = null; }
@@ -81,9 +130,10 @@ namespace RocketWorld
             if (_car != null && _car.colliderBudget != null) _car.colliderBudget.burst = false;
         }
 
-        bool Spawn(Vector3 xz, float heading)
+        bool Spawn(Vector3 xz, float heading, bool visual = false)
         {
-            if (root == null || root.settings.bench || root.settings.noIntro || root.georeference == null) return false;
+            if (root == null || root.georeference == null) return false;
+            if (!visual && (root.settings.bench || root.settings.noIntro)) return false;
             var prefab = Resources.Load<GameObject>("Models/YC130");
             if (prefab == null) { Debug.LogWarning("[RocketWorld] Cargo plane model not found - starting on the ground."); return false; }
 
@@ -115,7 +165,7 @@ namespace RocketWorld
             _bay.SetParent(_plane.transform, false);
             _bay.localRotation = Quaternion.identity;
 
-            BuildHold();
+            if (!visual) BuildHold();
 
             // hinge for the rear ramp
             _hinge = new GameObject("RampHinge").transform;
@@ -123,17 +173,21 @@ namespace RocketWorld
             _hinge.localPosition = new Vector3(0f, FloorY, HingeZ);
             var ramp = FindDeep(model.transform, "RearRamp");
             if (ramp != null) ramp.SetParent(_hinge, true);          // keeps its pose; now it rotates around the hinge
-            var rc = new GameObject("RampCollider");
-            rc.layer = PhysicsSetup.PlaneLayer;
-            rc.transform.SetParent(_hinge, false);
-            rc.transform.localRotation = Quaternion.Euler(-SlopeDeg, 0f, 0f);
-            var bc = rc.AddComponent<BoxCollider>();
-            bc.size = new Vector3(RampW, 0.4f, RampLen); bc.center = new Vector3(0f, -0.2f, RampLen * 0.5f);
-            bc.sharedMaterial = PhysicsSetup.WorldMaterial;
+            if (!visual)
+            {
+                var rc = new GameObject("RampCollider");
+                rc.layer = PhysicsSetup.PlaneLayer;
+                rc.transform.SetParent(_hinge, false);
+                rc.transform.localRotation = Quaternion.Euler(-SlopeDeg, 0f, 0f);
+                var bc = rc.AddComponent<BoxCollider>();
+                bc.size = new Vector3(RampW, 0.4f, RampLen); bc.center = new Vector3(0f, -0.2f, RampLen * 0.5f);
+                bc.sharedMaterial = PhysicsSetup.WorldMaterial;
+            }
 
             // place the plane so that the car (which faces the tail) looks along the configured heading
             _plane.transform.rotation = Quaternion.Euler(0f, heading, 0f) * Quaternion.Inverse(_bay.localRotation);
             _plane.transform.position = new Vector3(xz.x, Altitude, xz.z);
+            if (visual) { _visualOnly = true; return true; }         // joined client: just the model, the pose comes from the host
             _plane.AddComponent<CesiumGlobeAnchor>();                // stays put when Cesium re-centres the origin
             Physics.SyncTransforms();
 
@@ -186,6 +240,7 @@ namespace RocketWorld
 
         void Update()
         {
+            if (_visualOnly) return;
             if (_plane == null) { if (CurrentStage != Stage.Done) Finish(); return; }
             float now = Time.unscaledTime, dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
 

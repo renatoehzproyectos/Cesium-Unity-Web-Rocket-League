@@ -26,7 +26,7 @@ namespace RocketWorld.Net
 
     /// <summary>
     /// Netcode for GameObjects over a WebRTC transport (PeerJS, browser to browser): the host's browser is the server.
-    /// Host: pick a 6-letter code and register it as the PeerJS id. Join: type the code. Max 4 players = 1 host + 3 visitors.
+    /// Host: pick a 4-digit code and register it as the PeerJS id. Join: type the code. Max 4 players = 1 host + 3 visitors.
     /// </summary>
     public class NetSession : MonoBehaviour, INetRole
     {
@@ -79,7 +79,7 @@ namespace RocketWorld.Net
         public void PlaySolo() { if (Root != null) Root.BeginPlay(); }
 
         public void HostGame() { _ = HostCore(); }
-        public void JoinByCode(string code) { _ = JoinCore((code ?? "").Trim().ToUpperInvariant()); }
+        public void JoinByCode(string code) { _ = JoinCore((code ?? "").Trim()); }
 
         public void RequestBall()
         {
@@ -102,14 +102,11 @@ namespace RocketWorld.Net
         // ------------------------------------------------------------------------------------------------ connect
 
         const string IdPrefix = "rocketworld-";
-        const string CodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         string _discReason = "";
 
         static string RandomCode()
         {
-            var c = new char[6];
-            for (int i = 0; i < c.Length; i++) c[i] = CodeChars[UnityEngine.Random.Range(0, CodeChars.Length)];
-            return new string(c);
+            return UnityEngine.Random.Range(0, 10000).ToString("D4");          // 0000-9999: keeps leading zeros
         }
 
         async Task HostCore()
@@ -121,7 +118,7 @@ namespace RocketWorld.Net
                 EnsureNetworkManager();
                 if (!await WaitFor(() => !_nm.ShutdownInProgress, 5f)) throw new Exception("La red anterior aún se está cerrando. Reintenta.");
                 string code = "";
-                for (int attempt = 0; attempt < 5 && code == ""; attempt++)
+                for (int attempt = 0; attempt < 8 && code == ""; attempt++)
                 {
                     string c = RandomCode();
                     _pt.OpenHost(IdPrefix + c);
@@ -145,7 +142,7 @@ namespace RocketWorld.Net
             Error = ""; Info = "Uniéndose a la partida…"; State = NetState.Connecting;
             try
             {
-                if (code.Length < 4) throw new Exception("Escribe el código de la partida.");
+                if (code.Length != 4) throw new Exception("El código son 4 números.");
                 EnsureNetworkManager();
                 if (!await WaitFor(() => !_nm.ShutdownInProgress, 5f)) throw new Exception("La red anterior aún se está cerrando. Reintenta.");
                 Code = code; _discReason = "";

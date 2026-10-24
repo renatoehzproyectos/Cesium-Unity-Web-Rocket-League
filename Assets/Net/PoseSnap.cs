@@ -14,6 +14,7 @@ namespace RocketWorld.Net
         public double x, y, z;
         public Vector3 f, u, v;
         public byte flags;                 // 1 on ground, 2 boosting, 4 running / exists
+        public float aux;                  // plane snapshots: rear ramp angle (degrees)
 
         public bool OnGround => (flags & 1) != 0;
         public bool Boosting => (flags & 2) != 0;
@@ -24,7 +25,7 @@ namespace RocketWorld.Net
             s.SerializeValue(ref seq); s.SerializeValue(ref ack);
             s.SerializeValue(ref x); s.SerializeValue(ref y); s.SerializeValue(ref z);
             s.SerializeValue(ref f); s.SerializeValue(ref u); s.SerializeValue(ref v);
-            s.SerializeValue(ref flags);
+            s.SerializeValue(ref flags); s.SerializeValue(ref aux);
         }
 
         public static PoseSnap Lerp(PoseSnap a, PoseSnap b, float k)
@@ -33,6 +34,7 @@ namespace RocketWorld.Net
             r.x = a.x + (b.x - a.x) * k; r.y = a.y + (b.y - a.y) * k; r.z = a.z + (b.z - a.z) * k;
             r.f = Vector3.Slerp(a.f, b.f, k); r.u = Vector3.Slerp(a.u, b.u, k); r.v = Vector3.Lerp(a.v, b.v, k);
             r.flags = k < 0.5f ? a.flags : b.flags;
+            r.aux = a.aux + (b.aux - a.aux) * k;
             return r;
         }
 

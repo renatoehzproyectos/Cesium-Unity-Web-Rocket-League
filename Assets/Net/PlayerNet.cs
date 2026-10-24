@@ -44,6 +44,8 @@ namespace RocketWorld.Net
         // client (everyone)
         readonly PoseBuffer _buf = new PoseBuffer();
         readonly PoseBuffer _ballBuf = new PoseBuffer();
+        readonly PoseBuffer _planeBuf = new PoseBuffer();
+        PlaneIntro _visPlane; float _planeRecvT; ushort _planeSeq; bool _planeSent;
 
         /// <summary>Rough input -> host -> snapshot delay in ms (sequence numbers still in flight x 20 ms).</summary>
         public float InputLagMs => Mathf.Min(2000f, (ushort)(_seq - _lastAck) * InputInterval * 1000f);
@@ -89,13 +91,30 @@ namespace RocketWorld.Net
         public override void OnNetworkDespawn()
         {
             All.Remove(this);
+            if (_visPlane != null) { _visPlane.Abort(); Destroy(_visPlane); _visPlane = null; }
+            if (Car != null && Car.intro != null && Car != Root.carCtl) { Car.intro.Abort(); Destroy(Car.intro); }
             if (Root != null && Car != null && Car != Root.carCtl) Root.DestroyRemoteCar(Car);
             Car = null;
         }
 
         public override void OnDestroy() { All.Remove(this); base.OnDestroy(); }
 
-        void PlaceRemoteCar()
+        void PlaceRemoteCar() { StartCoroutine(PlaceRemoteLater()); }
+
+        /// <summary>Host: a remote player starts inside its own cargo plane, in formation with the host's (falls back to the ground if the plane cannot be built).</summary>
+        System.Collections.IEnumerator PlaceRemoteLater()
+        {
+            yield return null; yield return null;                    // let the new car run its own Start first
+            if (Car == null || Root == null) yield break;
+            var intro = Root.gameObject.AddComponent<PlaneIntro>();
+            intro.root = Root;
+            Car.intro = intro;
+            if (intro.BeginRemote(Car, Root.carCtl, initSlot)) yield break;
+            Car.intro = null; Destroy(intro);
+            PlaceRemoteCarOnGround();
+        }
+
+        void PlaceRemoteCarOnGround()
         {
             var host = Root.carCtl;
             bool rel = host != null && host.CurrentPhase == RocketCar.Phase.Running && !(host.intro != null && host.intro.BlocksRescue);
@@ -117,6 +136,7 @@ namespace RocketWorld.Net
         void LateUpdate()
         {
             if (!IsSpawned || Root == null || IsServer) return;
+            ApplyPlane();
             if (Car != null) ApplyPuppet();
             if (OwnerClientId == NetworkManager.ServerClientId) ApplyBall();     // the host's PlayerNet carries the ball
         }
@@ -136,7 +156,20 @@ namespace RocketWorld.Net
                 (Car.State.isOnGround ? 1 : 0) | (Car.State.isBoosting ? 2 : 0) | (running ? 4 : 0));
             s.ack = _lastSeq;
             SnapshotRpc(s);
+            SendPlane();
             if (IsOwner) SendBall();
+        }
+
+        void SendPlane()
+        {
+            var intro = Car.intro;
+            if (intro != null && intro.TryGetPose(out var pos, out var rot, out float ramp))
+            {
+                var s = Pack(pos, rot, Vector3.zero, ++_planeSeq, 4);
+                s.aux = ramp;
+                PlaneRpc(s); _planeSent = true;
+            }
+            else if (_planeSent) { _planeSent = false; var e = default(PoseSnap); e.seq = ++_planeSeq; PlaneRpc(e); }
         }
 
         void SendBall()
@@ -171,7 +204,38 @@ namespace RocketWorld.Net
         [Rpc(SendTo.Server)]
         void RescueRpc(RpcParams rpcParams = default)
         {
-            if (rpcParams.Receive.SenderClientId == OwnerClientId && Car != null) Car.Rescue();
+            if (rpcParams.Receive.SenderClientId != OwnerClientId || Car == null) return;
+            if (Car.intro != null && Car.intro.TryResetInBay()) return;         // inside the plane: back to the hold
+            Car.Rescue();
+        }
+
+        [Rpc(SendTo.Server)]
+        void TeleportAboveRpc(RpcParams rpcParams = default)
+        {
+            if (rpcParams.Receive.SenderClientId == OwnerClientId && Car != null) Car.TeleportAbove(TeleportMeters);
+        }
+
+        [Rpc(SendTo.Server)]
+        void TeleportToPlayerRpc(ulong targetClientId, RpcParams rpcParams = default)
+        {
+            if (rpcParams.Receive.SenderClientId != OwnerClientId || Car == null) return;
+            foreach (var p in All) if (p.OwnerClientId == targetClientId && p.Car != null) { Car.TeleportBeside(p.Car); return; }
+        }
+
+        public const float TeleportMeters = 100f;
+
+        /// <summary>This player's car goes 100 m straight up (client: asks the host).</summary>
+        public void TeleportAbove()
+        {
+            if (!IsSpawned || !IsOwner) return;
+            if (IsServer) { if (Car != null) Car.TeleportAbove(TeleportMeters); } else TeleportAboveRpc();
+        }
+
+        /// <summary>This player's car goes next to another player (client: asks the host).</summary>
+        public void TeleportTo(PlayerNet target)
+        {
+            if (!IsSpawned || !IsOwner || target == null || target == this) return;
+            if (IsServer) { if (Car != null) Car.TeleportBeside(target.Car); } else TeleportToPlayerRpc(target.OwnerClientId);
         }
 
         [Rpc(SendTo.Server)]
@@ -216,6 +280,24 @@ namespace RocketWorld.Net
         {
             _buf.Add(Time.unscaledTime, s);
             if (IsOwner) _lastAck = s.ack;
+        }
+
+        [Rpc(SendTo.NotServer, Delivery = RpcDelivery.Unreliable)]
+        void PlaneRpc(PoseSnap s) { _planeBuf.Add(Time.unscaledTime, s); _planeRecvT = Time.unscaledTime; }
+
+        void ApplyPlane()
+        {
+            float now = Time.unscaledTime;
+            bool show = _planeBuf.Sample(now - InterpDelay, 0.2f, out var s) && s.Running && now - _planeRecvT < 1.5f;
+            if (!show) { if (_visPlane != null) { _visPlane.Abort(); Destroy(_visPlane); _visPlane = null; } return; }
+            if (_visPlane == null)
+            {
+                _visPlane = Root.gameObject.AddComponent<PlaneIntro>();
+                _visPlane.root = Root;
+                if (!_visPlane.StartVisual()) { Destroy(_visPlane); _visPlane = null; _planeRecvT = -100f; return; }
+            }
+            GeoSync.FromEcef(Root.georeference, s.x, s.y, s.z, s.f, s.u, s.v, out var pos, out var rot, out _);
+            _visPlane.SetVisualPose(pos, rot, s.aux);
         }
 
         [Rpc(SendTo.NotServer, Delivery = RpcDelivery.Unreliable)]

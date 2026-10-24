@@ -4,7 +4,7 @@ Modelo conservado de la versión web: **host autoritativo, el cliente envía inp
 
 | Web | Unity (este proyecto) |
 |---|---|
-| PeerJS + código de 5 dígitos | PeerJS + código de 6 letras, como transporte propio de Netcode (`Assets/Net/PeerTransport.cs` + `Assets/Plugins/WebGL/RocketWorldPeer.jslib`). Navegador a navegador: el anfitrión es el servidor |
+| PeerJS + código de 5 dígitos | PeerJS + código de 4 números (0000-9999), como transporte propio de Netcode (`Assets/Net/PeerTransport.cs` + `Assets/Plugins/WebGL/RocketWorldPeer.jslib`). Navegador a navegador: el anfitrión es el servidor |
 | Mensajes JSON | Netcode for GameObjects: RPCs + NetworkVariables |
 | `controls` cada 20 ms | `InputRpc` no fiable cada 20 ms con número de secuencia |
 | `state` cada 20 ms | `SnapshotRpc` / `BallRpc` no fiables a 30 Hz; interpolación (100 ms) en clientes; coche propio con extrapolación + suavizado |
@@ -12,7 +12,7 @@ Modelo conservado de la versión web: **host autoritativo, el cliente envía inp
 | Traspaso por pestaña oculta | No hace falta (`runInBackground` activo durante la partida) |
 
 ## Flujo
-- **Crear partida** → *Crear y entrar* → el anfitrión juega y el **código aparece arriba, en el centro de la pantalla** (con *Copiar* y *Salir*).
+- **Crear partida** → *Crear y entrar* → el anfitrión juega y el **código aparece arriba, en el centro de la pantalla** (con *Salir*).
 - **Unirse a partida** → escribir el código → *Unirse* → el código se muestra igual arriba.
 - **Jugar solo** conserva el juego original. Máximo **4 jugadores: 1 anfitrión + 3 visitantes**.
 - Al salir (o si el anfitrión cierra) se vuelve a jugar solo; el botón **Online** reabre el menú.
