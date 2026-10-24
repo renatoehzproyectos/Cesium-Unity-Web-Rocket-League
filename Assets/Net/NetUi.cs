@@ -18,16 +18,7 @@ namespace RocketWorld.Net
         string _code = "";
         bool _public = true;
         Vector2 _scroll;
-        float _toast; string _toastText = ""; float _copiedUntil;
-
-        void CopyErrors()
-        {
-            string h = $"estado: {_ns.State} · código: {_ns.Code} · jugadores: {_ns.PlayerCount} · red: {_ns.NetInfo}\nmensaje en pantalla: {_ns.Error}";
-            GUIUtility.systemCopyBuffer = NetLog.Dump(h);
-            _copiedUntil = Time.unscaledTime + 2f; _toast = _copiedUntil; _toastText = "Errores copiados";
-        }
-
-        bool ErrBtn(Rect r) => GUI.Button(r, Time.unscaledTime < _copiedUntil ? "Copiado ✓" : "Errores");
+        float _toast; string _toastText = "";
         GUIStyle _tag, _err;
         string _cloud;
 
@@ -63,7 +54,6 @@ namespace RocketWorld.Net
             else if (!_menu && _ns.State == NetState.Offline)
             {
                 if (GUI.Button(new Rect(W - 338, 14, 80, 46), "Online")) { _menu = true; _scr = Scr.Main; }
-                if (ErrBtn(new Rect(W - 338, 64, 80, 28))) CopyErrors();
             }
             if (Time.unscaledTime < _toast) GUI.Box(new Rect(W * 0.5f - 130, 134, 260, 36), _toastText, UiTheme.Toast);
 
@@ -84,7 +74,6 @@ namespace RocketWorld.Net
                 GUIUtility.systemCopyBuffer = _ns.Code; _toast = Time.unscaledTime + 1.6f; _toastText = "Código copiado";
             }
             if (GUI.Button(new Rect(W * 0.5f - 272, 8, 76, 38), "Salir")) _ns.Leave();
-            if (ErrBtn(new Rect(W * 0.5f + 196, 50, 76, 30))) CopyErrors();
         }
 
         PlayerNet LocalPlayer() { foreach (var p in PlayerNet.All) if (p.IsOwner) return p; return null; }
@@ -145,8 +134,6 @@ namespace RocketWorld.Net
                 if (_ns.NeedsProjectId) CloudField();
                 switch (_scr) { case Scr.Main: MainScreen(); break; case Scr.Create: CreateScreen(); break; case Scr.Join: JoinScreen(); break; }
             }
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button(Time.unscaledTime < _copiedUntil ? "Copiado ✓" : "Copiar errores exactos", GUILayout.Height(30))) CopyErrors();
             GUILayout.EndArea();
             GUI.Button(new Rect(0, 0, W, H), GUIContent.none, GUIStyle.none);       // modal: swallow clicks that miss the panel
         }

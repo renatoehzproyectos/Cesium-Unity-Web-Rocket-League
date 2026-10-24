@@ -155,10 +155,26 @@ namespace RocketWorld.Net
                 _session = await join();
                 Hook(_session);
                 Code = !string.IsNullOrEmpty(_session.Code) ? _session.Code : typedCode;
-                if (!await WaitFor(() => _nm.IsConnectedClient, 20f)) throw new Exception("No se pudo conectar con el anfitrión.");
+                _discReason = "";
+                float t0 = Time.realtimeSinceStartup;
+                while (!_nm.IsConnectedClient)
+                {
+                    float el = Time.realtimeSinceStartup - t0;
+                    Info = $"Conectando con el anfitrión… {el:0}s\n<size=11>{NetDetail()}</size>";
+                    if (el > 30f) throw new Exception("No se pudo conectar con el anfitrión. [" + NetDetail() + "]");
+                    await Task.Yield();
+                }
                 Begin(NetState.Client);
             }
             catch (Exception e) { await Fail(e); }
+        }
+
+        string _discReason = "";
+        string NetDetail()
+        {
+            if (_nm == null) return "sin NetworkManager";
+            string reason = !string.IsNullOrEmpty(_discReason) ? _discReason : _nm.DisconnectReason;
+            return $"cliente={_nm.IsClient} escuchando={_nm.IsListening} conectado={_nm.IsConnectedClient} websockets={_ut != null && _ut.UseWebSockets} motivo='{reason}'";
         }
 
         void Begin(NetState role)
@@ -275,6 +291,7 @@ namespace RocketWorld.Net
             _ut.UseWebSockets = true;                              // browsers: Relay over secure WebSockets
 #endif
             _nm.OnClientConnectedCallback += OnClientConnected;
+            _nm.OnClientDisconnectCallback += id => { if (_nm != null && !_nm.IsServer) _discReason = "desconectado (" + _nm.DisconnectReason + ")"; };
             _nm.OnClientStopped += _ => EndLocal("Conexión cerrada.");
             _nm.OnServerStopped += _ => EndLocal("Partida cerrada.");
         }
@@ -345,7 +362,7 @@ namespace RocketWorld.Net
             if (m.IndexOf("full", StringComparison.OrdinalIgnoreCase) >= 0) return "La partida está llena (máx. 4 jugadores).";
             if (m.IndexOf("project ID", StringComparison.OrdinalIgnoreCase) >= 0)
                 return "Esta build no tiene el ID del proyecto de Unity Cloud (build id: '" + Application.cloudProjectId + "'). Hay que volver a compilar con cloud_project.txt.";
-            return m.Length > 160 ? m.Substring(0, 160) + "…" : m;
+            return m.Length > 320 ? m.Substring(0, 320) + "…" : m;
         }
     }
 }
