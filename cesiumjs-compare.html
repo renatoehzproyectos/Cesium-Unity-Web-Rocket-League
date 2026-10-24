@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CesiumJS load benchmark (compare with RocketWorld Unity)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.122.0/Build/Cesium/Widgets/widgets.css" crossorigin="anonymous">
+<style>
+  html,body,#c{margin:0;height:100%;background:#0b1620;overflow:hidden;font-family:sans-serif}
+  #hud{position:fixed;left:0;right:0;top:0;padding:6px 8px;color:#fff;text-align:center;font-size:15px;font-weight:bold;text-shadow:0 0 4px #000;pointer-events:none}
+  #bar{position:fixed;left:8px;bottom:8px;display:flex;gap:8px;z-index:5}
+  #bar button{padding:10px 14px;font-size:15px;border:0;border-radius:8px;background:#ffffffd0}
+  #info{position:fixed;right:8px;bottom:8px;color:#ffffffb0;font-size:12px;text-align:right;text-shadow:0 0 3px #000}
+  .cesium-viewer-bottom{z-index:4}
+</style>
+</head>
+<body>
+<div id="c"></div>
+<div id="hud">starting…</div>
+<div id="bar"><button id="copy">Copy log</button><button id="clear">Restart timer</button></div>
+<div id="info"></div>
+<script src="https://cdn.jsdelivr.net/npm/cesium@1.122.0/Build/Cesium/Cesium.js" crossorigin="anonymous"></script>
+<script>
+/* URL parameters (same names as the Unity build):
+   key=GOOGLE_MAPS_KEY  (Map Tiles API)  |  ion=CESIUM_ION_TOKEN (uses asset 2275207 unless asset=ID)
+   lat, lon, h (ellipsoid height of the ground, m), hdg (deg), sse (default 16), scale (render resolution scale, default 1)
+   fly=KMH  moves the camera forward at that speed (to compare loading while driving), e.g. fly=100
+   cache=0  disable the tile cache size cap (default: 256 MB, like Unity desktop/mobile 6GB+) */
+const Q = new URLSearchParams(location.search);
+const num = (k, d) => { const v = parseFloat(Q.get(k)); return isFinite(v) ? v : d; };
+const lat = num('lat', 36.7213), lon = num('lon', -4.4214), gh = num('h', 61), hdg = Cesium.Math.toRadians(num('hdg', 0));
+const sse = num('sse', 16), scale = num('scale', 1), flyKmh = num('fly', 0);
+const key = Q.get('key') || localStorage.getItem('rw_cmp_key') || '';
+const ion = Q.get('ion') || localStorage.getItem('rw_cmp_ion') || '';
+const assetId = num('asset', 2275207);
+const hud = document.getElementById('hud'), info = document.getElementById('info');
+const fmt = (n, d = 1) => n.toFixed(d);
+
+(async () => {
+  if (!key && !ion) { hud.textContent = 'Add ?key=GOOGLE_KEY or ?ion=ION_TOKEN to the URL'; return; }
+  if (key) localStorage.setItem('rw_cmp_key', key);
+  if (ion) { localStorage.setItem('rw_cmp_ion', ion); Cesium.Ion.defaultAccessToken = ion; }
+
+  // No globe / no terrain / no imagery: Unity only loads the photorealistic tileset too.
+  const viewer = new Cesium.Viewer('c', {
+    baseLayer: false, globe: false, skyAtmosphere: false, baseLayerPicker: false, geocoder: false, homeButton: false,
+    sceneModePicker: false, navigationHelpButton: false, animation: false, timeline: false, fullscreenButton: false,
+    infoBox: false, selectionIndicator: false, requestRenderMode: false, msaaSamples: 1,
+  });
+  viewer.resolutionScale = scale;
+  viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#7ea4d8');
+  viewer.scene.screenSpaceCameraController.enableInputs = !flyKmh;
+
+  const t0 = performance.now();
+  let tileset;
+  try {
+    tileset = key
+      ? await Cesium.createGooglePhotorealistic3DTileset({ key }, { maximumScreenSpaceError: sse, maximumCacheOverflowBytes: 0 })
+      : await Cesium.Cesium3DTileset.fromIonAssetId(assetId, { maximumScreenSpaceError: sse });
+  } catch (e) { hud.textContent = 'Tileset failed: ' + e; return; }
+  viewer.scene.primitives.add(tileset);
+  const cacheMB = num('cacheMB', 256);
+  if (Q.get('cache') !== '0') tileset.cacheBytes = cacheMB * 1024 * 1024;
+
+  // Camera like the Unity chase camera: ~5 m above the ground, pitched down 14 degrees.
+  const cam = viewer.camera, pitch = Cesium.Math.toRadians(-14);
+  const setCam = (cart) => cam.setView({ destination: cart, orientation: { heading: hdg, pitch, roll: 0 } });
+  setCam(Cesium.Cartesian3.fromDegrees(lon, lat, gh + 5));
+
+  // ---- measurement -------------------------------------------------------------
+  let T0 = performance.now(), frame = 0, last = T0, t90 = -1, t100 = -1, stableSince = -1;
+  const lines = [];
+  const header = '# CesiumJS ' + Cesium.VERSION + ' | ' + new Date().toISOString() + ' | ' + navigator.userAgent
+    + ' | sse ' + sse + ' | scale ' + scale + ' | cache ' + cacheMB + ' MB | fly ' + flyKmh + ' km/h | ' + (key ? 'google direct' : 'ion asset ' + assetId) + '\n'
+    + '# line: F=frame t=s ms dt fps load=% (ready/(ready+pending+processing)) ready=tiles with content pending=requests in flight processing=decoding '
+    + 'attempted=requests started visited selected geoMB texMB (same fields/order spirit as the Unity tile log)';
+  const stats = tileset.statistics;
+  function load() {
+    const ready = stats.numberOfTilesWithContentReady, busy = stats.numberOfPendingRequests + stats.numberOfTilesProcessing;
+    return ready + busy === 0 ? 0 : 100 * ready / (ready + busy);
+  }
+  viewer.scene.postRender.addEventListener(() => {
+    const now = performance.now(), dt = now - last; last = now; frame++;
+    const t = (now - T0) / 1000, p = load();
+    const busy = stats.numberOfPendingRequests + stats.numberOfTilesProcessing;
+    // "fully loaded" = nothing pending/processing for 1 s with tiles ready (same idea as ComputeLoadProgress >= 99.9)
+    if (busy === 0 && stats.numberOfTilesWithContentReady > 0) { if (stableSince < 0) stableSince = t; } else stableSince = -1;
+    if (t90 < 0 && p >= 90 && stats.numberOfTilesWithContentReady > 5) { t90 = t; lines.push('# MILESTONE load>=90% at ' + fmt(t, 3) + ' s'); }
+    if (t100 < 0 && stableSince >= 0 && t - stableSince >= 1) { t100 = stableSince; lines.push('# MILESTONE load=100% (nothing pending) at ' + fmt(t100, 3) + ' s (frame ' + frame + ')'); }
+    lines.push('F' + frame + ' t=' + fmt(t, 3) + 's ms=' + Math.round(t * 1000) + ' dt=' + fmt(dt) + ' fps=' + Math.round(1000 / Math.max(dt, .01))
+      + ' load=' + fmt(p) + ' ready=' + stats.numberOfTilesWithContentReady + ' pending=' + stats.numberOfPendingRequests + ' processing=' + stats.numberOfTilesProcessing
+      + ' attempted=' + stats.numberOfAttemptedRequests + ' visited=' + stats.visited + ' selected=' + tileset._selectedTiles.length
+      + ' geoMB=' + fmt(stats.geometryByteLength / 1048576) + ' texMB=' + fmt(stats.texturesByteLength / 1048576));
+    if (lines.length > 200000) lines.splice(0, 50000);
+    if (frame % 6 === 0) hud.textContent = 't ' + fmt(t, 3) + ' s · load ' + fmt(p) + '% · tiles ' + stats.numberOfTilesWithContentReady + ' (' + tileset._selectedTiles.length + ' vis)'
+      + (t90 >= 0 ? ' · 90% @ ' + fmt(t90, 2) + ' s' : '') + (t100 >= 0 ? ' · 100% @ ' + fmt(t100, 2) + ' s' : '');
+
+    if (flyKmh) {   // drive straight ahead at constant height, like the car
+      const m = flyKmh / 3.6 * Math.min(dt, 100) / 1000;
+      const c = Cesium.Cartographic.fromCartesian(cam.positionWC), enu = Cesium.Transforms.eastNorthUpToFixedFrame(cam.positionWC);
+      const p2 = Cesium.Matrix4.multiplyByPoint(enu, new Cesium.Cartesian3(Math.sin(hdg) * m, Math.cos(hdg) * m, 0), new Cesium.Cartesian3());
+      const cc = Cesium.Cartographic.fromCartesian(p2); cc.height = c.height;
+      setCam(Cesium.Cartographic.toCartesian(cc));
+    }
+  });
+  info.textContent = 'CesiumJS ' + Cesium.VERSION + ' · sse ' + sse + ' · scale ' + scale + (flyKmh ? ' · fly ' + flyKmh + ' km/h' : '');
+
+  document.getElementById('copy').onclick = async () => {
+    const text = header + '\n' + lines.join('\n');
+    try { await navigator.clipboard.writeText(text); }
+    catch (e) { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+    hud.textContent = 'Log copied (' + lines.length + ' lines)';
+  };
+  document.getElementById('clear').onclick = () => { lines.length = 0; T0 = last = performance.now(); frame = 0; t90 = t100 = stableSince = -1; };
+})();
+</script>
+</body>
+</html>
