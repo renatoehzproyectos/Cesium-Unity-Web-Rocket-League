@@ -339,7 +339,7 @@ namespace RocketWorld.Net
                 if (x is AggregateException ag) { foreach (var i in ag.InnerExceptions) sb.Append(i.Message).Append(' '); }
                 else if (sb.ToString().IndexOf(x.Message ?? "", StringComparison.Ordinal) < 0) sb.Append(x.Message).Append(' ');
             }
-            Debug.LogWarning("[RocketWorld] multiplayer error: " + e);
+            Debug.LogWarning("[RocketWorld] multiplayer error: " + e.GetType().Name + ": " + e.Message + (e.InnerException != null ? " | inner: " + e.InnerException.GetType().Name + ": " + e.InnerException.Message : ""));
             string m = sb.Length > 0 ? sb.ToString().Trim() : (e.Message ?? "Error");
             if (m.IndexOf("not found", StringComparison.OrdinalIgnoreCase) >= 0 || m.IndexOf("NotFound", StringComparison.OrdinalIgnoreCase) >= 0) return "No existe una partida con ese código.";
             if (m.IndexOf("full", StringComparison.OrdinalIgnoreCase) >= 0) return "La partida está llena (máx. 4 jugadores).";
