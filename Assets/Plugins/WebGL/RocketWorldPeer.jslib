@@ -4,7 +4,13 @@ mergeInto(LibraryManager.library, {
 
   RW_PeerHost: function (idPtr) {
     var id = UTF8ToString(idPtr);
-    RW_PeerShutdown();
+    (window.__rwpStop = window.__rwpStop || function () {
+      var S = window.__rwp; if (!S) return;
+      try { if (S.conns) for (var k in S.conns) { try { S.conns[k].c.close(); } catch (e) {} } } catch (e) {}
+      try { if (S.srv && S.srv.c) S.srv.c.close(); } catch (e) {}
+      try { if (S.peer) S.peer.destroy(); } catch (e) {}
+      window.__rwp = null;
+    })();
     var S = window.__rwp = { mode: 'host', status: 1, err: '', q: [], nextId: 1, conns: {}, peer: null };
     if (typeof Peer === 'undefined') { S.status = -1; S.err = 'PeerJS no se cargó (¿bloqueador o sin conexión?)'; return; }
     function drop(rec) { if (!rec || rec.gone) return; rec.gone = true; delete S.conns[rec.id]; if (rec.announced) S.q.push({ t: 3, id: rec.id }); try { rec.c.close(); } catch (e) {} }
@@ -43,7 +49,13 @@ mergeInto(LibraryManager.library, {
 
   RW_PeerClient: function (hostPtr) {
     var hostId = UTF8ToString(hostPtr);
-    RW_PeerShutdown();
+    (window.__rwpStop = window.__rwpStop || function () {
+      var S = window.__rwp; if (!S) return;
+      try { if (S.conns) for (var k in S.conns) { try { S.conns[k].c.close(); } catch (e) {} } } catch (e) {}
+      try { if (S.srv && S.srv.c) S.srv.c.close(); } catch (e) {}
+      try { if (S.peer) S.peer.destroy(); } catch (e) {}
+      window.__rwp = null;
+    })();
     var S = window.__rwp = { mode: 'client', status: 1, err: '', q: [], srv: null, peer: null, done: false };
     if (typeof Peer === 'undefined') { S.status = -1; S.err = 'PeerJS no se cargó (¿bloqueador o sin conexión?)'; S.q.push({ t: 3, id: 0 }); return; }
     function fail(msg) { if (S.done) return; S.done = true; if (!S.err || msg) S.err = msg || S.err; S.status = -1; S.q.push({ t: 3, id: 0 }); }
@@ -113,10 +125,12 @@ mergeInto(LibraryManager.library, {
   },
 
   RW_PeerShutdown: function () {
-    var S = window.__rwp; if (!S) return;
-    try { if (S.conns) for (var k in S.conns) { try { S.conns[k].c.close(); } catch (e) {} } } catch (e) {}
-    try { if (S.srv && S.srv.c) S.srv.c.close(); } catch (e) {}
-    try { if (S.peer) S.peer.destroy(); } catch (e) {}
-    window.__rwp = null;
+    (window.__rwpStop = window.__rwpStop || function () {
+      var S = window.__rwp; if (!S) return;
+      try { if (S.conns) for (var k in S.conns) { try { S.conns[k].c.close(); } catch (e) {} } } catch (e) {}
+      try { if (S.srv && S.srv.c) S.srv.c.close(); } catch (e) {}
+      try { if (S.peer) S.peer.destroy(); } catch (e) {}
+      window.__rwp = null;
+    })();
   }
 });
