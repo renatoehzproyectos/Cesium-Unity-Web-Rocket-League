@@ -48,8 +48,6 @@
     "com.unity.modules.xr": "1.0.0",
     "com.unity.netcode.gameobjects": "2.4.4",
     "com.unity.render-pipelines.universal": "17.0.4",
-    "com.unity.services.authentication": "3.5.1",
-    "com.unity.services.multiplayer": "1.1.6",
     "com.unity.ugui": "2.0.0"
   }
 }

@@ -2,18 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.Netcode;
-using Unity.Netcode.Transports.UTP;
-using Unity.Services.Authentication;
-using Unity.Services.Core;
-using Unity.Services.Multiplayer;
 using UnityEngine;
 
 namespace RocketWorld.Net
 {
     public enum NetState { Offline, Connecting, Host, Client }
-
-    /// <summary>A public game in the lobby list.</summary>
-    public struct ListedGame { public string id, name; public int players, max; }
 
     /// <summary>Starts the multiplayer layer without touching the offline game's boot code.</summary>
     static class NetBoot
@@ -32,9 +25,8 @@ namespace RocketWorld.Net
     }
 
     /// <summary>
-    /// Unity Multiplayer Services (Authentication + Lobby + Relay, through the Sessions API) and Netcode for GameObjects.
-    /// Host: create a session (join code from Lobby, traffic through Relay) and play as the host. Join: type the code or pick a public game.
-    /// Max 4 players = 1 host + 3 visitors. WebGL uses secure WebSockets (the SDK default on the Web platform).
+    /// Netcode for GameObjects over a WebRTC transport (PeerJS, browser to browser): the host's browser is the server.
+    /// Host: pick a 6-letter code and register it as the PeerJS id. Join: type the code. Max 4 players = 1 host + 3 visitors.
     /// </summary>
     public class NetSession : MonoBehaviour, INetRole
     {
@@ -45,19 +37,16 @@ namespace RocketWorld.Net
         public NetState State { get; private set; } = NetState.Offline;
         public string Code { get; private set; } = "";
         public string Error = "", Info = "";
-        /// <summary>Relay connection state reported by the SDK (diagnostics: shown in the code banner).</summary>
+        /// <summary>Connection state (diagnostics: shown in the code banner).</summary>
         public string NetInfo = "";
         public bool ReturnToMenu;                       // set when a session ended: the UI shows the menu again
-        public readonly List<ListedGame> Games = new List<ListedGame>();
-        public bool ListBusy;
 
         public bool IsClientOnly => State == NetState.Client;
         public int PlayerCount => PlayerNet.All.Count;
 
         NetworkManager _nm;
-        UnityTransport _ut;
+        PeerTransport _pt;
         GameObject _prefab;
-        ISession _session;
         bool _clientPrepared;
 
         void Awake() { Instance = this; }
@@ -73,7 +62,7 @@ namespace RocketWorld.Net
 
         void Update()
         {
-            // diagnostics shown in the code banner (ISession.Network does not exist in Multiplayer Services 1.1.x)
+            // diagnostics shown in the code banner
             NetInfo = _nm == null ? "" : _nm.IsServer ? (_nm.IsListening ? "anfitrión activo" : "anfitrión parado")
                 : _nm.IsConnectedClient ? "conectado" : "sin conexión";
         }
@@ -89,92 +78,99 @@ namespace RocketWorld.Net
         /// <summary>"Jugar solo": the original offline game.</summary>
         public void PlaySolo() { if (Root != null) Root.BeginPlay(); }
 
-        public void HostGame(bool publicGame) { _ = HostCore(publicGame); }
-        public void JoinByCode(string code) { _ = JoinCore(() => MultiplayerService.Instance.JoinSessionByCodeAsync(code.Trim().ToUpperInvariant()), code.Trim().ToUpperInvariant()); }
-        public void JoinById(string id) { _ = JoinCore(() => MultiplayerService.Instance.JoinSessionByIdAsync(id), ""); }
-
-        public async void RefreshList()
-        {
-            if (ListBusy || State != NetState.Offline) return;
-            ListBusy = true; Error = "";
-            try
-            {
-                await InitServices();
-                var res = await MultiplayerService.Instance.QuerySessionsAsync(new QuerySessionsOptions());
-                Games.Clear();
-                foreach (var s in res.Sessions)
-                    if (s.AvailableSlots > 0) Games.Add(new ListedGame { id = s.Id, name = s.Name, players = s.MaxPlayers - s.AvailableSlots, max = s.MaxPlayers });
-            }
-            catch (Exception e) { Error = Pretty(e); }
-            ListBusy = false;
-        }
+        public void HostGame() { _ = HostCore(); }
+        public void JoinByCode(string code) { _ = JoinCore((code ?? "").Trim().ToUpperInvariant()); }
 
         public void RequestBall()
         {
             foreach (var p in PlayerNet.All) if (p.IsOwner) { p.RequestBall(); return; }
         }
 
-        public async void Leave()
+        public void Leave()
         {
             if (State != NetState.Host && State != NetState.Client) return;
-            var s = _session; bool host = State == NetState.Host; _session = null;
             EndLocal(null);
-            try { if (s != null) { if (host) await s.AsHost().DeleteAsync(); else await s.LeaveAsync(); } } catch (Exception) { }
+            StopNet();
+        }
+
+        void StopNet()
+        {
             try { if (_nm != null && _nm.IsListening) _nm.Shutdown(); } catch (Exception) { }
+            try { if (_pt != null) _pt.Shutdown(); } catch (Exception) { }
         }
 
         // ------------------------------------------------------------------------------------------------ connect
 
-        async Task HostCore(bool publicGame)
+        const string IdPrefix = "rocketworld-";
+        const string CodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        string _discReason = "";
+
+        static string RandomCode()
+        {
+            var c = new char[6];
+            for (int i = 0; i < c.Length; i++) c[i] = CodeChars[UnityEngine.Random.Range(0, CodeChars.Length)];
+            return new string(c);
+        }
+
+        async Task HostCore()
         {
             if (State != NetState.Offline) return;
             Error = ""; Info = "Creando partida…"; State = NetState.Connecting;
             try
             {
-                await InitServices();
                 EnsureNetworkManager();
-                var opts = new SessionOptions { Name = NetUi.LocalName + "'s game", MaxPlayers = MaxPlayers, IsPrivate = !publicGame }.WithRelayNetwork();
-                _session = await MultiplayerService.Instance.CreateSessionAsync(opts);
-                Hook(_session);
-                Code = _session.Code ?? "";
-                Debug.Log("[RocketWorld] session created, code " + Code + ", network " + NetInfo);
-                if (!await WaitFor(() => _nm.IsListening && _nm.IsServer, 15f)) throw new Exception("No se pudo iniciar el anfitrión.");
+                if (!await WaitFor(() => !_nm.ShutdownInProgress, 5f)) throw new Exception("La red anterior aún se está cerrando. Reintenta.");
+                string code = "";
+                for (int attempt = 0; attempt < 5 && code == ""; attempt++)
+                {
+                    string c = RandomCode();
+                    _pt.OpenHost(IdPrefix + c);
+                    if (!await WaitFor(() => _pt.Status != 1, 15f)) throw new Exception("El servidor de señalización no responde. Revisa tu conexión.");
+                    if (_pt.Status == 2) code = c;
+                    else if (_pt.Status != -2) throw new Exception(_pt.LastError);
+                }
+                if (code == "") throw new Exception("No se pudo reservar un código libre. Reintenta.");
+                Code = code;
+                if (!_nm.StartHost()) throw new Exception("No se pudo iniciar el anfitrión.");
+                if (!await WaitFor(() => _nm.IsListening && _nm.IsServer, 10f)) throw new Exception("No se pudo iniciar el anfitrión.");
+                Debug.Log("[RocketWorld] hosting, code " + Code);
                 Begin(NetState.Host);
             }
-            catch (Exception e) { await Fail(e); }
+            catch (Exception e) { Fail(e); }
         }
 
-        async Task JoinCore(Func<Task<ISession>> join, string typedCode)
+        async Task JoinCore(string code)
         {
             if (State != NetState.Offline) return;
             Error = ""; Info = "Uniéndose a la partida…"; State = NetState.Connecting;
             try
             {
-                await InitServices();
+                if (code.Length < 4) throw new Exception("Escribe el código de la partida.");
                 EnsureNetworkManager();
-                _session = await join();
-                Hook(_session);
-                Code = !string.IsNullOrEmpty(_session.Code) ? _session.Code : typedCode;
-                _discReason = "";
+                if (!await WaitFor(() => !_nm.ShutdownInProgress, 5f)) throw new Exception("La red anterior aún se está cerrando. Reintenta.");
+                Code = code; _discReason = "";
+                _pt.HostId = IdPrefix + code;
+                if (!_nm.StartClient()) throw new Exception("No se pudo iniciar el cliente.");
                 float t0 = Time.realtimeSinceStartup;
                 while (!_nm.IsConnectedClient)
                 {
                     float el = Time.realtimeSinceStartup - t0;
                     Info = $"Conectando con el anfitrión… {el:0}s\n<size=11>{NetDetail()}</size>";
-                    if (el > 30f) throw new Exception("No se pudo conectar con el anfitrión. [" + NetDetail() + "]");
+                    if (_pt.Status < 0 || !string.IsNullOrEmpty(_discReason))
+                        throw new Exception(!string.IsNullOrEmpty(_pt.LastError) ? _pt.LastError : "Se cerró la conexión con el anfitrión. [" + NetDetail() + "]");
+                    if (el > 40f) throw new Exception("No se pudo conectar con el anfitrión. [" + NetDetail() + "]");
                     await Task.Yield();
                 }
                 Begin(NetState.Client);
             }
-            catch (Exception e) { await Fail(e); }
+            catch (Exception e) { Fail(e); }
         }
 
-        string _discReason = "";
         string NetDetail()
         {
-            if (_nm == null) return "sin NetworkManager";
+            if (_nm == null || _pt == null) return "sin red";
             string reason = !string.IsNullOrEmpty(_discReason) ? _discReason : _nm.DisconnectReason;
-            return $"cliente={_nm.IsClient} escuchando={_nm.IsListening} conectado={_nm.IsConnectedClient} websockets={_ut != null && _ut.UseWebSockets} motivo='{reason}'";
+            return $"webrtc={_pt.Status} cliente={_nm.IsClient} conectado={_nm.IsConnectedClient} motivo='{reason}' err='{_pt.LastError}'";
         }
 
         void Begin(NetState role)
@@ -195,19 +191,11 @@ namespace RocketWorld.Net
             if (Root.ball != null) { Root.ball.Despawn(); Root.ball.SetPuppet(true); }
         }
 
-        async Task Fail(Exception e)
+        void Fail(Exception e)
         {
             Error = Pretty(e); Info = "";
-            var s = _session; _session = null;
-            try { if (s != null) await s.LeaveAsync(); } catch (Exception) { }
-            try { if (_nm != null && _nm.IsListening) _nm.Shutdown(); } catch (Exception) { }
+            StopNet();
             State = NetState.Offline; Code = "";
-        }
-
-        void Hook(ISession s)
-        {
-            s.Deleted += () => EndLocal("El anfitrión cerró la partida.");
-            s.RemovedFromSession += () => EndLocal("Has salido de la partida.");
         }
 
         /// <summary>Everything local that must be undone when a session ends (idempotent).</summary>
@@ -234,39 +222,6 @@ namespace RocketWorld.Net
 
         // ------------------------------------------------------------------------------------------------ services / netcode setup
 
-        public const string CloudKey = "rw.cloudid";
-        /// <summary>True when Unity Services failed to start (usually: no Unity Cloud project id in this build). The menu then asks for it.</summary>
-        public bool NeedsProjectId;
-
-        /// <summary>Unity Cloud project id: ?cloud= in the URL, the saved value, the id baked at build time, or the one linked in the Editor.</summary>
-        static string ResolveProjectId()
-        {
-            string q = WebBridge.Query("cloud");
-            if (!string.IsNullOrWhiteSpace(q)) return q.Trim();
-            string saved = PlayerPrefs.GetString(CloudKey, "");
-            if (!string.IsNullOrWhiteSpace(saved)) return saved.Trim();
-            var ta = Resources.Load<TextAsset>("Net/cloud_project");
-            if (ta != null && !string.IsNullOrWhiteSpace(ta.text)) return ta.text.Trim();
-            return "";                                                   // Editor / linked project: Application.cloudProjectId is used by the SDK
-        }
-
-        public static void SaveProjectId(string id) { PlayerPrefs.SetString(CloudKey, (id ?? "").Trim()); PlayerPrefs.Save(); }
-        public static string SavedProjectId => ResolveProjectId();
-
-        async Task InitServices()
-        {
-            if (UnityServices.State != ServicesInitializationState.Initialized)
-            {
-                var o = new InitializationOptions();
-                string pid = ResolveProjectId();
-                if (!string.IsNullOrEmpty(pid)) o.SetOption("com.unity.services.core.cloud-project-id", pid);
-                o.SetProfile("rw" + Guid.NewGuid().ToString("N").Substring(0, 12));      // one identity per page load (two tabs = two players)
-                try { await UnityServices.InitializeAsync(o); }
-                catch (Exception) { NeedsProjectId = true; throw; }
-            }
-            if (!AuthenticationService.Instance.IsSignedIn) await AuthenticationService.Instance.SignInAnonymouslyAsync();
-        }
-
         void EnsureNetworkManager()
         {
             if (_nm != null) return;
@@ -275,11 +230,11 @@ namespace RocketWorld.Net
 
             var go = new GameObject("NetworkManager");
             go.SetActive(false);                                   // configure before NGO initialises
-            _ut = go.AddComponent<UnityTransport>();
+            _pt = go.AddComponent<PeerTransport>();
             _nm = go.AddComponent<NetworkManager>();
             _nm.NetworkConfig = new NetworkConfig
             {
-                NetworkTransport = _ut,
+                NetworkTransport = _pt,
                 EnableSceneManagement = false,                     // the world is built from code, nothing to synchronise
                 ConnectionApproval = false,
                 TickRate = 30,
@@ -287,9 +242,6 @@ namespace RocketWorld.Net
             _nm.NetworkConfig.Prefabs.Add(new NetworkPrefab { Prefab = _prefab });
             DontDestroyOnLoad(go);
             go.SetActive(true);
-#if UNITY_WEBGL && !UNITY_EDITOR
-            _ut.UseWebSockets = true;                              // browsers: Relay over secure WebSockets
-#endif
             _nm.OnClientConnectedCallback += OnClientConnected;
             _nm.OnClientDisconnectCallback += id => { if (_nm != null && !_nm.IsServer) _discReason = "desconectado (" + _nm.DisconnectReason + ")"; };
             _nm.OnClientStopped += _ => EndLocal("Conexión cerrada.");
@@ -349,19 +301,8 @@ namespace RocketWorld.Net
 
         static string Pretty(Exception e)
         {
-            // "Some services couldn't be initialized" hides the real reason in the inner exceptions: show them.
-            var sb = new System.Text.StringBuilder();
-            for (var x = e; x != null; x = x.InnerException)
-            {
-                if (x is AggregateException ag) { foreach (var i in ag.InnerExceptions) sb.Append(i.Message).Append(' '); }
-                else if (sb.ToString().IndexOf(x.Message ?? "", StringComparison.Ordinal) < 0) sb.Append(x.Message).Append(' ');
-            }
-            Debug.LogWarning("[RocketWorld] multiplayer error: " + e.GetType().Name + ": " + e.Message + (e.InnerException != null ? " | inner: " + e.InnerException.GetType().Name + ": " + e.InnerException.Message : ""));
-            string m = sb.Length > 0 ? sb.ToString().Trim() : (e.Message ?? "Error");
-            if (m.IndexOf("not found", StringComparison.OrdinalIgnoreCase) >= 0 || m.IndexOf("NotFound", StringComparison.OrdinalIgnoreCase) >= 0) return "No existe una partida con ese código.";
-            if (m.IndexOf("full", StringComparison.OrdinalIgnoreCase) >= 0) return "La partida está llena (máx. 4 jugadores).";
-            if (m.IndexOf("project ID", StringComparison.OrdinalIgnoreCase) >= 0)
-                return "Esta build no tiene el ID del proyecto de Unity Cloud (build id: '" + Application.cloudProjectId + "'). Hay que volver a compilar con cloud_project.txt.";
+            Debug.LogWarning("[RocketWorld] multiplayer error: " + e.GetType().Name + ": " + e.Message);
+            string m = e.Message ?? "Error";
             return m.Length > 320 ? m.Substring(0, 320) + "…" : m;
         }
     }
