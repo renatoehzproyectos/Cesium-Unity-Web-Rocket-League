@@ -51,7 +51,7 @@ compares positions, velocities, angular velocities and orientation every tick:
 | drive over a ramp crest and land | ~8 uu after 6 s (edge tie-breaking at the crest) |
 
 The static-rest transient is also reproduced once the floor is a triangle mesh (a box floor made Bullet's own ray cast imprecise by ~2 mm).
-`SimCoreTests` pins the Unity project to those numbers (final positions of every scenario) and runs in CI (`parity` job + Unity EditMode job).
+`SimCoreTests` pins the Unity project to those numbers (final positions of every scenario).
 
 ## NOT verifiable without Unity (be aware)
 - PhysX vs Bullet **contact response** (body against buildings, restitution, depenetration, CCD) cannot be bit-identical: different solvers.

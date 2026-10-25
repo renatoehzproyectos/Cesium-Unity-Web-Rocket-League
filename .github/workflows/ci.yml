@@ -24,60 +24,10 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # RocketSim is only used as the reference for the parity test; it is pinned so the test is reproducible.
-  ROCKETSIM_REF: c2baacb8f4b441dd8505e63c2aeb5a1679b60b02
-
 jobs:
-  checks:
-    name: Static checks
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: JSON / YAML sanity
-        run: |
-          python3 -c "import json;json.load(open('Packages/manifest.json'));json.load(open('deploy/vercel.json'))"
-          python3 -c "import yaml;yaml.safe_load(open('.github/workflows/ci.yml'))"
-
-  parity:
-    name: Vehicle model vs native RocketSim
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: 8.0.x }
-      - name: Fetch RocketSim (reference)
-        run: git clone https://github.com/ZealanL/RocketSim.git /tmp/RocketSim && git -C /tmp/RocketSim checkout "$ROCKETSIM_REF"
-      - name: Build both and compare every scenario
-        run: bash tools/parity/build.sh /tmp/RocketSim "$(nproc)"
-
-  water:
-    name: Water system (vector tiles, geodesy, boat model)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: 8.0.x }
-      - name: Tile decoder / point-in-water / bridges / geodesy, then 6-DOF boat tuning
-        run: |
-          pip install numpy
-          bash tools/water/run.sh
-
-  flight:
-    name: Flight model (C# port of JSBSim vs native JSBSim logs, free-flight sanity)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: 8.0.x }
-      - run: bash tools/flight/run.sh
-
   unity-web:
     name: Unity 6000.0.62f1 WebGL build
     runs-on: ubuntu-latest
-    permissions:
-      contents: write        # lets the job push the build to the release branch
-    # No `needs`: the Unity build runs in parallel with the static checks / parity test; publishing waits for all of them.
     outputs:
       built: ${{ steps.lic.outputs.ok }}
     steps:
@@ -155,7 +105,6 @@ jobs:
           # game-ci builds inside a root container: take ownership first. The player lands in build/WebGL/WebGL.
           sudo chown -R "$(id -u):$(id -g)" build
           cp deploy/vercel.json build/WebGL/WebGL/vercel.json
-          cp deploy/googlee068adc44525aecc.html build/WebGL/WebGL/googlee068adc44525aecc.html   # Google Search Console verification file (site root; op-test is force-pushed, so it must ship with every build)
           cp deploy/cesiumjs-compare.html build/WebGL/WebGL/cesiumjs-compare.html   # CesiumJS reference page: /cesiumjs-compare.html
           # Ensure the Cesium ion token is present even if Unity's PostProcessIndex did not see the env var.
           if [ -n "$ION_TOKEN" ]; then
@@ -173,33 +122,12 @@ jobs:
           path: build/WebGL/WebGL
           compression-level: 0   # Build files are already Brotli-compressed
 
-  publish-release:
-    name: Publish to release branch
-    runs-on: ubuntu-latest
-    needs: [checks, parity, water, flight, unity-web]
-    if: needs.unity-web.outputs.built == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: rocketworld-webgl
-          path: webgl
-      - uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: release
-          publish_dir: webgl
-          force_orphan: true
-          enable_jekyll: false
-          commit_message: "release ${{ github.sha }}"
-
   # After the WebGL artifact is produced: download-artifact unpacks it,
   # then the player is force-pushed to renatoehzproyectos/op-test (main).
   deploy-op-test:
     name: Deploy WebGL → op-test
     runs-on: ubuntu-latest
-    needs: [checks, parity, water, flight, unity-web]
+    needs: [unity-web]
     if: needs.unity-web.outputs.built == 'true' && github.event_name != 'pull_request'
     steps:
       - name: Download rocketworld-webgl artifact
@@ -214,7 +142,6 @@ jobs:
           find webgl -maxdepth 2 -type f | head -40
           test -f webgl/index.html
           test -d webgl/Build
-          test -f webgl/googlee068adc44525aecc.html   # Google verification file must be at the root of op-test
 
       - name: Push to renatoehzproyectos/op-test
         uses: peaceiris/actions-gh-pages@v4

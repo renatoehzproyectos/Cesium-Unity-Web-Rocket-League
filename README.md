@@ -18,8 +18,8 @@ URL params: `?viewcull=0` (load a radius round the car instead of only the view)
 ## Deploy: GitHub -> Vercel
 1. Push this folder to `main` of a new GitHub repo.
 2. **Unity license for CI** (Settings -> Secrets -> Actions). Personal: follow https://game.ci/docs/github/activation and add `UNITY_LICENSE`, `UNITY_EMAIL`,
-   `UNITY_PASSWORD` (or `UNITY_SERIAL` for Pro/Plus). Without them CI still runs the static checks and the **parity** job; the Unity jobs are skipped with a warning.
-3. Push -> Actions: static checks, parity vs native RocketSim, Unity EditMode tests, WebGL build -> publishes to branch **`release`**.
+   `UNITY_PASSWORD` (or `UNITY_SERIAL` for Pro/Plus). Without them the Unity build is skipped with a warning.
+3. Push -> Actions: WebGL build -> deployed to op-test.
    (Run the workflow manually to choose WebGPU instead of WebGL 2.)
 4. Vercel -> *Add New Project* -> import the repo -> **Production Branch = `release`**, Framework *Other*, no build command, output `.`.
    `vercel.json` sets COOP/COEP (needed by Cesium's threaded WASM) and caching; the page shows a red banner if the headers are missing.
