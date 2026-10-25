@@ -46,10 +46,10 @@ in the way makes it climb rather than pull in; it stays 4 m above the roofs/terr
 (`?cam=heli|chase|orbit` overrides). Not verified in Unity: the feel (follow rates, heights) is tuned from a reference screenshot, not from a run.
 
 ## Cinematic effects
-`CinematicFx` builds a global URP Volume in code (no assets) and `EdgeBlurFeature` adds the viewport edge blur. Every effect is its own bit (`GameSettings.fxMask`, saved; `?fx=<mask>` or `?cine=0|1|2` presets):
+`CinematicFx` builds a global URP Volume in code (no assets) and URP's Full Screen Pass feature adds the viewport edge blur. Every effect is its own bit (`GameSettings.fxMask`, saved; `?fx=<mask>` or `?cine=0|1|2` presets):
 Bloom 1, Colour 2, Edge blur 4, Depth of field 8, Motion blur 16. **Light** = 3 (bloom + colour, default on phones), **Full** = 27 (+ DoF + motion blur, HDR on desktop). **Edge blur is opt-in** (custom pass, see below) and each effect has a toggle in the settings panel.
 
-**Known issue (reported):** with the first version of the effects the 3D view went black on a phone (HUD and minimap fine). Suspect: the custom edge-blur pass. Find the culprit by turning the toggles on one at a time; the browser console prints `[RocketWorld] EdgeBlur pass running ...` when that pass executes.
+**Known issues (reported on a phone, first versions):** (1) my own render-graph edge-blur pass blacked out the 3D view (HUD and minimap fine); it was replaced by URP's `FullScreenPassRendererFeature` with `RocketWorld/EdgeBlur`, off by default, switched from the settings panel. (2) No Volume effect was visible: URP skips the whole post-processing stack when the renderer asset has no post-processing data, so `ProjectSetup.EnsurePostProcessing` now assigns it. Re-run *RocketWorld > Ensure project setup* (it runs on Editor load) and **rebuild**. The settings panel shows a status line (`camera post-processing`, `volume in stack: bloom ...`, `edge blur ...`) that tells whether the stack is really running.
 
 | Effect | How | Tuning (`Sim/CinematicPolicy.cs`) |
 |---|---|---|

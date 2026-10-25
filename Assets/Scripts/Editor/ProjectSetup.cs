@@ -33,6 +33,7 @@ namespace RocketWorld.Editor
             EnsureBallMaterial("Assets/Resources/Materials/Ball.mat");
             EnsureMaterial("Assets/Resources/Materials/Sky.mat", "Skybox/Procedural", Color.white);
             EnsureMaterial("Assets/Resources/Materials/EdgeBlur.mat", "RocketWorld/EdgeBlur", Color.white);   // viewport edge blur (Assets/Shaders/EdgeBlur.shader)
+            EnsurePostProcessing();
             EnsureEdgeBlurFeature();
             EnsureScene();
             AssetDatabase.SaveAssets();
@@ -84,18 +85,58 @@ namespace RocketWorld.Editor
             Debug.Log("[RocketWorld] Active Input Handling set to Input System Package (restart the Editor if prompted).");
         }
 
-        /// <summary>Adds EdgeBlurFeature to the renderer asset (also for projects whose renderer asset already exists). Same bookkeeping as the renderer inspector's "Add Renderer Feature".</summary>
-        static void EnsureEdgeBlurFeature()
+        /// <summary>
+        /// The renderer must have its post-processing data assigned or URP silently skips every Volume effect (bloom, grade, DoF, motion blur).
+        /// A renderer created in code can end up without it, so assign the package's asset when it is missing.
+        /// </summary>
+        static void EnsurePostProcessing()
         {
             var data = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(RendererPath);
             if (data == null) return;
-            foreach (var f in data.rendererFeatures) if (f is EdgeBlurFeature) return;
-            var feature = ScriptableObject.CreateInstance<EdgeBlurFeature>();
-            feature.name = "RocketWorld Edge Blur";
-            AssetDatabase.AddObjectToAsset(feature, data);
+            var so = new SerializedObject(data);
+            var p = so.FindProperty("m_PostProcessData") ?? so.FindProperty("postProcessData");
+            if (p == null || p.propertyType != SerializedPropertyType.ObjectReference) { Debug.Log("[RocketWorld] renderer has no postProcessData property (this URP version keeps it elsewhere)."); return; }
+            if (p.objectReferenceValue != null) return;
+            var pp = AssetDatabase.LoadAssetAtPath<ScriptableObject>("Packages/com.unity.render-pipelines.universal/Runtime/Data/PostProcessData.asset");
+            if (pp == null) { Debug.LogWarning("[RocketWorld] URP PostProcessData asset not found: enable Post-processing on Assets/Settings/RocketWorld_Renderer.asset by hand."); return; }
+            p.objectReferenceValue = pp;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(data);
+            AssetDatabase.SaveAssets();
+            Debug.Log("[RocketWorld] assigned the URP post-processing data to the renderer.");
+        }
+
+        /// <summary>
+        /// Registers URP's own Full Screen Pass renderer feature with the edge blur material (disabled by default; CinematicFx switches it on from
+        /// the settings panel). Also removes the broken entries left by the first, custom edge blur pass.
+        /// </summary>
+        static void EnsureEdgeBlurFeature()
+        {
+            var data = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(RendererPath);
+            var mat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Resources/Materials/EdgeBlur.mat");
+            if (data == null || mat == null) return;
             var so = new SerializedObject(data);
             var feats = so.FindProperty("m_RendererFeatures"); var map = so.FindProperty("m_RendererFeatureMap");
             if (feats == null || map == null) { Debug.LogWarning("[RocketWorld] could not register the edge blur renderer feature"); return; }
+            for (int i = feats.arraySize - 1; i >= 0; i--)                    // features whose script no longer exists (first edge blur version)
+                if (feats.GetArrayElementAtIndex(i).objectReferenceValue == null)
+                {
+                    feats.DeleteArrayElementAtIndex(i);
+                    if (i < map.arraySize) map.DeleteArrayElementAtIndex(i);
+                }
+            so.ApplyModifiedPropertiesWithoutUndo();
+            foreach (var f in data.rendererFeatures) if (f != null && f.name == "RocketWorld Edge Blur") return;
+
+            var feature = ScriptableObject.CreateInstance<FullScreenPassRendererFeature>();
+            feature.name = "RocketWorld Edge Blur";
+            feature.passMaterial = mat;
+            feature.passIndex = 0;
+            feature.injectionPoint = FullScreenPassRendererFeature.InjectionPoint.AfterRenderingPostProcessing;
+            feature.fetchColorBuffer = true;
+            feature.requirements = ScriptableRenderPassInput.None;
+            feature.SetActive(false);
+            AssetDatabase.AddObjectToAsset(feature, data);
+            so.Update();
             AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feature, out string guid, out long localId);
             feats.arraySize++; feats.GetArrayElementAtIndex(feats.arraySize - 1).objectReferenceValue = feature;
             map.arraySize++; map.GetArrayElementAtIndex(map.arraySize - 1).longValue = localId;

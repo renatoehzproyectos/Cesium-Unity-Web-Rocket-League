@@ -1,3 +1,4 @@
+using System.Reflection;
 using RocketWorld.Sim;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -7,14 +8,17 @@ namespace RocketWorld
 {
     /// <summary>
     /// Cinematic look: a global URP Volume (built in code, no assets) with bloom, colour grading (contrast, saturation, split toning),
-    /// Gaussian depth of field and camera motion blur, plus the viewport edge blur (<see cref="EdgeBlurFeature"/>).
+    /// Gaussian depth of field and camera motion blur, plus the viewport edge blur, which is URP's own FullScreenPassRendererFeature running
+    /// <c>RocketWorld/EdgeBlur</c> (registered in the renderer asset by ProjectSetup, switched on/off here).
     /// Each effect is a bit of <see cref="GameSettings.fxMask"/> (CinematicPolicy.Bloom / Grade / Edge / Dof / MotionBlur); Full also turns on HDR on desktop.
-    /// All numbers come from <see cref="CinematicPolicy"/>. Not verified in Unity: the look needs tuning on a real build.
+    /// All numbers come from <see cref="CinematicPolicy"/>. <see cref="Status"/> says what the stack is doing (shown in the settings panel).
     /// </summary>
     [DefaultExecutionOrder(200)]                 // after the cameras have moved this frame
     public class CinematicFx : MonoBehaviour
     {
         public GameRoot root;
+        /// <summary>One-line state for the settings panel: lets you see from a phone whether the post-processing stack is really running.</summary>
+        public string Status { get; private set; } = "";
 
         Volume _vol;
         VolumeProfile _profile;
@@ -25,7 +29,10 @@ namespace RocketWorld
         MotionBlur _mb;
         int _applied = -1;
         Vector3 _lastCam;
-        float _suppress, _mbCur;
+        float _suppress, _mbCur, _statusAt, _edgeStrength = 1f;
+        ScriptableRendererFeature _edge;
+        Material _edgeMat;
+        bool _edgeSearched, _edgeWarned, _edgeOn;
 
         void Start()
         {
@@ -73,7 +80,7 @@ namespace RocketWorld
 
         void OnDestroy()
         {
-            EdgeBlurFeature.Active = false;
+            _edgeOn = false; PushEdge();
             if (_profile != null) Destroy(_profile);
         }
 
@@ -88,7 +95,7 @@ namespace RocketWorld
             _vol.enabled = anyVolume;
             _bloom.active = bloom; _color.active = grade; _split.active = grade;
             _dof.active = dof; _mb.active = mb;
-            bool hdr = (mask & CinematicPolicy.Full) == CinematicPolicy.Full && !mobile;                                       // HDR makes bloom pick real highlights; too heavy for phones
+            bool hdr = (mask & CinematicPolicy.Full) == CinematicPolicy.Full && !mobile;   // HDR makes bloom pick real highlights; too heavy for phones
             _bloom.threshold.value = CinematicPolicy.BloomThreshold(hdr);
             _bloom.highQualityFiltering.value = hdr;
             var asset = UniversalRenderPipeline.asset;
@@ -98,10 +105,8 @@ namespace RocketWorld
                 root.cam.allowHDR = hdr;
                 root.cam.GetUniversalAdditionalCameraData().renderPostProcessing = anyVolume || edge;
             }
-            EdgeBlurFeature.Active = edge;
-            EdgeBlurFeature.Taps = mobile ? 8f : 12f;
-            EdgeBlurFeature.Inner = 0.55f;
-            EdgeBlurFeature.Radius = 0.012f;
+            _edgeOn = edge;
+            PushEdge();
             _mbCur = 0f;
         }
 
@@ -110,7 +115,7 @@ namespace RocketWorld
             if (_vol == null || root == null || root.cam == null || root.carCtl == null) return;
             int mask = root.settings.fxMask;
             if (mask != _applied) Apply(mask);
-            if (mask == 0) return;
+            if (mask == 0) { Status = "effects off"; return; }
 
             float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
             var camPos = root.cam.transform.position;
@@ -129,7 +134,7 @@ namespace RocketWorld
                 _color.saturation.value = CinematicPolicy.Saturation(day);
                 _color.contrast.value = CinematicPolicy.Contrast(day);
             }
-            EdgeBlurFeature.Strength = CinematicPolicy.EdgeBlurStrength(speed);
+            if (_edgeOn) { _edgeStrength = CinematicPolicy.EdgeBlurStrength(speed); PushEdge(); }
 
             if ((mask & (CinematicPolicy.Dof | CinematicPolicy.MotionBlur)) != 0)
             {
@@ -139,6 +144,61 @@ namespace RocketWorld
                 float target = _suppress > 0f ? 0f : CinematicPolicy.MotionBlurIntensity(speed, boosting);
                 _mbCur = _suppress > 0f ? 0f : Mathf.MoveTowards(_mbCur, target, dt * 2f);
                 _mb.intensity.value = _mbCur;
+            }
+
+            if (Time.unscaledTime >= _statusAt) { _statusAt = Time.unscaledTime + 0.5f; UpdateStatus(); }
+        }
+
+        void UpdateStatus()
+        {
+            var data = root.cam.GetUniversalAdditionalCameraData();
+            var stack = VolumeManager.instance != null ? VolumeManager.instance.stack : null;
+            var sb = stack != null ? stack.GetComponent<Bloom>() : null;
+            string resolved = sb == null ? "n/a" : (sb.active ? "bloom " + sb.intensity.value.ToString("0.00") : "bloom off");
+            Status = "fx " + root.settings.fxMask + " | camera post-processing " + (data.renderPostProcessing ? "on" : "OFF") +
+                     " | volume in stack: " + resolved +
+                     " | edge blur " + (_edge == null ? (_edgeOn ? "NOT FOUND" : "n/a") : (_edge.isActive ? "on" : "off"));
+        }
+
+        // ---- edge blur: URP FullScreenPassRendererFeature, found in the renderer asset by name ----
+
+        void FindEdge()
+        {
+            _edgeSearched = true;
+            _edgeMat = Resources.Load<Material>("Materials/EdgeBlur");
+            try
+            {
+                var asset = UniversalRenderPipeline.asset;
+                if (asset == null) return;
+                var f = typeof(UniversalRenderPipelineAsset).GetField("m_RendererDataList", BindingFlags.NonPublic | BindingFlags.Instance);
+                var list = f != null ? f.GetValue(asset) as ScriptableRendererData[] : null;
+                if (list == null) return;
+                foreach (var d in list)
+                {
+                    if (d == null) continue;
+                    foreach (var feat in d.rendererFeatures)
+                        if (feat != null && feat.name == "RocketWorld Edge Blur") { _edge = feat; return; }
+                }
+            }
+            catch (System.Exception e) { Debug.LogWarning("[RocketWorld] could not look up the edge blur feature: " + e.Message); }
+        }
+
+        /// <summary>Switch the feature on/off and push the shader parameters. With the feature missing, strength 0 keeps the shader a no-op.</summary>
+        void PushEdge()
+        {
+            if (!_edgeSearched) FindEdge();
+            if (_edge != null && _edge.isActive != _edgeOn) _edge.SetActive(_edgeOn);
+            if (_edgeMat != null)
+            {
+                _edgeMat.SetFloat("_Strength", _edgeOn ? _edgeStrength : 0f);
+                _edgeMat.SetFloat("_Inner", 0.55f);
+                _edgeMat.SetFloat("_Radius", 0.012f);
+                _edgeMat.SetFloat("_Taps", DeviceProfile.IsMobile ? 8f : 12f);
+            }
+            if (_edgeOn && _edge == null && !_edgeWarned)
+            {
+                _edgeWarned = true;
+                Debug.LogWarning("[RocketWorld] edge blur renderer feature not found: run RocketWorld > Ensure project setup and rebuild.");
             }
         }
     }

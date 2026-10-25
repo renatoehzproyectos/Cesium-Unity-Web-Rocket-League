@@ -286,6 +286,7 @@ namespace RocketWorld
             changed |= FxToggle(s, "Depth of field", RocketWorld.Sim.CinematicPolicy.Dof);
             changed |= FxToggle(s, "Motion blur", RocketWorld.Sim.CinematicPolicy.MotionBlur);
             GUILayout.EndHorizontal();
+            if (root.cinematic != null) GUILayout.Label("<color=#ffffff88>" + root.cinematic.Status + "</color>", _small);
 
             GUILayout.Space(6);
             GUILayout.Label("Car colour");
