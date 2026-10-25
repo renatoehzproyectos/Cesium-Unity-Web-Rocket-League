@@ -53,6 +53,24 @@ static class P
         Near(tx, 7990.777173333333, 1e-9, "Malaga tile x (python reference)"); Near(ty, 6392.998516944792, 1e-9, "Malaga tile y (python reference)");
         Console.WriteLine($"INFO  data resolution at lat 36.7 z14 = {Geo.MetresPerUnit(36.7, 14):0.00} m per unit");
 
+        // tile cache policy (view-driven streaming)
+        const long MB = 1024 * 1024;
+        Check(TileCachePolicy.MaxBudget(384 * MB, false, 3200 * MB) == 1152 * MB, "desktop max cache = 3x base (384 -> 1152 MB)");
+        Check(TileCachePolicy.MaxBudget(256 * MB, false, 1000 * MB) == 500 * MB, "max cache never above half of the heap allowance");
+        Check(TileCachePolicy.MaxBudget(192 * MB, true, 4000 * MB) == 384 * MB, "mobile max cache = 2x base");
+        long bud = 400 * MB;
+        Check(TileCachePolicy.Next(bud, 2000 * MB, 2000 * MB, 200 * MB, 1000 * MB) == (long)(bud * 0.85), "memory pressure shrinks the cache 15%");
+        Check(TileCachePolicy.Next(bud, 500 * MB, 2000 * MB, 200 * MB, 1000 * MB) == (long)(bud * 1.08), "free memory grows the cache 8%");
+        Check(TileCachePolicy.Next(bud, 1500 * MB, 2000 * MB, 200 * MB, 1000 * MB) == bud, "in between it holds");
+        Check(TileCachePolicy.Next(210 * MB, 2000 * MB, 2000 * MB, 200 * MB, 1000 * MB) == 200 * MB, "never below the minimum");
+        Check(TileCachePolicy.Next(990 * MB, 100 * MB, 2000 * MB, 200 * MB, 1000 * MB) == 1000 * MB, "never above the maximum");
+        long grown = 400 * MB; for (int i = 0; i < 200; i++) grown = TileCachePolicy.Next(grown, 300 * MB, 2000 * MB, 200 * MB, 1000 * MB);
+        long shrunk = grown; for (int i = 0; i < 200; i++) shrunk = TileCachePolicy.Next(shrunk, 1990 * MB, 2000 * MB, 200 * MB, 1000 * MB);
+        Check(grown == 1000 * MB && shrunk == 200 * MB, "converges to the bounds under sustained room / pressure");
+        Near(TileCachePolicy.PhysicsRing(0), 150, 1e-6, "physics ring at rest = 150 m");
+        Near(TileCachePolicy.PhysicsRing(46), 265, 1e-4, "physics ring at 46 m/s (car top speed) = 265 m");
+        Near(TileCachePolicy.PhysicsRing(200), 330, 1e-6, "physics ring is capped at 330 m");
+
         // robustness: garbage must throw / return cleanly, never hang
         try { MvtReader.Read(new byte[] { 0x1a, 0xff, 0xff, 0xff, 0xff, 0x0f }); Check(true, "garbage tile handled"); }
         catch (Exception) { Check(true, "garbage tile throws a catchable exception"); }

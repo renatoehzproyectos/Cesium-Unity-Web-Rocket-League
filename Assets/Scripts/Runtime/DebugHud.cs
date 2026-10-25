@@ -67,7 +67,7 @@ namespace RocketWorld
             _stats = $"<color=#ffffffcc>{fps:0} fps  p95 {p95:0.0} ms  worst {worst:0} ms   tiles {tiles}   heap {heap} MB{bench}\n" +
                      $"{s.lat:0.00000}, {s.lon:0.00000}   ground {s.groundHeight:0} m   cam yaw {root.orbit.yaw:0} pitch {root.orbit.pitch:0} dist {root.orbit.distance:0.0} m\n" +
                      $"car {root.carCtl.SpeedMS * 3.6f:0} km/h  wheels {(root.carCtl.CurrentPhase == RocketCar.Phase.Running ? WheelCount() : 0)}/4  {(root.carCtl.InBoat ? "boat" : root.carCtl.State.isOnGround ? "ground" : "air")}  gyro-comp {(root.carCtl.GyroscopicCompensation ? "on" : "off")}  colliders {(root.budget != null ? root.budget.WithCollider + "/" + root.budget.Registered : "-")}\n" +
-                     $"{(root.carCtl.water != null ? root.carCtl.water.Info : "water off")}   {(root.waterMap != null && !string.IsNullOrEmpty(root.waterMap.LastError) ? "<color=#ff8a80>" + root.waterMap.LastError + "</color>" : "")}\n" +
+                     $"{(root.viewPolicy != null ? root.viewPolicy.Info : "view-driven tiles off")}\n{(root.carCtl.water != null ? root.carCtl.water.Info : "water off")}   {(root.waterMap != null && !string.IsNullOrEmpty(root.waterMap.LastError) ? "<color=#ff8a80>" + root.waterMap.LastError + "</color>" : "")}\n" +
                      $"quality: sse {root.EffectiveSse:0}  scale {root.EffectiveScale:0.00}  far {root.EffectiveFar:0} m  auto-level {(root.autoQuality != null ? root.autoQuality.Level : 0)}</color>";
         }
 

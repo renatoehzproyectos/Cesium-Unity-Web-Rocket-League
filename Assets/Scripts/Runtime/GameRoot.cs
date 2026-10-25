@@ -58,7 +58,9 @@ namespace RocketWorld
         const float TurboSse = 48f;
         bool _turbo; float _turboStart, _turboStep, _turboCur = TurboSse;
         public float EffectiveScale => Mathf.Clamp(settings.renderScale * autoScaleMul, 0.3f, 2f);
-        public float EffectiveRadius => settings.loadRadius * autoFarMul * RadiusMul;
+        /// <summary>Radius loaded at full detail round a car. With view-driven streaming only the physics ring: the rest follows the camera.</summary>
+        public float EffectiveRadius => settings.viewCull && viewPolicy != null ? Mathf.Min(settings.loadRadius, viewPolicy.Ring) : settings.loadRadius * autoFarMul * RadiusMul;
+        public TileViewPolicy viewPolicy;
         // Adaptive radius: if the demanded tiles do not fit the cache, loading stalls (tiles evicted as fast as they arrive).
         // The slider is the MAXIMUM; the radius shrinks while progress stagnates and grows back once everything is loaded.
         public float RadiusMul { get; private set; } = 1f;
@@ -211,6 +213,7 @@ namespace RocketWorld
                 tileset.maximumScreenSpaceError = EffectiveSse;
                 _appliedSse = EffectiveSse;
                 if (tileLog != null) tileLog.Begin(tileset);
+                if (settings.viewCull) { viewPolicy = go.AddComponent<TileViewPolicy>(); viewPolicy.root = this; viewPolicy.tileset = tileset; }
                 budget = go.AddComponent<TileColliderBudget>();        // subscribes in OnEnable, before the tileset starts loading
                 budget.tileset = tileset;
                 budget.focus = car;
