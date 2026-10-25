@@ -56,6 +56,8 @@ namespace RocketWorld
         // "Turbo load": until the first view is fully loaded (or 20 s), ask for coarser tiles so the whole picture arrives fast,
         // then drop to the user's SSE and let Cesium refine in place (ancestors are already cached, so refining is cheap).
         const float TurboSse = 48f;
+        /// <summary>SSE for tiles outside the view (coarse but present, so there are no holes). Lower = sharper behind/beside you, more bandwidth.</summary>
+        public const float CulledSse = 128f;
         bool _turbo; float _turboStart, _turboStep, _turboCur = TurboSse;
         public float EffectiveScale => Mathf.Clamp(settings.renderScale * autoScaleMul, 0.3f, 2f);
         /// <summary>Radius loaded at full detail round a car. With view-driven streaming only the physics ring: the rest follows the camera.</summary>
@@ -91,6 +93,9 @@ namespace RocketWorld
             WebGLInput.captureAllKeyboardInput = true;
 #endif
             PhysicsSetup.Apply();
+            // Sharp ground at grazing angles (driving): without anisotropic filtering the road/terrain smears into blur a few metres ahead.
+            QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
+            Texture.SetGlobalAnisotropicFilteringLimits(DeviceProfile.IsMobile ? 8 : 16, DeviceProfile.IsMobile ? 8 : 16);
             Application.runInBackground = false;                      // hidden tab: stop streaming/rendering (battery, bandwidth)
             settings = GameSettings.Load();
             if (DeviceProfile.IsMobile) Application.targetFrameRate = 60;
@@ -198,16 +203,15 @@ namespace RocketWorld
                 tileset.preloadAncestors = true;
                 tileset.forbidHoles = false;
                 tileset.enableFrustumCulling = true;
-                tileset.enforceCulledScreenSpaceError = false;   // nothing outside every camera is loaded; StreamingCameras cover the full circle round the car
-                tileset.culledScreenSpaceError = 256f;      // tiles outside the view only get the coarsest level: bandwidth goes to what you look at
+                // Beauty pass: no holes. Tiles outside every camera are still loaded, but only down to a coarse level (culledScreenSpaceError),
+                // so turning the camera never shows empty ground and the finer levels only stream in where you look / are heading.
+                tileset.enforceCulledScreenSpaceError = true;
+                tileset.culledScreenSpaceError = CulledSse;
                 tileset.maximumSimultaneousTileLoads = DeviceProfile.SimultaneousLoads;
                 tileset.loadingDescendantLimit = 120;       // let many visible tiles refine in parallel
                 // Optional tuning: set by reflection so a property that differs in this Cesium version cannot break the build.
                 TrySetTileset("preloadSiblings", false);    // siblings are mostly outside the view
-                TrySetTileset("enableFoveatedRendering", true);
-                TrySetTileset("foveatedConeSize", 0.25f);
-                TrySetTileset("foveatedTimeDelay", 0f);
-                TrySetTileset("foveatedMinimumScreenSpaceErrorRelaxation", 0f);
+                TrySetTileset("enableFoveatedRendering", false);   // foveation blurs everything off-centre: terrain should be sharp edge to edge
                 _turbo = true; _turboStart = _turboStep = Time.unscaledTime; _turboCur = TurboSse;
                 tileset.maximumCachedBytes = DeviceProfile.TileCacheBytes;   // WebGL heap is limited: sized from the device
                 tileset.maximumScreenSpaceError = EffectiveSse;
@@ -412,8 +416,9 @@ namespace RocketWorld
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = fog;
-            RenderSettings.fogStartDistance = EffectiveFar * 0.10f;
-            RenderSettings.fogEndDistance = EffectiveFar * 0.443f;   // RocketWorld: fog 140..620 m with far plane 1400 m
+            // Atmospheric haze: starts early (~500 m at far 20 km) so far-away LOD changes dissolve into the sky colour and the world gains depth.
+            RenderSettings.fogStartDistance = EffectiveFar * 0.025f;
+            RenderSettings.fogEndDistance = EffectiveFar * 0.35f;
             bool proc = s.proceduralSky && _skyMat != null;
             RenderSettings.skybox = proc ? _skyMat : null;
             if (cam != null) { cam.clearFlags = proc ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor; cam.backgroundColor = fog; }
@@ -475,7 +480,7 @@ namespace RocketWorld
             go.transform.SetParent(georeference.transform, false);
             cam = go.AddComponent<Camera>();
             cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.nearClipPlane = 0.3f;
+            cam.nearClipPlane = 0.5f;                                    // far plane is up to 20 km: a larger near plane keeps depth precision (no z-fighting between tile LODs)
             cam.fieldOfView = 55f;
             cam.allowHDR = false;
             cam.allowMSAA = false;

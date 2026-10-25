@@ -3,7 +3,8 @@ using UnityEngine;
 namespace RocketWorld
 {
     /// <summary>
-    /// Keeps ~60 FPS by trading, in this order: render scale (down to 0.7), tile detail (SSE up to +16), view distance (down to 60 %).
+    /// Keeps ~60 FPS by trading, in this order: render scale (down to 0.7), view distance (down to 50 %, hidden by the haze), and only as a last
+    /// resort tile detail (SSE up to +16): changing the SSE makes Cesium re-request almost every tile, which shows as waves of blur.
     /// The user's settings stay the ceiling: this only adds offsets that GameRoot applies on top of them.
     /// </summary>
     public class AutoQuality : MonoBehaviour
@@ -26,10 +27,10 @@ namespace RocketWorld
         public void Set(int level)
         {
             Level = Mathf.Clamp(level, 0, MaxLevel);
-            // levels 1-3: render scale 0.9/0.8/0.7 ; 4-8: SSE +4..+16 ; 9-12: view distance 90..60 %
+            // levels 1-3: render scale 0.9/0.8/0.7 ; 4-8: view distance 90..50 % ; 9-12: SSE +4..+16 (last resort)
             root.autoScaleMul = Level >= 3 ? 0.7f / 1f : 1f - 0.1f * Level;
-            root.autoSseAdd = Level <= 3 ? 0f : Mathf.Min(16f, (Level - 3) * 4f);
-            root.autoFarMul = Level <= 8 ? 1f : 1f - 0.1f * (Level - 8);
+            root.autoFarMul = Level <= 3 ? 1f : 1f - 0.1f * (Level - 3);
+            root.autoSseAdd = Level <= 8 ? 0f : (Level - 8) * 4f;
             root.ApplyLive();
         }
 

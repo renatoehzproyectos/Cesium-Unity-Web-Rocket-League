@@ -15,7 +15,7 @@ namespace RocketWorld
         public float groundHeight = 61f;             // m above the WGS84 ellipsoid: Unity y=0 sits here, the car stands on it
         public float heading = 0f;                   // car heading, degrees clockwise from north
         public float timeOfDay = 14f;                // hours, 0..24
-        public float sse = 32f;                      // maximumScreenSpaceError
+        public float sse = 20f;                      // maximumScreenSpaceError (beauty default; Cesium's own default is 16)
         public float viewDistance = 20000f;          // camera far plane (m)
         public float loadRadius = 600f;              // m around the car where ALL tiles are loaded at full detail (StreamingCameras)
         public float distantQuality = 1f;            // x: sharper tiles at distance (StreamingCameras virtual viewport height)
@@ -46,6 +46,7 @@ namespace RocketWorld
         };
 
         const string P = "rw2.";
+        const int TerrainVersion = 2;
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
         static double D(string s, double def) => double.TryParse(s, NumberStyles.Float, Inv, out var v) ? v : def;
 
@@ -62,7 +63,7 @@ namespace RocketWorld
                 groundHeight = PlayerPrefs.GetFloat(P + "gh", 61f),
                 heading = PlayerPrefs.GetFloat(P + "hdg", 0f),
                 timeOfDay = PlayerPrefs.GetFloat(P + "tod", 14f),
-                sse = PlayerPrefs.GetFloat(P + "sse", 32f),
+                sse = PlayerPrefs.GetFloat(P + "sse", 20f),
                 viewDistance = PlayerPrefs.GetFloat(P + "far", 20000f),
                 loadRadius = PlayerPrefs.GetFloat(P + "radius", 600f),
                 distantQuality = PlayerPrefs.GetFloat(P + "dq", 1f),
@@ -81,6 +82,8 @@ namespace RocketWorld
             s.proceduralSky = true;
             s.debugHud = false;
             s.autoQuality = false;
+            // Terrain beauty pass: browsers that saved the old coarse default (32) move once to the sharper one; later custom values are respected.
+            if (PlayerPrefs.GetInt(P + "tv", 0) < TerrainVersion) s.sse = DeviceProfile.IsMobile ? 28f : 20f;
             if (!PlayerPrefs.HasKey(P + "radius")) s.loadRadius = DeviceProfile.IsMobile ? 300f : 600f;
             string q;
             s.bench = WebBridge.Query("bench") == "1";
@@ -118,7 +121,7 @@ namespace RocketWorld
             PlayerPrefs.SetFloat(P + "gh", groundHeight); PlayerPrefs.SetFloat(P + "hdg", heading); PlayerPrefs.SetFloat(P + "tod", timeOfDay);
             PlayerPrefs.SetFloat(P + "sse", sse); PlayerPrefs.SetFloat(P + "far", viewDistance); PlayerPrefs.SetFloat(P + "scale", renderScale); PlayerPrefs.SetFloat(P + "radius", loadRadius); PlayerPrefs.SetFloat(P + "dq", distantQuality);
             PlayerPrefs.SetInt(P + "baked", bakedLighting ? 1 : 0); PlayerPrefs.SetInt(P + "auto", autoRotate ? 1 : 0); PlayerPrefs.SetInt(P + "psky", proceduralSky ? 1 : 0); PlayerPrefs.SetInt(P + "hud", debugHud ? 1 : 0);
-            PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1);
+            PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1); PlayerPrefs.SetInt(P + "tv", TerrainVersion);
             PlayerPrefs.Save();
         }
 

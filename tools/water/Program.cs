@@ -70,6 +70,9 @@ static class P
         Near(TileCachePolicy.PhysicsRing(0), 150, 1e-6, "physics ring at rest = 150 m");
         Near(TileCachePolicy.PhysicsRing(46), 265, 1e-4, "physics ring at 46 m/s (car top speed) = 265 m");
         Near(TileCachePolicy.PhysicsRing(200), 330, 1e-6, "physics ring is capped at 330 m");
+        Near(TileCachePolicy.AheadRange(0), 350, 1e-6, "look-ahead range at rest = 350 m");
+        Near(TileCachePolicy.AheadRange(20), 590, 1e-4, "look-ahead range at 20 m/s = 590 m");
+        Near(TileCachePolicy.AheadRange(500), 900, 1e-6, "look-ahead range is capped at 900 m");
 
         // robustness: garbage must throw / return cleanly, never hang
         try { MvtReader.Read(new byte[] { 0x1a, 0xff, 0xff, 0xff, 0xff, 0x0f }); Check(true, "garbage tile handled"); }

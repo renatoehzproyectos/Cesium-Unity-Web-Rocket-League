@@ -23,6 +23,11 @@ namespace RocketWorld.Sim
             return Math.Max(minBudget, Math.Min(maxBudget, budget));
         }
 
+        /// <summary>How far (m) the look-ahead streaming camera reaches in the direction of travel: the faster you go, the earlier the detail
+        /// must already be there. Always loaded at a finer level than the main camera asks for.</summary>
+        public static float AheadRange(float speedMs, float minRange = 350f, float maxRange = 900f)
+            => Math.Max(minRange, Math.Min(maxRange, minRange + 12f * Math.Max(0f, speedMs)));
+
         /// <summary>Radius (m) around a car that is loaded at full detail whether or not it is on screen: just enough for the physics colliders,
         /// a bit more at speed so the ground ahead exists before the car gets there.</summary>
         public static float PhysicsRing(float speedMs, float baseRing = 150f, float maxRing = 330f)

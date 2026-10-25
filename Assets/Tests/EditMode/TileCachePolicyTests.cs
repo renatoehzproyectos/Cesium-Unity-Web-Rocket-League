@@ -20,6 +20,12 @@ namespace RocketWorld.Tests
             Assert.AreEqual(200 * MB, TileCachePolicy.Next(210 * MB, 2000 * MB, 2000 * MB, 200 * MB, 1000 * MB));
             Assert.AreEqual(1000 * MB, TileCachePolicy.Next(990 * MB, 100 * MB, 2000 * MB, 200 * MB, 1000 * MB));
         }
+        [Test] public void AheadRangeGrowsWithSpeedAndIsBounded()
+        {
+            Assert.AreEqual(350f, TileCachePolicy.AheadRange(0f), 1e-4f);
+            Assert.AreEqual(590f, TileCachePolicy.AheadRange(20f), 1e-3f);
+            Assert.AreEqual(900f, TileCachePolicy.AheadRange(500f), 1e-4f);
+        }
         [Test] public void PhysicsRingGrowsWithSpeedAndIsCapped()
         {
             Assert.AreEqual(150f, TileCachePolicy.PhysicsRing(0f), 1e-4f);

@@ -76,4 +76,4 @@ The car floats and drives like a boat on seas, lakes and rivers, using free Open
 Press P: a box-built airplane flown by a C# port of JSBSim (checked against native JSBSim). See `docs/PLANE.md`; checks: `bash tools/flight/run.sh`.
 
 ## Tiles
-View-driven streaming with a large adaptive cache: unseen tiles disappear, seen ones come back instantly. See `docs/TILES.md`.
+View-driven streaming with a large adaptive cache, no holes (coarse tiles outside the view), a look-ahead camera, haze and anisotropic filtering for a sharper, fuller terrain. See `docs/TILES.md`.

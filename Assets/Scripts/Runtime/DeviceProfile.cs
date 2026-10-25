@@ -40,7 +40,7 @@ namespace RocketWorld
         /// <summary>First-run defaults (only used when the user has no saved settings).</summary>
         public static void ApplyFirstRunDefaults(GameSettings s)
         {
-            // Keep the project defaults (sse 32 / far 20000 / scale 2) on all devices.
+            // Keep the project defaults (sse 20 / far 20000 / scale 2) on all devices.
         }
 
         public static string Describe() =>
