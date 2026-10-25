@@ -3,21 +3,20 @@ using System;
 namespace RocketWorld.Sim
 {
     /// <summary>
-    /// Engine-free numbers for the cinematic post-processing (bloom, colour grade, depth of field, motion blur, edge blur), so the look can be
-    /// tuned and unit-tested without Unity. <c>CinematicFx</c> feeds these into the URP Volume every frame.
+    /// Engine-free numbers for the cinematic post-processing (bloom, depth of field, motion blur), so the look can be tuned and unit-tested
+    /// without Unity. <c>CinematicFx</c> feeds these into the URP Volume every frame. Each effect has an <c>amount</c> (the settings slider):
+    /// 0 = off, 1 = the designed look, up to 2 = twice as strong.
     /// </summary>
     public static class CinematicPolicy
     {
-        // Each effect is its own bit so a misbehaving one can be switched off alone (settings panel, ?fx=<mask>).
-        public const int Bloom = 1, Grade = 2, Edge = 4, Dof = 8, MotionBlur = 16;
-        public const int Light = Bloom | Grade;                       // standard URP effects only
-        public const int Full = Light | Dof | MotionBlur;
-        /// <summary>Preset 0 = off, 1 = light, 2 = full. The custom edge blur is a separate toggle until it has been verified on devices.</summary>
-        public static int PresetMask(int level) => level <= 0 ? 0 : level == 1 ? Light : Full;
+        public const float MaxAmount = 2f;
+        /// <summary>Below this a slider counts as "off" and the effect is not even rendered.</summary>
+        public const float OffBelow = 0.01f;
 
         static float Clamp01(float v) => Math.Max(0f, Math.Min(1f, v));
         static float Lerp(float a, float b, float t) => a + (b - a) * Clamp01(t);
-        static float Sp(float speedMs) => Clamp01(speedMs / 46f);        // 46 m/s = the car's top speed
+        public static float ClampAmount(float amount) => Math.Max(0f, Math.Min(MaxAmount, amount));
+        public static bool IsOn(float amount) => amount > OffBelow;
 
         /// <summary>0 = night .. 1 = day, from the hour (same sun model as GameRoot.ApplyTimeOfDay).</summary>
         public static float Daylight(float timeOfDay)
@@ -28,25 +27,22 @@ namespace RocketWorld.Sim
         }
 
         public static float BloomThreshold(bool hdr) => hdr ? 1.0f : 0.85f;
-        /// <summary>Stronger glow at night (lights) and while boosting.</summary>
-        public static float BloomIntensity(float daylight, bool boosting) => Lerp(0.55f, 0.30f, daylight) + (boosting ? 0.20f : 0f);
-
-        /// <summary>Colour grade: a little punch and saturation by day (photogrammetry looks flat), a moodier grade at night.</summary>
-        public static float Saturation(float daylight) => Lerp(2f, 14f, daylight);
-        public static float Contrast(float daylight) => Lerp(14f, 10f, daylight);
+        /// <summary>Stronger glow at night (lights) and while boosting, scaled by the slider.</summary>
+        public static float BloomIntensity(float daylight, bool boosting, float amount = 1f)
+            => (Lerp(0.55f, 0.30f, daylight) + (boosting ? 0.20f : 0f)) * ClampAmount(amount);
 
         /// <summary>Gaussian depth of field keeps everything near the car sharp and softens the far distance. Distances in metres from the camera.</summary>
         public static float DofStart(float cameraToCar) => Math.Max(120f, cameraToCar * 3.5f);
         public static float DofEnd(float start) => start + 700f;
+        /// <summary>Blur strength of the far distance (URP's Max Radius, 0.5 .. 1.5): 0.9 at the default look.</summary>
+        public static float DofMaxRadius(float amount) => Math.Max(0.5f, Math.Min(1.5f, 0.5f + 0.4f * ClampAmount(amount)));
 
-        /// <summary>Camera motion blur: none when slow, up to ~0.65 at top speed, a little more while boosting.</summary>
-        public static float MotionBlurIntensity(float speedMs, bool boosting)
+        /// <summary>Camera motion blur: none when slow, up to ~0.65 at top speed, a little more while boosting; scaled by the slider, never above 1.</summary>
+        public static float MotionBlurIntensity(float speedMs, bool boosting, float amount = 1f)
         {
             float t = Clamp01((speedMs - 12f) / (46f - 12f));
-            return Math.Min(0.8f, 0.65f * t + (boosting ? 0.10f * t : 0f));
+            float v = Math.Min(0.8f, 0.65f * t + (boosting ? 0.10f * t : 0f));
+            return Math.Min(1f, v * ClampAmount(amount));
         }
-
-        /// <summary>Blur of the viewport borders: always present, tighter (stronger) the faster you go.</summary>
-        public static float EdgeBlurStrength(float speedMs) => 0.6f + 0.4f * Sp(speedMs);
     }
 }

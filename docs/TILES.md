@@ -46,20 +46,17 @@ in the way makes it climb rather than pull in; it stays 4 m above the roofs/terr
 (`?cam=heli|chase|orbit` overrides). Not verified in Unity: the feel (follow rates, heights) is tuned from a reference screenshot, not from a run.
 
 ## Cinematic effects
-`CinematicFx` builds a global URP Volume in code (no assets) and URP's Full Screen Pass feature adds the viewport edge blur. Every effect is its own bit (`GameSettings.fxMask`, saved; `?fx=<mask>` or `?cine=0|1|2` presets):
-Bloom 1, Colour 2, Edge blur 4, Depth of field 8, Motion blur 16. **Light** = 3 (bloom + colour, default on phones), **Full** = 27 (+ DoF + motion blur, HDR on desktop). **Edge blur is opt-in** (custom pass, see below) and each effect has a toggle in the settings panel.
-
-**Known issues (reported on a phone, first versions):** (1) my own render-graph edge-blur pass blacked out the 3D view (HUD and minimap fine); it was replaced by URP's `FullScreenPassRendererFeature` with `RocketWorld/EdgeBlur`, off by default, switched from the settings panel. (2) No Volume effect was visible: URP skips the whole post-processing stack when the renderer asset has no post-processing data, so `ProjectSetup.EnsurePostProcessing` now assigns it. Re-run *RocketWorld > Ensure project setup* (it runs on Editor load) and **rebuild**. The settings panel shows a status line (`camera post-processing`, `volume in stack: bloom ...`, `edge blur ...`) that tells whether the stack is really running.
+`CinematicFx` builds a global URP Volume in code (no assets) with three effects, each with its own slider in the settings panel (0 % = off and not rendered at all, 100 % = designed look, up to 200 %; saved; `?bloom=`, `?dof=`, `?mblur=` take 0-2, `?cine=0` turns all off). Defaults: all 100 % on desktop; on phones only bloom (depth of field and motion blur start at 0 %).
 
 | Effect | How | Tuning (`Sim/CinematicPolicy.cs`) |
 |---|---|---|
-| Bloom | URP Bloom, stronger at night and while boosting | `BloomIntensity`, `BloomThreshold` |
-| Colour correction | ColorAdjustments (contrast, saturation) + SplitToning (cool shadows, warm highlights), moodier at night | `Saturation`, `Contrast` |
-| Depth of field | Gaussian (far blur only): sharp up to ~120 m (3.5x camera-to-car distance), soft by +700 m | `DofStart`, `DofEnd` |
+| Bloom | URP Bloom, stronger at night and while boosting; HDR on desktop while it is on | `BloomIntensity`, `BloomThreshold` |
+| Depth of field | Gaussian (far blur only): sharp up to ~120 m (3.5x camera-to-car distance), soft by +700 m; the slider scales the blur radius | `DofStart`, `DofEnd`, `DofMaxRadius` |
 | Motion blur | URP camera motion blur, 0 below 12 m/s up to ~0.65 at top speed; zeroed for 0.35 s after teleports / camera swaps | `MotionBlurIntensity` |
-| Edge blur | `Assets/Shaders/EdgeBlur.shader`: blurs left/right walls, ceiling and floor, centre stays sharp; tighter with speed | `EdgeBlurStrength`; `Inner`/`Radius` in `CinematicFx.Apply` |
 
-`ProjectSetup` creates `Materials/EdgeBlur.mat` and registers the feature in `Assets/Settings/RocketWorld_Renderer.asset` (also for an existing one).
-**Not run in Unity**: the Render Graph blit, the Volume parameter names (URP 17.0.4) and the look itself are unverified; expect small compile / tuning fixes.
-Cost: full level at render scale 2 is heavy (depth texture + bloom + DoF + motion blur at 2x resolution): lower the render scale or use *light* if FPS drops.
+Removed after testing on a phone: the custom edge blur (blacked out the 3D view) and the colour grade. `ProjectSetup` removes the old edge-blur feature and material from the renderer asset.
+URP skips the whole post-processing stack when the renderer asset has no post-processing data, so `ProjectSetup.EnsurePostProcessing` assigns it. Re-run *RocketWorld > Ensure project setup* (it runs on Editor load) and **rebuild**.
+The settings panel shows a status line (`camera post-processing`, `volume in stack: bloom ...`) that tells whether the stack is really running.
+**Not run in Unity**: the Volume parameter names (URP 17.0.4) and the look itself are unverified. Cost: depth of field + motion blur at render scale 2 are heavy; lower the sliders or the render scale if FPS drops.
 If effects are missing in a WebGL build, check URP Global Settings > "Strip Unused Post Processing Variants" is off (the volume is created at runtime, so Unity cannot see it).
+

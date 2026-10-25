@@ -82,15 +82,17 @@ static class P
         Near(HeliCamPolicy.Height(0, false, 10), 38 * HeliCamPolicy.MaxZoom, 1e-4, "heli zoom is clamped to the maximum");
         Near(HeliCamPolicy.Height(0, false, 0.01f), 38 * HeliCamPolicy.MinZoom, 1e-4, "heli zoom is clamped to the minimum");
 
-        // cinematic post-processing numbers
-        Check(CinematicPolicy.PresetMask(0) == 0 && CinematicPolicy.PresetMask(1) == 3 && CinematicPolicy.PresetMask(2) == 27, "cinematic presets: off 0, light 3, full 27");
+        // cinematic post-processing numbers (sliders: 0 = off, 1 = designed look, 2 = twice)
+        Check(!CinematicPolicy.IsOn(0) && CinematicPolicy.IsOn(1) && CinematicPolicy.ClampAmount(5) == 2, "cinematic sliders: 0 off, clamped to 2");
         Near(CinematicPolicy.Daylight(14), 1, 1e-4, "daylight at 14:00 = 1");
         Near(CinematicPolicy.Daylight(0), 0, 1e-4, "daylight at midnight = 0");
         Check(CinematicPolicy.BloomIntensity(0, false) > CinematicPolicy.BloomIntensity(1, false), "bloom is stronger at night");
+        Near(CinematicPolicy.BloomIntensity(1, false, 2), 2 * CinematicPolicy.BloomIntensity(1, false, 1), 1e-5, "bloom slider scales the intensity");
         Near(CinematicPolicy.MotionBlurIntensity(5, false), 0, 1e-6, "no motion blur when slow");
-        Check(CinematicPolicy.MotionBlurIntensity(500, true) <= 0.8f, "motion blur is capped");
+        Check(CinematicPolicy.MotionBlurIntensity(500, true, 2) <= 1f, "motion blur is capped");
+        Near(CinematicPolicy.MotionBlurIntensity(46, true, 0), 0, 1e-6, "motion blur slider at 0 = off");
         Near(CinematicPolicy.DofStart(8), 120, 1e-4, "depth of field starts at 120 m for the chase camera");
-        Near(CinematicPolicy.EdgeBlurStrength(46), 1, 1e-4, "edge blur is full at top speed");
+        Near(CinematicPolicy.DofMaxRadius(1), 0.9, 1e-4, "depth of field radius 0.9 at the default look");
 
         // robustness: garbage must throw / return cleanly, never hang
         try { MvtReader.Read(new byte[] { 0x1a, 0xff, 0xff, 0xff, 0xff, 0x0f }); Check(true, "garbage tile handled"); }

@@ -32,9 +32,8 @@ namespace RocketWorld.Editor
             EnsureParticleMaterial("Assets/Resources/Materials/ParticleAlpha.mat", false);   // boost trail
             EnsureBallMaterial("Assets/Resources/Materials/Ball.mat");
             EnsureMaterial("Assets/Resources/Materials/Sky.mat", "Skybox/Procedural", Color.white);
-            EnsureMaterial("Assets/Resources/Materials/EdgeBlur.mat", "RocketWorld/EdgeBlur", Color.white);   // viewport edge blur (Assets/Shaders/EdgeBlur.shader)
             EnsurePostProcessing();
-            EnsureEdgeBlurFeature();
+            RemoveEdgeBlur();
             EnsureScene();
             AssetDatabase.SaveAssets();
         }
@@ -107,42 +106,39 @@ namespace RocketWorld.Editor
         }
 
         /// <summary>
-        /// Registers URP's own Full Screen Pass renderer feature with the edge blur material (disabled by default; CinematicFx switches it on from
-        /// the settings panel). Also removes the broken entries left by the first, custom edge blur pass.
+        /// The edge blur effect was removed. Earlier versions registered a renderer feature (and a material) for it: take those out of the renderer
+        /// asset so no broken entries or stale full-screen pass remain. Idempotent.
         /// </summary>
-        static void EnsureEdgeBlurFeature()
+        static void RemoveEdgeBlur()
         {
             var data = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(RendererPath);
-            var mat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Resources/Materials/EdgeBlur.mat");
-            if (data == null || mat == null) return;
-            var so = new SerializedObject(data);
-            var feats = so.FindProperty("m_RendererFeatures"); var map = so.FindProperty("m_RendererFeatureMap");
-            if (feats == null || map == null) { Debug.LogWarning("[RocketWorld] could not register the edge blur renderer feature"); return; }
-            for (int i = feats.arraySize - 1; i >= 0; i--)                    // features whose script no longer exists (first edge blur version)
-                if (feats.GetArrayElementAtIndex(i).objectReferenceValue == null)
+            if (data != null)
+            {
+                var so = new SerializedObject(data);
+                var feats = so.FindProperty("m_RendererFeatures"); var map = so.FindProperty("m_RendererFeatureMap");
+                if (feats != null && map != null)
                 {
-                    feats.DeleteArrayElementAtIndex(i);
-                    if (i < map.arraySize) map.DeleteArrayElementAtIndex(i);
+                    var stale = new System.Collections.Generic.List<Object>();
+                    for (int i = feats.arraySize - 1; i >= 0; i--)
+                    {
+                        var el = feats.GetArrayElementAtIndex(i);
+                        var obj = el.objectReferenceValue;
+                        if (obj != null && obj.name != "RocketWorld Edge Blur") continue;   // keep every other feature
+                        if (obj != null) { stale.Add(obj); el.objectReferenceValue = null; }  // (a non-null element must be cleared before it can be deleted)
+                        feats.DeleteArrayElementAtIndex(i);
+                        if (i < map.arraySize) map.DeleteArrayElementAtIndex(i);
+                    }
+                    if (so.hasModifiedProperties)
+                    {
+                        so.ApplyModifiedPropertiesWithoutUndo();
+                        foreach (var o in stale) { AssetDatabase.RemoveObjectFromAsset(o); Object.DestroyImmediate(o, true); }
+                        EditorUtility.SetDirty(data);
+                        AssetDatabase.SaveAssets();
+                    }
                 }
-            so.ApplyModifiedPropertiesWithoutUndo();
-            foreach (var f in data.rendererFeatures) if (f != null && f.name == "RocketWorld Edge Blur") return;
-
-            var feature = ScriptableObject.CreateInstance<FullScreenPassRendererFeature>();
-            feature.name = "RocketWorld Edge Blur";
-            feature.passMaterial = mat;
-            feature.passIndex = 0;
-            feature.injectionPoint = FullScreenPassRendererFeature.InjectionPoint.AfterRenderingPostProcessing;
-            feature.fetchColorBuffer = true;
-            feature.requirements = ScriptableRenderPassInput.None;
-            feature.SetActive(false);
-            AssetDatabase.AddObjectToAsset(feature, data);
-            so.Update();
-            AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feature, out string guid, out long localId);
-            feats.arraySize++; feats.GetArrayElementAtIndex(feats.arraySize - 1).objectReferenceValue = feature;
-            map.arraySize++; map.GetArrayElementAtIndex(map.arraySize - 1).longValue = localId;
-            so.ApplyModifiedPropertiesWithoutUndo();
-            EditorUtility.SetDirty(data);
-            AssetDatabase.SaveAssets();
+            }
+            if (AssetDatabase.LoadAssetAtPath<Material>("Assets/Resources/Materials/EdgeBlur.mat") != null)
+                AssetDatabase.DeleteAsset("Assets/Resources/Materials/EdgeBlur.mat");
         }
 
         static void SetBool(SerializedObject so, string name, bool v) { var p = so.FindProperty(name); if (p != null) p.boolValue = v; }

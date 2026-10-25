@@ -90,15 +90,6 @@ namespace RocketWorld
             _open = open;
         }
 
-        static bool FxToggle(GameSettings s, string label, int bit)
-        {
-            bool on = (s.fxMask & bit) != 0;
-            bool now = GUILayout.Toggle(on, label);
-            if (now == on) return false;
-            s.fxMask = now ? s.fxMask | bit : s.fxMask & ~bit;
-            return true;
-        }
-
         /// <summary>True when a screen position (pixels, origin bottom-left) is over HUD, so the camera ignores that drag.</summary>
         public bool Over(Vector2 screenPos)
         {
@@ -271,21 +262,13 @@ namespace RocketWorld
             GUILayout.EndHorizontal();
 
             GUILayout.Space(6);
-            GUILayout.Label("Cinematic effects (each one can be switched on its own)");
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Off")) { s.fxMask = 0; changed = true; }
-            if (GUILayout.Button("Light")) { s.fxMask = RocketWorld.Sim.CinematicPolicy.Light; changed = true; }
-            if (GUILayout.Button("Full")) { s.fxMask = RocketWorld.Sim.CinematicPolicy.Full; changed = true; }
-            GUILayout.EndHorizontal();
-            GUILayout.BeginHorizontal();
-            changed |= FxToggle(s, "Bloom", RocketWorld.Sim.CinematicPolicy.Bloom);
-            changed |= FxToggle(s, "Colour", RocketWorld.Sim.CinematicPolicy.Grade);
-            changed |= FxToggle(s, "Edge blur", RocketWorld.Sim.CinematicPolicy.Edge);
-            GUILayout.EndHorizontal();
-            GUILayout.BeginHorizontal();
-            changed |= FxToggle(s, "Depth of field", RocketWorld.Sim.CinematicPolicy.Dof);
-            changed |= FxToggle(s, "Motion blur", RocketWorld.Sim.CinematicPolicy.MotionBlur);
-            GUILayout.EndHorizontal();
+            GUILayout.Label("Cinematic effects (0 % = off, 100 % = default look)");
+            GUILayout.Label($"Bloom {s.fxBloom * 100f:0} %");
+            s.fxBloom = GUILayout.HorizontalSlider(s.fxBloom, 0f, 2f);
+            GUILayout.Label($"Depth of field {s.fxDof * 100f:0} %");
+            s.fxDof = GUILayout.HorizontalSlider(s.fxDof, 0f, 2f);
+            GUILayout.Label($"Motion blur {s.fxMotion * 100f:0} %");
+            s.fxMotion = GUILayout.HorizontalSlider(s.fxMotion, 0f, 2f);
             if (root.cinematic != null) GUILayout.Label("<color=#ffffff88>" + root.cinematic.Status + "</color>", _small);
 
             GUILayout.Space(6);
