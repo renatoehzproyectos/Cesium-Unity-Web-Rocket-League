@@ -31,6 +31,7 @@ namespace RocketWorld
         public bool bench;                           // ?bench=1 runs the benchmark right after the world is ready
         public int carColor = 0;
         public float camYaw = 200f, camPitch = 14f, camDist = 7.5f;
+        public int cinematic = 2;                    // post-processing: 0 off, 1 light (bloom, grade, edge blur), 2 full (+ depth of field, motion blur); ?cine=0|1|2
         public int camMode = 0;                      // driving camera: 0 chase, 1 orbit, 2 helicopter (?cam=chase|orbit|heli)
 
         // name, lat, lon, approximate ground height above the ellipsoid (geoid + terrain). Adjust with the slider if the car floats/sinks.
@@ -84,6 +85,7 @@ namespace RocketWorld
             s.proceduralSky = true;
             s.debugHud = false;
             s.autoQuality = false;
+            s.cinematic = Mathf.Clamp(PlayerPrefs.GetInt(P + "cine", DeviceProfile.IsMobile ? 1 : 2), 0, 2);
             // Terrain beauty pass: browsers that saved the old coarse default (32) move once to the sharper one; later custom values are respected.
             if (PlayerPrefs.GetInt(P + "tv", 0) < TerrainVersion) s.sse = DeviceProfile.IsMobile ? 28f : 20f;
             if (!PlayerPrefs.HasKey(P + "radius")) s.loadRadius = DeviceProfile.IsMobile ? 300f : 600f;
@@ -110,6 +112,7 @@ namespace RocketWorld
             s.viewDistance = Mathf.Clamp((float)D(WebBridge.Query("far"), s.viewDistance), 200f, 20000f);
             s.renderScale = Mathf.Clamp((float)D(WebBridge.Query("scale"), s.renderScale), 0.3f, 2f);
             s.carColor = Mathf.Clamp((int)D(WebBridge.Query("car"), s.carColor), 0, CarColors.Length - 1);
+            s.cinematic = Mathf.Clamp((int)D(WebBridge.Query("cine"), s.cinematic), 0, 2);
             if (!string.IsNullOrEmpty(q = WebBridge.Query("cam"))) { q = q.ToLowerInvariant(); s.camMode = q.StartsWith("heli") ? 2 : q.StartsWith("orb") ? 1 : q.StartsWith("chase") ? 0 : s.camMode; }
             s.camYaw = (float)D(WebBridge.Query("yaw"), s.camYaw);
             s.camPitch = (float)D(WebBridge.Query("pitch"), s.camPitch);
@@ -124,7 +127,7 @@ namespace RocketWorld
             PlayerPrefs.SetFloat(P + "gh", groundHeight); PlayerPrefs.SetFloat(P + "hdg", heading); PlayerPrefs.SetFloat(P + "tod", timeOfDay);
             PlayerPrefs.SetFloat(P + "sse", sse); PlayerPrefs.SetFloat(P + "far", viewDistance); PlayerPrefs.SetFloat(P + "scale", renderScale); PlayerPrefs.SetFloat(P + "radius", loadRadius); PlayerPrefs.SetFloat(P + "dq", distantQuality);
             PlayerPrefs.SetInt(P + "baked", bakedLighting ? 1 : 0); PlayerPrefs.SetInt(P + "auto", autoRotate ? 1 : 0); PlayerPrefs.SetInt(P + "psky", proceduralSky ? 1 : 0); PlayerPrefs.SetInt(P + "hud", debugHud ? 1 : 0);
-            PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1); PlayerPrefs.SetInt(P + "tv", TerrainVersion); PlayerPrefs.SetInt(P + "cammode", camMode);
+            PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1); PlayerPrefs.SetInt(P + "tv", TerrainVersion); PlayerPrefs.SetInt(P + "cammode", camMode); PlayerPrefs.SetInt(P + "cine", cinematic);
             PlayerPrefs.Save();
         }
 

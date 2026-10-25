@@ -262,6 +262,14 @@ namespace RocketWorld
             GUILayout.EndHorizontal();
 
             GUILayout.Space(6);
+            GUILayout.Label("Cinematic effects: " + (s.cinematic == 0 ? "off" : s.cinematic == 1 ? "light" : "full") + "  (bloom, colour grade, edge blur; full adds depth of field + motion blur)");
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Off")) { s.cinematic = 0; changed = true; }
+            if (GUILayout.Button("Light")) { s.cinematic = 1; changed = true; }
+            if (GUILayout.Button("Full")) { s.cinematic = 2; changed = true; }
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6);
             GUILayout.Label("Car colour");
             GUILayout.BeginHorizontal();
             for (int i = 0; i < GameSettings.CarColors.Length; i++)

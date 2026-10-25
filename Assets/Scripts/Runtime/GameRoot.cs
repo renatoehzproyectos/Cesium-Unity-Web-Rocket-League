@@ -28,6 +28,7 @@ namespace RocketWorld
         public TileColliderBudget budget;
         public ChaseCamera chase;
         public HeliCamera heli;
+        public CinematicFx cinematic;
         public int cameraMode;                                // 0 chase, 1 orbit, 2 helicopter
         public Camera cam;
         public OrbitCamera orbit;
@@ -123,6 +124,8 @@ namespace RocketWorld
             autoQuality.root = this; autoQuality.enabledByUser = settings.autoQuality;
             benchmark = gameObject.AddComponent<BenchmarkRunner>();
             benchmark.root = this;
+            cinematic = gameObject.AddComponent<CinematicFx>();
+            cinematic.root = this;
             tileLog = gameObject.AddComponent<TileLog>();
             tileLog.root = this;
             if (tileset != null) tileLog.Begin(tileset);   // the first tileset was created before the log existed

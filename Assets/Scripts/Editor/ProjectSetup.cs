@@ -32,6 +32,8 @@ namespace RocketWorld.Editor
             EnsureParticleMaterial("Assets/Resources/Materials/ParticleAlpha.mat", false);   // boost trail
             EnsureBallMaterial("Assets/Resources/Materials/Ball.mat");
             EnsureMaterial("Assets/Resources/Materials/Sky.mat", "Skybox/Procedural", Color.white);
+            EnsureMaterial("Assets/Resources/Materials/EdgeBlur.mat", "RocketWorld/EdgeBlur", Color.white);   // viewport edge blur (Assets/Shaders/EdgeBlur.shader)
+            EnsureEdgeBlurFeature();
             EnsureScene();
             AssetDatabase.SaveAssets();
         }
@@ -80,6 +82,26 @@ namespace RocketWorld.Editor
             p.intValue = 1;
             so.ApplyModifiedPropertiesWithoutUndo();
             Debug.Log("[RocketWorld] Active Input Handling set to Input System Package (restart the Editor if prompted).");
+        }
+
+        /// <summary>Adds EdgeBlurFeature to the renderer asset (also for projects whose renderer asset already exists). Same bookkeeping as the renderer inspector's "Add Renderer Feature".</summary>
+        static void EnsureEdgeBlurFeature()
+        {
+            var data = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(RendererPath);
+            if (data == null) return;
+            foreach (var f in data.rendererFeatures) if (f is EdgeBlurFeature) return;
+            var feature = ScriptableObject.CreateInstance<EdgeBlurFeature>();
+            feature.name = "RocketWorld Edge Blur";
+            AssetDatabase.AddObjectToAsset(feature, data);
+            var so = new SerializedObject(data);
+            var feats = so.FindProperty("m_RendererFeatures"); var map = so.FindProperty("m_RendererFeatureMap");
+            if (feats == null || map == null) { Debug.LogWarning("[RocketWorld] could not register the edge blur renderer feature"); return; }
+            AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feature, out string guid, out long localId);
+            feats.arraySize++; feats.GetArrayElementAtIndex(feats.arraySize - 1).objectReferenceValue = feature;
+            map.arraySize++; map.GetArrayElementAtIndex(map.arraySize - 1).longValue = localId;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(data);
+            AssetDatabase.SaveAssets();
         }
 
         static void SetBool(SerializedObject so, string name, bool v) { var p = so.FindProperty(name); if (p != null) p.boolValue = v; }

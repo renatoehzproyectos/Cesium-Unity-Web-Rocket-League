@@ -11,6 +11,7 @@
     <Compile Include="../../Assets/Tests/EditMode/WaterTestTiles.cs" />
     <Compile Include="../../Assets/Scripts/Sim/TileCachePolicy.cs" />
     <Compile Include="../../Assets/Scripts/Sim/HeliCamPolicy.cs" />
+    <Compile Include="../../Assets/Scripts/Sim/CinematicPolicy.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>
 </Project>

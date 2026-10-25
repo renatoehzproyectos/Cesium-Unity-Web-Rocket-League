@@ -44,3 +44,20 @@ Third driving camera (`HeliCamera.cs`, numbers in `Sim/HeliCamPolicy.cs`): hover
 heading, climbing and pulling back with speed (up to 60 m / 26 m). Heading follow is slower than the chase camera. Wheel / pinch / +- zoom (0.5x-2.5x). A building
 in the way makes it climb rather than pull in; it stays 4 m above the roofs/terrain under it. `C` cycles chase -> helicopter -> orbit; the choice is saved
 (`?cam=heli|chase|orbit` overrides). Not verified in Unity: the feel (follow rates, heights) is tuned from a reference screenshot, not from a run.
+
+## Cinematic effects
+`CinematicFx` builds a global URP Volume in code (no assets) and `EdgeBlurFeature` adds the viewport edge blur. Levels (settings panel, `?cine=0|1|2`, saved):
+**0 off**, **1 light** (bloom, colour grade, edge blur; default on phones), **2 full** (adds depth of field and motion blur, and HDR on desktop; default on desktop).
+
+| Effect | How | Tuning (`Sim/CinematicPolicy.cs`) |
+|---|---|---|
+| Bloom | URP Bloom, stronger at night and while boosting | `BloomIntensity`, `BloomThreshold` |
+| Colour correction | ColorAdjustments (contrast, saturation) + SplitToning (cool shadows, warm highlights), moodier at night | `Saturation`, `Contrast` |
+| Depth of field | Gaussian (far blur only): sharp up to ~120 m (3.5x camera-to-car distance), soft by +700 m | `DofStart`, `DofEnd` |
+| Motion blur | URP camera motion blur, 0 below 12 m/s up to ~0.65 at top speed; zeroed for 0.35 s after teleports / camera swaps | `MotionBlurIntensity` |
+| Edge blur | `Assets/Shaders/EdgeBlur.shader`: blurs left/right walls, ceiling and floor, centre stays sharp; tighter with speed | `EdgeBlurStrength`; `Inner`/`Radius` in `CinematicFx.Apply` |
+
+`ProjectSetup` creates `Materials/EdgeBlur.mat` and registers the feature in `Assets/Settings/RocketWorld_Renderer.asset` (also for an existing one).
+**Not run in Unity**: the Render Graph blit, the Volume parameter names (URP 17.0.4) and the look itself are unverified; expect small compile / tuning fixes.
+Cost: full level at render scale 2 is heavy (depth texture + bloom + DoF + motion blur at 2x resolution): lower the render scale or use *light* if FPS drops.
+If effects are missing in a WebGL build, check URP Global Settings > "Strip Unused Post Processing Variants" is off (the volume is created at runtime, so Unity cannot see it).
