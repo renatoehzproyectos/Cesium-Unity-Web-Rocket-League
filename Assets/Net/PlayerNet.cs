@@ -153,7 +153,7 @@ namespace RocketWorld.Net
             _nextSnap = now + 1f / SnapHz;
             var rb = Car.Body;
             var s = Pack(rb.position, rb.rotation, rb.isKinematic ? Vector3.zero : rb.linearVelocity, ++_snapSeq,
-                (Car.State.isOnGround ? 1 : 0) | (Car.IsBoosting ? 2 : 0) | (running ? 4 : 0) | (Car.InBoat ? 8 : 0));
+                (Car.State.isOnGround ? 1 : 0) | (Car.IsBoosting ? 2 : 0) | (running ? 4 : 0) | (Car.InBoat ? 8 : 0) | (Car.InPlane ? 16 : 0));
             s.ack = _lastSeq;
             SnapshotRpc(s);
             SendPlane();
@@ -318,7 +318,7 @@ namespace RocketWorld.Net
                 if (!_centered) { GeoSync.Recenter(Root.georeference, s.x, s.y, s.z); _centered = true; }
             }
             GeoSync.FromEcef(Root.georeference, s.x, s.y, s.z, s.f, s.u, s.v, out var pos, out var rot, out var vel);
-            Car.ApplyPuppetPose(pos, rot, vel, s.OnGround, s.Boosting, s.Running, s.Boat);
+            Car.ApplyPuppetPose(pos, rot, vel, s.OnGround, s.Boosting, s.Running, s.Boat, s.Plane);
         }
 
         void ApplyBall()

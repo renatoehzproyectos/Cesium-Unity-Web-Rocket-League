@@ -101,6 +101,7 @@ namespace RocketWorld
             BuildSun();
             BuildCar();
             BuildWater();
+            AttachPlane(carCtl);
             BuildCamera();
             CreateWorldContent();
             ApplyLive();
@@ -125,6 +126,7 @@ namespace RocketWorld
 
         void Update()
         {
+            if (carInput != null && carInput.PlanePressed) RequestPlane();
             if (tileset != null && Time.unscaledTime - _radChkT >= 6f)
             {
                 float p = tileset.ComputeLoadProgress();
@@ -449,6 +451,13 @@ namespace RocketWorld
             AttachWater(carCtl);
         }
 
+        void AttachPlane(RocketCar c)
+        {
+            if (c == null || c.plane != null) return;
+            var d = c.gameObject.AddComponent<PlaneDriver>();
+            d.car = c; c.plane = d;
+        }
+
         void AttachWater(RocketCar c)
         {
             if (waterMap == null || c == null || c.water != null) return;
@@ -493,6 +502,12 @@ namespace RocketWorld
         }
 
         /// <summary>Put the ball in front of the local car (solo / host) or ask the host to do it (client).</summary>
+        /// <summary>Plane mode on / off for the local car (solo and host; a client-only player has no local physics to switch).</summary>
+        public void RequestPlane()
+        {
+            if (carCtl != null && carCtl.plane != null && carCtl.simulated) carCtl.plane.Toggle();
+        }
+
         public void RequestBall()
         {
             if (net != null && net.IsClientOnly) net.RequestBall();
@@ -511,6 +526,7 @@ namespace RocketWorld
             rc.playerName = playerName;
             colorIdx = Mathf.Clamp(colorIdx, 0, GameSettings.CarColors.Length - 1);
             rc.visual = CarVisual.Build(go.transform, GameSettings.CarColors[colorIdx].color, -0.3406f);
+            AttachPlane(rc);
             AttachWater(rc);                                            // the host simulates remote cars: they float too (puppets just follow the snapshot)
             if (!simulated) rc.SetSimulated(false);
             return rc;

@@ -13,13 +13,14 @@ namespace RocketWorld.Net
         public ushort seq, ack;
         public double x, y, z;
         public Vector3 f, u, v;
-        public byte flags;                 // 1 on ground, 2 boosting, 4 running / exists, 8 afloat (boat mode)
+        public byte flags;                 // 1 on ground, 2 boosting, 4 running / exists, 8 afloat (boat mode), 16 plane mode
         public float aux;                  // plane snapshots: rear ramp angle (degrees)
 
         public bool OnGround => (flags & 1) != 0;
         public bool Boosting => (flags & 2) != 0;
         public bool Running => (flags & 4) != 0;
         public bool Boat => (flags & 8) != 0;
+        public bool Plane => (flags & 16) != 0;
 
         public void NetworkSerialize<T>(BufferSerializer<T> s) where T : IReaderWriter
         {

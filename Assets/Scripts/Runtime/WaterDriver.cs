@@ -72,7 +72,7 @@ namespace RocketWorld
         void Update()
         {
             if (map == null || car == null || car.Body == null) return;
-            if (!car.simulated) { if (Active) ForceExit(); return; }
+            if (!car.simulated || car.InPlane) { if (Active) ForceExit(); return; }
             if (!car.CanStep) return;
             float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
             var rb = car.Body;

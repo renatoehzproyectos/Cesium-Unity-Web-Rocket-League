@@ -17,3 +17,5 @@
 - **Ball model, ball texture, touch spark sprite** (`Assets/Resources/Ball`) come from the RocketPrismas web project this game is based on (ball.glb, ball_d, spark). The ball physics follow RocketSim (MIT, see above); the car-ball hit impulse and curve were read from RocketSim 2.2.1 and validated against its compiled build.
 
 - **OpenFreeMap** vector tiles (https://openfreemap.org, no key) with **OpenStreetMap** data (c) OpenStreetMap contributors, ODbL, OpenMapTiles schema. Used at runtime for water polygons; attribution is shown in the HUD.
+
+- **JSBSim** (https://github.com/JSBSim-Team/jsbsim, LGPL-2.1): `Assets/Scripts/Sim/Flight/JsbModel.cs` is a C# port of parts of it; `Assets/Resources/Flight/*.xml` derive from JSBSim's c172x aircraft and propeller data (GPL, Tony Peden et al.). Check these licences before redistributing the project or a build.

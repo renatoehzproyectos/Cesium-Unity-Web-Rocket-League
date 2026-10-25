@@ -24,6 +24,8 @@ namespace RocketWorld
         public RocketBall ball;
         /// <summary>Water system (null = off). While it reports <see cref="InBoat"/> the RocketSim wheel model is replaced by boat forces.</summary>
         public WaterDriver water;
+        /// <summary>Plane mode (null = off): while it is Active the body is a JSBSim-driven airplane.</summary>
+        public PlaneDriver plane;
         public bool infiniteBoost = true;
         public float spawnHeadingDeg;
 
@@ -43,8 +45,9 @@ namespace RocketWorld
 
         /// <summary>True while floating on water (boat dynamics instead of the wheel model).</summary>
         public bool InBoat => water != null && water.Active;
+        public bool InPlane => plane != null && plane.Active;
         /// <summary>Boost flame / HUD: the boat's own boost while afloat, RocketSim's otherwise.</summary>
-        public bool IsBoosting => InBoat ? water.Boosting : Vehicle.state.isBoosting;
+        public bool IsBoosting => InPlane ? false : InBoat ? water.Boosting : Vehicle.state.isBoosting;
 
         public Phase CurrentPhase { get; private set; }
         public string Status { get; private set; } = "";
@@ -73,7 +76,26 @@ namespace RocketWorld
         float _softHoldUntil;
         bool _held;                                  // menu is open: do not start yet
         bool _spawnCol, _spawnRel; Vector3 _spawnPos; float _spawnHeading;
-        float _puppetSink;                           // puppets: the model sits lower while the host's car is afloat
+        float _puppetSink;
+        GameObject _puppetPlane; Renderer[] _puppetHidden;
+        /// <summary>Puppets: show the box plane instead of the car model while the host's car is in plane mode.</summary>
+        void SetPuppetPlane(bool on)
+        {
+            if (on == (_puppetPlane != null && _puppetPlane.activeSelf) || visual == null) return;
+            if (on)
+            {
+                if (_puppetPlane == null) { _puppetPlane = PlaneVisual.Build(visual, PlaneModel.Load(), out _).gameObject; }
+                _puppetHidden = visual.GetComponentsInChildren<Renderer>(true);
+                foreach (var r in _puppetHidden) if (r != null && !r.transform.IsChildOf(_puppetPlane.transform)) r.enabled = false;
+                _puppetPlane.SetActive(true);
+            }
+            else
+            {
+                _puppetPlane.SetActive(false);
+                if (_puppetHidden != null) foreach (var r in _puppetHidden) if (r != null) r.enabled = true;
+                foreach (var r in _puppetPlane.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
+            }
+        }                           // puppets: the model sits lower while the host's car is afloat
         static bool _gyroKnown, _gyro;               // PhysX calibration steps the world: do it once, not for every car
 
         void Awake()
@@ -152,6 +174,7 @@ namespace RocketWorld
             if (!sim)
             {
                 if (water != null) water.ForceExit();
+                if (plane != null) plane.ForceExit();
                 if (_rb != null) { _rb.isKinematic = true; }
                 CurrentPhase = Phase.WaitingForGround; Status = "";
             }
@@ -197,8 +220,9 @@ namespace RocketWorld
         public void Rescue() { if (CurrentPhase == Phase.Running && simulated) { _rescue = true; BeginWaiting(); } }
 
         /// <summary>Puppet pose from a snapshot (multiplayer clients).</summary>
-        public void ApplyPuppetPose(Vector3 pos, Quaternion rot, Vector3 vel, bool onGround, bool boosting, bool running, bool boat = false)
+        public void ApplyPuppetPose(Vector3 pos, Quaternion rot, Vector3 vel, bool onGround, bool boosting, bool running, bool boat = false, bool planeFlag = false)
         {
+            SetPuppetPlane(planeFlag);
             transform.SetPositionAndRotation(pos, rot);
             _puppetSink = Mathf.MoveTowards(_puppetSink, boat ? WaterDriver.DefaultVisualSink : 0f, Mathf.Min(Time.unscaledDeltaTime, 0.1f) * 0.8f);
             if (visual != null) visual.SetPositionAndRotation(pos - rot * Vector3.up * _puppetSink, rot);
@@ -248,6 +272,7 @@ namespace RocketWorld
         void BeginWaiting()
         {
             if (water != null) water.ForceExit();
+            if (plane != null) plane.ForceExit();
             if (colliderBudget != null) colliderBudget.burst = true;
             CurrentPhase = Phase.WaitingForGround; _waitStart = Time.realtimeSinceStartup; _stableSince = -1f;
             if (_rb != null) { _rb.linearVelocity = Vector3.zero; _rb.angularVelocity = Vector3.zero; _rb.isKinematic = true; }
@@ -302,6 +327,7 @@ namespace RocketWorld
                 throttle = c.throttle, steer = c.steer, pitch = c.pitch, yaw = c.yaw, roll = c.roll,
                 jump = c.jump, boost = c.boost, handbrake = c.handbrake,
             };
+            if (plane != null && plane.Active) { plane.PreStep(c, Tick); return; }       // plane mode: JSBSim forces replace the wheel model
             if (water != null && water.Active) { water.PreStep(c, Tick); return; }     // afloat: boat forces replace the wheel model
             if (infiniteBoost) Vehicle.state.boost = RL.BoostMax;
 
@@ -313,6 +339,13 @@ namespace RocketWorld
         /// <summary>Second half of a tick, after the shared Physics.Simulate.</summary>
         public void PostStep()
         {
+            if (plane != null && plane.Active)
+            {
+                plane.PostStep();
+                _prevPos = _currPos; _prevRot = _currRot;
+                _currPos = _rb.position; _currRot = _rb.rotation;
+                return;
+            }
             if (water != null && water.Active)
             {
                 water.PostStep();
@@ -383,6 +416,7 @@ namespace RocketWorld
         public void PlaceDirect(Vector3 pos, Quaternion rot)
         {
             if (water != null) water.ForceExit();
+            if (plane != null) plane.ForceExit();
             _rb.isKinematic = false;
             transform.SetPositionAndRotation(pos, rot);
             _rb.position = pos; _rb.rotation = rot;

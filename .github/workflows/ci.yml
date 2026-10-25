@@ -63,6 +63,15 @@ jobs:
           pip install numpy
           bash tools/water/run.sh
 
+  flight:
+    name: Flight model (C# port of JSBSim vs native JSBSim logs, free-flight sanity)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 8.0.x }
+      - run: bash tools/flight/run.sh
+
   unity-web:
     name: Unity 6000.0.62f1 WebGL build
     runs-on: ubuntu-latest
@@ -166,7 +175,7 @@ jobs:
   publish-release:
     name: Publish to release branch
     runs-on: ubuntu-latest
-    needs: [checks, parity, water, unity-web]
+    needs: [checks, parity, water, flight, unity-web]
     if: needs.unity-web.outputs.built == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     permissions:
       contents: write
@@ -189,7 +198,7 @@ jobs:
   deploy-op-test:
     name: Deploy WebGL → op-test
     runs-on: ubuntu-latest
-    needs: [checks, parity, water, unity-web]
+    needs: [checks, parity, water, flight, unity-web]
     if: needs.unity-web.outputs.built == 'true' && github.event_name != 'pull_request'
     steps:
       - name: Download rocketworld-webgl artifact

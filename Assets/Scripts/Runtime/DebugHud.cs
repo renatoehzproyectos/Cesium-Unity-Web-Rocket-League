@@ -111,6 +111,21 @@ namespace RocketWorld
             GUI.Label(r, text, st);
         }
 
+        /// <summary>Plane mode: airspeed (kt), altitude (ft), vertical speed, throttle lever, stall warning.</summary>
+        void DrawFlightInstruments(RocketCar cc, float W, float H)
+        {
+            var p = cc.plane; if (p == null) return;
+            Shadowed(new Rect(W * 0.5f - 160, H - 176, 320, 22), $"PLANE   IAS {p.AirspeedKt:0} kt   ALT {p.AltitudeFt:0} ft   VS {p.VerticalSpeedFpm:+0;-0;0} fpm", UiTheme.Unit);
+            if (Event.current.type == EventType.Repaint)
+            {
+                var oc = GUI.color; float x = W * 0.5f - 160, y = H - 152;
+                GUI.color = new Color(0, 0, 0, 0.45f); GUI.DrawTexture(new Rect(x, y, 320, 6), Texture2D.whiteTexture);
+                GUI.color = p.ThrottleLever > 0.85f ? new Color(1f, 0.6f, 0.2f) : new Color(0.4f, 0.9f, 0.5f); GUI.DrawTexture(new Rect(x, y, 320 * p.ThrottleLever, 6), Texture2D.whiteTexture);
+                GUI.color = oc;
+            }
+            if (p.Stalled) Shadowed(new Rect(W * 0.5f - 120, 150, 240, 30), "STALL", UiTheme.Unit);
+        }
+
         void DrawSpeed(float W, float H)
         {
             var cc = root.carCtl;
@@ -118,6 +133,7 @@ namespace RocketWorld
             float frac = Mathf.Clamp01(_shownSpeed / 46f);
             bool boosting = cc.IsBoosting;
             if (cc.InBoat) Shadowed(new Rect(W * 0.5f - 120, H - 150, 240, 20), "BOAT", UiTheme.Unit);
+            if (cc.InPlane) DrawFlightInstruments(cc, W, H);
             Shadowed(new Rect(W * 0.5f - 120, H - 128, 240, 66), Mathf.RoundToInt(_shownSpeed * 3.6f).ToString(), UiTheme.Big);
             Shadowed(new Rect(W * 0.5f - 120, H - 62, 240, 20), "KM/H", UiTheme.Unit);
             if (Event.current.type != EventType.Repaint) return;
@@ -200,6 +216,7 @@ namespace RocketWorld
             }
             if (GUI.Button(_ctl, "Controls", _btn)) SetControlsOpen(!_ctlOpen);
             if (GUI.Button(new Rect(W - 252, 14, 80, 46), "Ball", _btn)) root.RequestBall();
+            if (GUI.Button(new Rect(W - 252, 66, 80, 34), root.carCtl != null && root.carCtl.InPlane ? "Car" : "Plane", _btn)) root.RequestPlane();
             if (Time.unscaledTime < _toast) GUI.Box(new Rect(W * 0.5f - 160, 134, 320, 38), _toastText, UiTheme.Toast);
             if (_reportOpen && root.benchmark != null) DrawReport(H);
             if (_ctlOpen) DrawControls();

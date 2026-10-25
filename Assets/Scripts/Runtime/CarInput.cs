@@ -17,6 +17,7 @@ namespace RocketWorld
         public bool CameraTogglePressed { get; private set; }
         public bool ResetPressed { get; private set; }
         public bool BallPressed { get; private set; }
+        public bool PlanePressed { get; private set; }
         public bool SettingsPressed { get; private set; }
         /// <summary>True when the settings/menu press came from the gamepad (then the HUD opens the gamepad-navigable controls screen).</summary>
         public bool MenuFromPad { get; private set; }
@@ -39,7 +40,7 @@ namespace RocketWorld
         public InputBindings bindings;
         /// <summary>Set by the HUD while a menu that uses the keyboard / gamepad is open: the car gets no input and no hot-keys fire.</summary>
         public bool Blocked;
-        Edge _eCam, _eReset, _eMenu, _eBall;
+        Edge _eCam, _eReset, _eMenu, _eBall, _ePlane;
 
         float Axis(CarAction a)
         {
@@ -51,11 +52,12 @@ namespace RocketWorld
 
         void Update()
         {
-            CameraTogglePressed = ResetPressed = SettingsPressed = BallPressed = false;
+            CameraTogglePressed = ResetPressed = SettingsPressed = BallPressed = PlanePressed = false;
             // Edges are tracked even while blocked so a held button does not "fire" the moment a menu closes.
             bool cam = _eCam.Update(Axis(CarAction.CameraToggle) > 0.5f);
             bool reset = _eReset.Update(Axis(CarAction.Reset) > 0.5f);
             bool ball = _eBall.Update(Axis(CarAction.Ball) > 0.5f);
+            bool plane = _ePlane.Update(Axis(CarAction.Plane) > 0.5f);
             bool menuKey = InputDevices.KeyValue("Escape") > 0f || InputDevices.KeyValue("Tab") > 0f;
             bool menuPad = InputDevices.PadValue(bindings.GetPad(CarAction.Menu)) > 0.5f;
             bool menu = _eMenu.Update(menuKey || menuPad);
@@ -73,7 +75,7 @@ namespace RocketWorld
                 controls = default;
                 return;
             }
-            BallPressed = ball;
+            BallPressed = ball; PlanePressed = plane;
             CameraTogglePressed = cam; ResetPressed = reset; SettingsPressed = menu; MenuFromPad = menu && menuPad && !menuKey;
 
             float th = Axis(CarAction.Accelerate) - Axis(CarAction.Brake);

@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<!-- 160 hp electric motor (JSBSim FGElectric): power = throttle * 119312 W, delivered through the propeller model. -->
+<electric_engine name="Electric160">
+  <power unit="WATTS"> 119312.0 </power>
+</electric_engine>

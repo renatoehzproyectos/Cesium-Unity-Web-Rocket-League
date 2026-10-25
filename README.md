@@ -71,3 +71,6 @@ Touching it fires sparkle sprites (`BallSparks.cs`). The boost is now the web ga
 
 ## Water
 The car floats and drives like a boat on seas, lakes and rivers, using free OpenStreetMap polygons (OpenFreeMap, no API key). See `docs/WATER.md`; checks: `bash tools/water/run.sh`.
+
+## Plane mode
+Press P: a box-built airplane flown by a C# port of JSBSim (checked against native JSBSim). See `docs/PLANE.md`; checks: `bash tools/flight/run.sh`.

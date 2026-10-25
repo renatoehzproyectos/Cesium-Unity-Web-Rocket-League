@@ -21,6 +21,14 @@ namespace RocketWorld.Sim
             latDeg = lat * 180.0 / Math.PI;
         }
 
+        /// <summary>ECEF to geodetic longitude / latitude (deg) and ellipsoidal height (m).</summary>
+        public static void EcefToLonLatHeight(double x, double y, double z, out double lonDeg, out double latDeg, out double h)
+        {
+            EcefToLonLat(x, y, z, out lonDeg, out latDeg);
+            double lat = latDeg * Math.PI / 180.0, p = Math.Sqrt(x * x + y * y), s = Math.Sin(lat), n = A / Math.Sqrt(1 - E2 * s * s);
+            h = Math.Abs(Math.Cos(lat)) > 1e-6 ? p / Math.Cos(lat) - n : Math.Abs(z) / Math.Abs(s) - n * (1 - E2);
+        }
+
         /// <summary>Geodetic (deg, height m) to ECEF. Used by tests and by anything that needs the inverse of <see cref="EcefToLonLat"/>.</summary>
         public static void LonLatToEcef(double lonDeg, double latDeg, double h, out double x, out double y, out double z)
         {
