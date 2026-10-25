@@ -17,13 +17,6 @@ namespace RocketWorld.Tests
             Assert.AreEqual(1f, CinematicPolicy.Daylight(14f), 1e-4f);
             Assert.AreEqual(0f, CinematicPolicy.Daylight(0f), 1e-4f);
         }
-        [Test] public void BloomIsStrongerAtNightWhileBoostingAndWithTheSlider()
-        {
-            Assert.Greater(CinematicPolicy.BloomIntensity(0f, false), CinematicPolicy.BloomIntensity(1f, false));
-            Assert.Greater(CinematicPolicy.BloomIntensity(1f, true), CinematicPolicy.BloomIntensity(1f, false));
-            Assert.AreEqual(2f * CinematicPolicy.BloomIntensity(1f, false, 1f), CinematicPolicy.BloomIntensity(1f, false, 2f), 1e-5f);
-            Assert.AreEqual(0f, CinematicPolicy.BloomIntensity(0f, true, 0f), 1e-6f);
-        }
         [Test] public void MotionBlurNeedsSpeedAndIsCapped()
         {
             Assert.AreEqual(0f, CinematicPolicy.MotionBlurIntensity(5f, false), 1e-6f);

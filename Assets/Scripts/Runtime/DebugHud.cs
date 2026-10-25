@@ -263,8 +263,6 @@ namespace RocketWorld
 
             GUILayout.Space(6);
             GUILayout.Label("Cinematic effects (0 % = off, 100 % = default look)");
-            GUILayout.Label($"Bloom {s.fxBloom * 100f:0} %");
-            s.fxBloom = GUILayout.HorizontalSlider(s.fxBloom, 0f, 2f);
             GUILayout.Label($"Depth of field {s.fxDof * 100f:0} %");
             s.fxDof = GUILayout.HorizontalSlider(s.fxDof, 0f, 2f);
             GUILayout.Label($"Motion blur {s.fxMotion * 100f:0} %");
@@ -307,7 +305,7 @@ namespace RocketWorld
         void Bound(CarAction a, CarAction? stolen)
         {
             root.carInput.bindings.Save();
-            Toast(stolen.HasValue ? $"{InputBindings.Label(a)} bound — removed from {InputBindings.Label(stolen.Value)}" : $"{InputBindings.Label(a)} bound");
+            Toast($"{InputBindings.Label(a)} bound");
         }
 
         void UpdateControlsPanel()

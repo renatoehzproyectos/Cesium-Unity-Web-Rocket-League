@@ -85,7 +85,7 @@ namespace RocketWorld.Editor
         }
 
         /// <summary>
-        /// The renderer must have its post-processing data assigned or URP silently skips every Volume effect (bloom, grade, DoF, motion blur).
+        /// The renderer must have its post-processing data assigned or URP silently skips every Volume effect (grade, DoF, motion blur).
         /// A renderer created in code can end up without it, so assign the package's asset when it is missing.
         /// </summary>
         static void EnsurePostProcessing()

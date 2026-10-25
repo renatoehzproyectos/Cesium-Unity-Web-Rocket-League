@@ -6,9 +6,9 @@ using UnityEngine.Rendering.Universal;
 namespace RocketWorld
 {
     /// <summary>
-    /// Cinematic look: a global URP Volume (built in code, no assets) with bloom, Gaussian depth of field and camera motion blur.
-    /// Each effect has its own slider in the settings (<see cref="GameSettings.fxBloom"/>, <see cref="GameSettings.fxDof"/>, <see cref="GameSettings.fxMotion"/>):
-    /// 0 = off (not rendered at all), 1 = the designed look, 2 = twice as strong. HDR is used on desktop while bloom is on.
+    /// Cinematic look: a global URP Volume (built in code, no assets) with Gaussian depth of field and camera motion blur.
+    /// Each effect has its own slider in the settings (<see cref="GameSettings.fxDof"/>, <see cref="GameSettings.fxMotion"/>):
+    /// 0 = off (not rendered at all), 1 = the designed look, 2 = twice as strong.
     /// All numbers come from <see cref="CinematicPolicy"/>. <see cref="Status"/> says what the stack is doing (shown in the settings panel).
     /// </summary>
     [DefaultExecutionOrder(200)]                 // after the cameras have moved this frame
@@ -20,7 +20,6 @@ namespace RocketWorld
 
         Volume _vol;
         VolumeProfile _profile;
-        Bloom _bloom;
         DepthOfField _dof;
         MotionBlur _mb;
         int _applied = -1;
@@ -35,14 +34,6 @@ namespace RocketWorld
             _vol = go.AddComponent<Volume>();
             _vol.isGlobal = true; _vol.priority = 10f; _vol.weight = 1f;
             _profile = ScriptableObject.CreateInstance<VolumeProfile>();
-
-            _bloom = _profile.Add<Bloom>(false);
-            _bloom.scatter.Override(0.65f);
-            _bloom.tint.Override(new Color(1f, 0.97f, 0.92f));
-            _bloom.downscale.Override(mobile ? BloomDownscaleMode.Quarter : BloomDownscaleMode.Half);
-            _bloom.threshold.Override(CinematicPolicy.BloomThreshold(false));
-            _bloom.intensity.Override(0.3f);
-            _bloom.highQualityFiltering.Override(false);
 
             _dof = _profile.Add<DepthOfField>(false);
             _dof.mode.Override(DepthOfFieldMode.Gaussian);
@@ -62,17 +53,15 @@ namespace RocketWorld
 
         void OnDestroy() { if (_profile != null) Destroy(_profile); }
 
-        /// <summary>Which effects are on (bit 1 bloom, 2 depth of field, 4 motion blur), the camera post-processing flag, HDR.</summary>
+        /// <summary>Which effects are on (bit 2 depth of field, 4 motion blur), the camera post-processing flag.</summary>
         void Apply(int flags)
         {
             _applied = flags;
-            bool bloom = (flags & 1) != 0, dof = (flags & 2) != 0, mb = (flags & 4) != 0;
+            bool dof = (flags & 2) != 0, mb = (flags & 4) != 0;
             bool any = flags != 0;
             _vol.enabled = any;
-            _bloom.active = bloom; _dof.active = dof; _mb.active = mb;
-            bool hdr = bloom && !DeviceProfile.IsMobile;                      // HDR lets bloom pick real highlights; too heavy for phones
-            _bloom.threshold.value = CinematicPolicy.BloomThreshold(hdr);
-            _bloom.highQualityFiltering.value = hdr;
+            _dof.active = dof; _mb.active = mb;
+            const bool hdr = false;                                           // HDR was only needed for bloom
             var asset = UniversalRenderPipeline.asset;
             if (asset != null && asset.supportsHDR != hdr) asset.supportsHDR = hdr;
             if (root.cam != null)
@@ -87,8 +76,8 @@ namespace RocketWorld
         {
             if (_vol == null || root == null || root.cam == null || root.carCtl == null) return;
             var s = root.settings;
-            float aBloom = CinematicPolicy.ClampAmount(s.fxBloom), aDof = CinematicPolicy.ClampAmount(s.fxDof), aMotion = CinematicPolicy.ClampAmount(s.fxMotion);
-            int flags = (CinematicPolicy.IsOn(aBloom) ? 1 : 0) | (CinematicPolicy.IsOn(aDof) ? 2 : 0) | (CinematicPolicy.IsOn(aMotion) ? 4 : 0);
+            float aDof = CinematicPolicy.ClampAmount(s.fxDof), aMotion = CinematicPolicy.ClampAmount(s.fxMotion);
+            int flags = (CinematicPolicy.IsOn(aDof) ? 2 : 0) | (CinematicPolicy.IsOn(aMotion) ? 4 : 0);
             if (flags != _applied) Apply(flags);
             if (flags == 0) { Status = "effects off"; return; }
 
@@ -102,8 +91,6 @@ namespace RocketWorld
             float speed = car.SpeedMS;
             bool boosting = car.IsBoosting;
 
-            if ((flags & 1) != 0)
-                _bloom.intensity.value = CinematicPolicy.BloomIntensity(CinematicPolicy.Daylight(s.timeOfDay), boosting, aBloom);
             if ((flags & 2) != 0)
             {
                 float start = CinematicPolicy.DofStart(Vector3.Distance(camPos, car.transform.position));
@@ -125,8 +112,8 @@ namespace RocketWorld
         {
             var data = root.cam.GetUniversalAdditionalCameraData();
             var stack = VolumeManager.instance != null ? VolumeManager.instance.stack : null;
-            var sb = stack != null ? stack.GetComponent<Bloom>() : null;
-            string resolved = sb == null ? "n/a" : (sb.active ? "bloom " + sb.intensity.value.ToString("0.00") : "bloom off");
+            var sd = stack != null ? stack.GetComponent<DepthOfField>() : null;
+            string resolved = sd == null ? "n/a" : (sd.active ? "depth of field on" : "depth of field off");
             Status = "camera post-processing " + (data.renderPostProcessing ? "on" : "OFF") + " | volume in stack: " + resolved;
         }
     }

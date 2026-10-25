@@ -96,39 +96,22 @@ namespace RocketWorld
             _b[(int)a] = b;
         }
 
-        /// <summary>Binds a key. The same key is removed from any other action (one key, one job). Returns the action it was taken from, if any.</summary>
+        /// <summary>Binds a key. The same key may be bound to several actions at once. Returns null (kept for API compatibility).</summary>
         public CarAction? SetKey(CarAction a, int slot, string key)
         {
             if (string.IsNullOrEmpty(key) || KeyboardLocked(a)) return null;
-            CarAction? stolen = null;
-            foreach (var o in Actions)
-            {
-                if (KeyboardLocked(o)) continue;
-                var b = _b[(int)o];
-                bool hit = false;
-                if (b.key0 == key && !(o == a && slot == 0)) { b.key0 = ""; hit = true; }
-                if (b.key1 == key && !(o == a && slot == 1)) { b.key1 = ""; hit = true; }
-                if (hit) { _b[(int)o] = b; if (o != a) stolen = o; }
-            }
             var t = _b[(int)a];
             if (slot == 0) t.key0 = key; else t.key1 = key;
             _b[(int)a] = t;
-            return stolen;
+            return null;
         }
 
-        /// <summary>Binds a gamepad input; it is removed from any other action. Returns the action it was taken from, if any.</summary>
+        /// <summary>Binds a gamepad input. The same input may be bound to several actions at once. Returns null.</summary>
         public CarAction? SetPad(CarAction a, PadInput pad)
         {
             if (pad == PadInput.None) return null;
-            CarAction? stolen = null;
-            foreach (var o in Actions)
-            {
-                if (o == a) continue;
-                var b = _b[(int)o];
-                if (b.pad == pad) { b.pad = PadInput.None; _b[(int)o] = b; stolen = o; }
-            }
             var t = _b[(int)a]; t.pad = pad; _b[(int)a] = t;
-            return stolen;
+            return null;
         }
 
         // ---- persistence -------------------------------------------------------------------------------------------------

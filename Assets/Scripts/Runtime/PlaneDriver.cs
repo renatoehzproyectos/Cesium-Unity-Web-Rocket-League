@@ -153,7 +153,7 @@ namespace RocketWorld
 
             // controls: stick-like smoothing, throttle lever
             ThrottleLever = Mathf.Clamp01(ThrottleLever + ((c.jump ? 1f : 0f) - (c.handbrake ? 1f : 0f)) * 0.45f * dt);
-            float tgtEl = Mathf.Clamp(c.throttle, -1f, 1f), tgtAil = Mathf.Clamp(c.steer, -1f, 1f), tgtRud = Mathf.Clamp(c.roll + (OnGround ? c.steer * 0.6f : c.steer * 0.25f), -1f, 1f);
+            float tgtEl = Mathf.Clamp(c.throttle, -1f, 1f), tgtAil = Mathf.Clamp(c.steer, -1f, 1f), tgtRud = Mathf.Clamp(-(c.roll + (OnGround ? c.steer * 0.6f : c.steer * 0.8f)), -1f, 1f);   // JSBSim: positive rudder = nose LEFT (Cn_dr < 0), so negate; 0.8 in the air cancels the aileron adverse yaw (Cn_da)
             float rate = 3.2f * dt;
             _el = Mathf.MoveTowards(_el, tgtEl, rate); _ail = Mathf.MoveTowards(_ail, tgtAil, rate); _rud = Mathf.MoveTowards(_rud, tgtRud, rate);
             a.SetControls(_el, _ail, _rud, ThrottleLever);

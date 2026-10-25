@@ -3,7 +3,7 @@ using System;
 namespace RocketWorld.Sim
 {
     /// <summary>
-    /// Engine-free numbers for the cinematic post-processing (bloom, depth of field, motion blur), so the look can be tuned and unit-tested
+    /// Engine-free numbers for the cinematic post-processing (depth of field, motion blur), so the look can be tuned and unit-tested
     /// without Unity. <c>CinematicFx</c> feeds these into the URP Volume every frame. Each effect has an <c>amount</c> (the settings slider):
     /// 0 = off, 1 = the designed look, up to 2 = twice as strong.
     /// </summary>
@@ -25,11 +25,6 @@ namespace RocketWorld.Sim
             float h = (float)Math.Sin(elevDeg * Math.PI / 180.0);
             return Clamp01((h + 0.1f) / 0.4f);
         }
-
-        public static float BloomThreshold(bool hdr) => hdr ? 1.0f : 0.85f;
-        /// <summary>Stronger glow at night (lights) and while boosting, scaled by the slider.</summary>
-        public static float BloomIntensity(float daylight, bool boosting, float amount = 1f)
-            => (Lerp(0.55f, 0.30f, daylight) + (boosting ? 0.20f : 0f)) * ClampAmount(amount);
 
         /// <summary>Gaussian depth of field keeps everything near the car sharp and softens the far distance. Distances in metres from the camera.</summary>
         public static float DofStart(float cameraToCar) => Math.Max(120f, cameraToCar * 3.5f);

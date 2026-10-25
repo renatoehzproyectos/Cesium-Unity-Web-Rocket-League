@@ -31,7 +31,7 @@ namespace RocketWorld
         public bool bench;                           // ?bench=1 runs the benchmark right after the world is ready
         public int carColor = 0;
         public float camYaw = 200f, camPitch = 14f, camDist = 7.5f;
-        public float fxBloom = 1f, fxDof = 1f, fxMotion = 1f;       // cinematic effect sliders: 0 = off, 1 = designed look, 2 = twice as strong; ?bloom= ?dof= ?mblur= (?cine=0 turns all off)
+        public float fxDof = 2f, fxMotion = 0.75f;                  // cinematic effect sliders: 0 = off, 1 = designed look, 2 = twice as strong; ?dof= ?mblur= (?cine=0 turns all off)
         public int camMode = 0;                      // driving camera: 0 chase, 1 orbit, 2 helicopter (?cam=chase|orbit|heli)
 
         // name, lat, lon, approximate ground height above the ellipsoid (geoid + terrain). Adjust with the slider if the car floats/sinks.
@@ -85,9 +85,8 @@ namespace RocketWorld
             s.proceduralSky = true;
             s.debugHud = false;
             s.autoQuality = false;
-            s.fxBloom = PlayerPrefs.GetFloat(P + "fxb", 1f);
-            s.fxDof = PlayerPrefs.GetFloat(P + "fxd", DeviceProfile.IsMobile ? 0f : 1f);          // heavy effects start off on phones
-            s.fxMotion = PlayerPrefs.GetFloat(P + "fxm", DeviceProfile.IsMobile ? 0f : 1f);
+            s.fxDof = PlayerPrefs.GetFloat(P + "fxd", 2f);
+            s.fxMotion = PlayerPrefs.GetFloat(P + "fxm", 0.75f);
             // Terrain beauty pass: browsers that saved the old coarse default (32) move once to the sharper one; later custom values are respected.
             if (PlayerPrefs.GetInt(P + "tv", 0) < TerrainVersion) s.sse = DeviceProfile.IsMobile ? 28f : 20f;
             if (!PlayerPrefs.HasKey(P + "radius")) s.loadRadius = DeviceProfile.IsMobile ? 300f : 600f;
@@ -114,10 +113,9 @@ namespace RocketWorld
             s.viewDistance = Mathf.Clamp((float)D(WebBridge.Query("far"), s.viewDistance), 200f, 20000f);
             s.renderScale = Mathf.Clamp((float)D(WebBridge.Query("scale"), s.renderScale), 0.3f, 2f);
             s.carColor = Mathf.Clamp((int)D(WebBridge.Query("car"), s.carColor), 0, CarColors.Length - 1);
-            s.fxBloom = Mathf.Clamp((float)D(WebBridge.Query("bloom"), s.fxBloom), 0f, 2f);
             s.fxDof = Mathf.Clamp((float)D(WebBridge.Query("dof"), s.fxDof), 0f, 2f);
             s.fxMotion = Mathf.Clamp((float)D(WebBridge.Query("mblur"), s.fxMotion), 0f, 2f);
-            if (WebBridge.Query("cine") == "0") s.fxBloom = s.fxDof = s.fxMotion = 0f;
+            if (WebBridge.Query("cine") == "0") s.fxDof = s.fxMotion = 0f;
             if (!string.IsNullOrEmpty(q = WebBridge.Query("cam"))) { q = q.ToLowerInvariant(); s.camMode = q.StartsWith("heli") ? 2 : q.StartsWith("orb") ? 1 : q.StartsWith("chase") ? 0 : s.camMode; }
             s.camYaw = (float)D(WebBridge.Query("yaw"), s.camYaw);
             s.camPitch = (float)D(WebBridge.Query("pitch"), s.camPitch);
@@ -132,7 +130,7 @@ namespace RocketWorld
             PlayerPrefs.SetFloat(P + "gh", groundHeight); PlayerPrefs.SetFloat(P + "hdg", heading); PlayerPrefs.SetFloat(P + "tod", timeOfDay);
             PlayerPrefs.SetFloat(P + "sse", sse); PlayerPrefs.SetFloat(P + "far", viewDistance); PlayerPrefs.SetFloat(P + "scale", renderScale); PlayerPrefs.SetFloat(P + "radius", loadRadius); PlayerPrefs.SetFloat(P + "dq", distantQuality);
             PlayerPrefs.SetInt(P + "baked", bakedLighting ? 1 : 0); PlayerPrefs.SetInt(P + "auto", autoRotate ? 1 : 0); PlayerPrefs.SetInt(P + "psky", proceduralSky ? 1 : 0); PlayerPrefs.SetInt(P + "hud", debugHud ? 1 : 0);
-            PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1); PlayerPrefs.SetInt(P + "tv", TerrainVersion); PlayerPrefs.SetInt(P + "cammode", camMode); PlayerPrefs.SetFloat(P + "fxb", fxBloom); PlayerPrefs.SetFloat(P + "fxd", fxDof); PlayerPrefs.SetFloat(P + "fxm", fxMotion);
+            PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1); PlayerPrefs.SetInt(P + "tv", TerrainVersion); PlayerPrefs.SetInt(P + "cammode", camMode); PlayerPrefs.SetFloat(P + "fxd", fxDof); PlayerPrefs.SetFloat(P + "fxm", fxMotion);
             PlayerPrefs.Save();
         }
 

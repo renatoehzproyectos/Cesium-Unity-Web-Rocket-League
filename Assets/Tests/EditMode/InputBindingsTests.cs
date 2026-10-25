@@ -14,21 +14,20 @@ namespace RocketWorld.Tests
             }
         }
 
-        [Test] public void RebindingAKeyTakesItFromTheOldOwner()
+        [Test] public void OneKeyCanServeSeveralActions()
         {
             var ib = new InputBindings();
-            var stolen = ib.SetKey(CarAction.Jump, 0, "W");        // W is Accelerate's key
-            Assert.AreEqual(CarAction.Accelerate, stolen);
+            ib.SetKey(CarAction.Jump, 0, "W");                     // W is also Accelerate's key
             Assert.AreEqual("W", ib.GetKey(CarAction.Jump, 0));
-            Assert.AreEqual("", ib.GetKey(CarAction.Accelerate, 0));
+            Assert.AreEqual("W", ib.GetKey(CarAction.Accelerate, 0));
         }
 
-        [Test] public void RebindingAPadInputTakesItFromTheOldOwner()
+        [Test] public void OnePadInputCanServeSeveralActions()
         {
             var ib = new InputBindings();
-            var stolen = ib.SetPad(CarAction.Boost, PadInput.ButtonSouth);   // A is Jump's button
-            Assert.AreEqual(CarAction.Jump, stolen);
-            Assert.AreEqual(PadInput.None, ib.GetPad(CarAction.Jump));
+            ib.SetPad(CarAction.Boost, PadInput.ButtonSouth);      // A is also Jump's button
+            Assert.AreEqual(PadInput.ButtonSouth, ib.GetPad(CarAction.Boost));
+            Assert.AreEqual(PadInput.ButtonSouth, ib.GetPad(CarAction.Jump));
         }
 
         [Test] public void MenuKeyboardKeysAreLocked()

@@ -46,17 +46,16 @@ in the way makes it climb rather than pull in; it stays 4 m above the roofs/terr
 (`?cam=heli|chase|orbit` overrides). Not verified in Unity: the feel (follow rates, heights) is tuned from a reference screenshot, not from a run.
 
 ## Cinematic effects
-`CinematicFx` builds a global URP Volume in code (no assets) with three effects, each with its own slider in the settings panel (0 % = off and not rendered at all, 100 % = designed look, up to 200 %; saved; `?bloom=`, `?dof=`, `?mblur=` take 0-2, `?cine=0` turns all off). Defaults: all 100 % on desktop; on phones only bloom (depth of field and motion blur start at 0 %).
+`CinematicFx` builds a global URP Volume in code (no assets) with two effects, each with its own slider in the settings panel (0 % = off and not rendered at all, 100 % = designed look, up to 200 %; saved; `?dof=`, `?mblur=` take 0-2, `?cine=0` turns all off). Defaults: depth of field 200 % and motion blur 75 % on every device.
 
 | Effect | How | Tuning (`Sim/CinematicPolicy.cs`) |
 |---|---|---|
-| Bloom | URP Bloom, stronger at night and while boosting; HDR on desktop while it is on | `BloomIntensity`, `BloomThreshold` |
 | Depth of field | Gaussian (far blur only): sharp up to ~120 m (3.5x camera-to-car distance), soft by +700 m; the slider scales the blur radius | `DofStart`, `DofEnd`, `DofMaxRadius` |
 | Motion blur | URP camera motion blur, 0 below 12 m/s up to ~0.65 at top speed; zeroed for 0.35 s after teleports / camera swaps | `MotionBlurIntensity` |
 
 Removed after testing on a phone: the custom edge blur (blacked out the 3D view) and the colour grade. `ProjectSetup` removes the old edge-blur feature and material from the renderer asset.
 URP skips the whole post-processing stack when the renderer asset has no post-processing data, so `ProjectSetup.EnsurePostProcessing` assigns it. Re-run *RocketWorld > Ensure project setup* (it runs on Editor load) and **rebuild**.
-The settings panel shows a status line (`camera post-processing`, `volume in stack: bloom ...`) that tells whether the stack is really running.
+The settings panel shows a status line (`camera post-processing`, `volume in stack: depth of field ...`) that tells whether the stack is really running.
 **Not run in Unity**: the Volume parameter names (URP 17.0.4) and the look itself are unverified. Cost: depth of field + motion blur at render scale 2 are heavy; lower the sliders or the render scale if FPS drops.
 If effects are missing in a WebGL build, check URP Global Settings > "Strip Unused Post Processing Variants" is off (the volume is created at runtime, so Unity cannot see it).
 

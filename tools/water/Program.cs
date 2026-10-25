@@ -86,8 +86,6 @@ static class P
         Check(!CinematicPolicy.IsOn(0) && CinematicPolicy.IsOn(1) && CinematicPolicy.ClampAmount(5) == 2, "cinematic sliders: 0 off, clamped to 2");
         Near(CinematicPolicy.Daylight(14), 1, 1e-4, "daylight at 14:00 = 1");
         Near(CinematicPolicy.Daylight(0), 0, 1e-4, "daylight at midnight = 0");
-        Check(CinematicPolicy.BloomIntensity(0, false) > CinematicPolicy.BloomIntensity(1, false), "bloom is stronger at night");
-        Near(CinematicPolicy.BloomIntensity(1, false, 2), 2 * CinematicPolicy.BloomIntensity(1, false, 1), 1e-5, "bloom slider scales the intensity");
         Near(CinematicPolicy.MotionBlurIntensity(5, false), 0, 1e-6, "no motion blur when slow");
         Check(CinematicPolicy.MotionBlurIntensity(500, true, 2) <= 1f, "motion blur is capped");
         Near(CinematicPolicy.MotionBlurIntensity(46, true, 0), 0, 1e-6, "motion blur slider at 0 = off");
