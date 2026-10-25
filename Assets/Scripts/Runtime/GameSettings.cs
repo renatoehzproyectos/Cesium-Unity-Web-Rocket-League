@@ -25,6 +25,7 @@ namespace RocketWorld
         public bool proceduralSky = true;            // locked on (Unity procedural skybox)
         public bool debugHud = false;                // locked off
         public bool autoQuality = false;             // locked off (no adaptive quality controller)
+        public bool antiCrash = true;                // settings toggle (?anticrash=0 turns it off): render scale, depth of field and motion blur start at their minimum and follow the frame rate (>= 30 FPS)
         public bool noIntro;                         // ?intro=0 skips the cargo-plane opening
         public bool viewCull = true;                 // ?viewcull=0: load a full radius round the car again (tiles never disappear)
         public bool water = true;                    // ?water=0 turns the water system off (no OpenStreetMap download, water stays solid)
@@ -85,6 +86,7 @@ namespace RocketWorld
             s.proceduralSky = true;
             s.debugHud = false;
             s.autoQuality = false;
+            s.antiCrash = PlayerPrefs.GetInt(P + "anticrash", 1) == 1;
             s.fxDof = PlayerPrefs.GetFloat(P + "fxd", 2f);
             s.fxMotion = PlayerPrefs.GetFloat(P + "fxm", 0.75f);
             // Terrain beauty pass: browsers that saved the old coarse default (32) move once to the sharper one; later custom values are respected.
@@ -115,6 +117,7 @@ namespace RocketWorld
             s.carColor = Mathf.Clamp((int)D(WebBridge.Query("car"), s.carColor), 0, CarColors.Length - 1);
             s.fxDof = Mathf.Clamp((float)D(WebBridge.Query("dof"), s.fxDof), 0f, 2f);
             s.fxMotion = Mathf.Clamp((float)D(WebBridge.Query("mblur"), s.fxMotion), 0f, 2f);
+            if (WebBridge.Query("anticrash") == "0") s.antiCrash = false;
             if (WebBridge.Query("cine") == "0") s.fxDof = s.fxMotion = 0f;
             if (!string.IsNullOrEmpty(q = WebBridge.Query("cam"))) { q = q.ToLowerInvariant(); s.camMode = q.StartsWith("heli") ? 2 : q.StartsWith("orb") ? 1 : q.StartsWith("chase") ? 0 : s.camMode; }
             s.camYaw = (float)D(WebBridge.Query("yaw"), s.camYaw);
@@ -130,7 +133,7 @@ namespace RocketWorld
             PlayerPrefs.SetFloat(P + "gh", groundHeight); PlayerPrefs.SetFloat(P + "hdg", heading); PlayerPrefs.SetFloat(P + "tod", timeOfDay);
             PlayerPrefs.SetFloat(P + "sse", sse); PlayerPrefs.SetFloat(P + "far", viewDistance); PlayerPrefs.SetFloat(P + "scale", renderScale); PlayerPrefs.SetFloat(P + "radius", loadRadius); PlayerPrefs.SetFloat(P + "dq", distantQuality);
             PlayerPrefs.SetInt(P + "baked", bakedLighting ? 1 : 0); PlayerPrefs.SetInt(P + "auto", autoRotate ? 1 : 0); PlayerPrefs.SetInt(P + "psky", proceduralSky ? 1 : 0); PlayerPrefs.SetInt(P + "hud", debugHud ? 1 : 0);
-            PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1); PlayerPrefs.SetInt(P + "tv", TerrainVersion); PlayerPrefs.SetInt(P + "cammode", camMode); PlayerPrefs.SetFloat(P + "fxd", fxDof); PlayerPrefs.SetFloat(P + "fxm", fxMotion);
+            PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1); PlayerPrefs.SetInt(P + "tv", TerrainVersion); PlayerPrefs.SetInt(P + "cammode", camMode); PlayerPrefs.SetInt(P + "anticrash", antiCrash ? 1 : 0); PlayerPrefs.SetFloat(P + "fxd", fxDof); PlayerPrefs.SetFloat(P + "fxm", fxMotion);
             PlayerPrefs.Save();
         }
 

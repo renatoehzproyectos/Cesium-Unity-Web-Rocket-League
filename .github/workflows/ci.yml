@@ -155,6 +155,7 @@ jobs:
           # game-ci builds inside a root container: take ownership first. The player lands in build/WebGL/WebGL.
           sudo chown -R "$(id -u):$(id -g)" build
           cp deploy/vercel.json build/WebGL/WebGL/vercel.json
+          cp deploy/googlee068adc44525aecc.html build/WebGL/WebGL/googlee068adc44525aecc.html   # Google Search Console verification file (site root; op-test is force-pushed, so it must ship with every build)
           cp deploy/cesiumjs-compare.html build/WebGL/WebGL/cesiumjs-compare.html   # CesiumJS reference page: /cesiumjs-compare.html
           # Ensure the Cesium ion token is present even if Unity's PostProcessIndex did not see the env var.
           if [ -n "$ION_TOKEN" ]; then
@@ -213,6 +214,7 @@ jobs:
           find webgl -maxdepth 2 -type f | head -40
           test -f webgl/index.html
           test -d webgl/Build
+          test -f webgl/googlee068adc44525aecc.html   # Google verification file must be at the root of op-test
 
       - name: Push to renatoehzproyectos/op-test
         uses: peaceiris/actions-gh-pages@v4

@@ -59,3 +59,7 @@ The settings panel shows a status line (`camera post-processing`, `volume in sta
 **Not run in Unity**: the Volume parameter names (URP 17.0.4) and the look itself are unverified. Cost: depth of field + motion blur at render scale 2 are heavy; lower the sliders or the render scale if FPS drops.
 If effects are missing in a WebGL build, check URP Global Settings > "Strip Unused Post Processing Variants" is off (the volume is created at runtime, so Unity cannot see it).
 
+
+## Anti crash
+
+Settings toggle, on by default (`?anticrash=0` turns it off). Every page load starts with render scale (0.3), depth of field and motion blur at their minimum, then `AntiCrash` (logic in `AntiCrashLogic`) raises the level one step at a time while the frame rate stays high (~48+ FPS) and drops it two steps at once when it falls below ~33 FPS. Order of recovery: render scale first, then depth of field, then motion blur. The player's own sliders are the maximum, and nothing else is touched. A drop soon after a rise caps the level just below it, and the cap relaxes every 30 s. The controller waits while the world is loading and pauses during the benchmark.

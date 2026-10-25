@@ -53,6 +53,11 @@ namespace RocketWorld
         public bool TurboActive => _turbo;
         // offsets applied on top of the user's settings by AutoQuality
         public float autoSseAdd, autoScaleMul = 1f, autoFarMul = 1f;
+        // overrides from AntiCrash (-1 = not active); they never exceed the user's own sliders
+        public float antiScale = -1f, antiDof = -1f, antiMotion = -1f;
+        public AntiCrash antiCrash;
+        public float EffectiveDof => antiDof >= 0f ? antiDof : settings.fxDof;
+        public float EffectiveMotion => antiMotion >= 0f ? antiMotion : settings.fxMotion;
         public float EffectiveSse => Mathf.Max(settings.sse + autoSseAdd, _turbo ? _turboCur : 0f);
 
         // "Turbo load": until the first view is fully loaded (or 20 s), ask for coarser tiles so the whole picture arrives fast,
@@ -61,7 +66,7 @@ namespace RocketWorld
         /// <summary>SSE for tiles outside the view (coarse but present, so there are no holes). Lower = sharper behind/beside you, more bandwidth.</summary>
         public const float CulledSse = 128f;
         bool _turbo; float _turboStart, _turboStep, _turboCur = TurboSse;
-        public float EffectiveScale => Mathf.Clamp(settings.renderScale * autoScaleMul, 0.3f, 2f);
+        public float EffectiveScale => Mathf.Clamp(antiScale >= 0f ? antiScale : settings.renderScale * autoScaleMul, 0.3f, 2f);
         /// <summary>Radius loaded at full detail round a car. With view-driven streaming only the physics ring: the rest follows the camera.</summary>
         public float EffectiveRadius => settings.viewCull && viewPolicy != null ? Mathf.Min(settings.loadRadius, viewPolicy.Ring) : settings.loadRadius * autoFarMul * RadiusMul;
         public TileViewPolicy viewPolicy;
@@ -122,6 +127,8 @@ namespace RocketWorld
             minimap.root = this;
             autoQuality = gameObject.AddComponent<AutoQuality>();
             autoQuality.root = this; autoQuality.enabledByUser = settings.autoQuality;
+            antiCrash = gameObject.AddComponent<AntiCrash>();
+            antiCrash.root = this;
             benchmark = gameObject.AddComponent<BenchmarkRunner>();
             benchmark.root = this;
             cinematic = gameObject.AddComponent<CinematicFx>();

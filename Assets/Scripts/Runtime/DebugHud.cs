@@ -252,6 +252,7 @@ namespace RocketWorld
             s.viewDistance = GUILayout.HorizontalSlider(s.viewDistance, 400f, 20000f);
             GUILayout.Label($"Render scale {s.renderScale:0.00}");
             s.renderScale = GUILayout.HorizontalSlider(s.renderScale, 0.3f, 2f);
+            s.antiCrash = GUILayout.Toggle(s.antiCrash, "Anti crash (keeps 30+ FPS: render scale, depth of field and motion blur start at minimum and adapt; the sliders are the maximum)");
 
             GUILayout.Space(6);
             GUILayout.Label("Camera (C key cycles)");

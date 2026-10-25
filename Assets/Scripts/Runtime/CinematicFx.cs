@@ -76,7 +76,7 @@ namespace RocketWorld
         {
             if (_vol == null || root == null || root.cam == null || root.carCtl == null) return;
             var s = root.settings;
-            float aDof = CinematicPolicy.ClampAmount(s.fxDof), aMotion = CinematicPolicy.ClampAmount(s.fxMotion);
+            float aDof = CinematicPolicy.ClampAmount(root.EffectiveDof), aMotion = CinematicPolicy.ClampAmount(root.EffectiveMotion);
             int flags = (CinematicPolicy.IsOn(aDof) ? 2 : 0) | (CinematicPolicy.IsOn(aMotion) ? 4 : 0);
             if (flags != _applied) Apply(flags);
             if (flags == 0) { Status = "effects off"; return; }
