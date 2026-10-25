@@ -46,8 +46,10 @@ in the way makes it climb rather than pull in; it stays 4 m above the roofs/terr
 (`?cam=heli|chase|orbit` overrides). Not verified in Unity: the feel (follow rates, heights) is tuned from a reference screenshot, not from a run.
 
 ## Cinematic effects
-`CinematicFx` builds a global URP Volume in code (no assets) and `EdgeBlurFeature` adds the viewport edge blur. Levels (settings panel, `?cine=0|1|2`, saved):
-**0 off**, **1 light** (bloom, colour grade, edge blur; default on phones), **2 full** (adds depth of field and motion blur, and HDR on desktop; default on desktop).
+`CinematicFx` builds a global URP Volume in code (no assets) and `EdgeBlurFeature` adds the viewport edge blur. Every effect is its own bit (`GameSettings.fxMask`, saved; `?fx=<mask>` or `?cine=0|1|2` presets):
+Bloom 1, Colour 2, Edge blur 4, Depth of field 8, Motion blur 16. **Light** = 3 (bloom + colour, default on phones), **Full** = 27 (+ DoF + motion blur, HDR on desktop). **Edge blur is opt-in** (custom pass, see below) and each effect has a toggle in the settings panel.
+
+**Known issue (reported):** with the first version of the effects the 3D view went black on a phone (HUD and minimap fine). Suspect: the custom edge-blur pass. Find the culprit by turning the toggles on one at a time; the browser console prints `[RocketWorld] EdgeBlur pass running ...` when that pass executes.
 
 | Effect | How | Tuning (`Sim/CinematicPolicy.cs`) |
 |---|---|---|

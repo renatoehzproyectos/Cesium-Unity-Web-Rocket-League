@@ -44,7 +44,7 @@ Shader "RocketWorld/EdgeBlur"
                 float2 e = saturate((d - _Inner) / max(1e-3, 1.0 - _Inner));
                 e = e * e * (3.0 - 2.0 * e);
                 float w = saturate(e.x + e.y - e.x * e.y) * _Strength;
-                if (w < 0.004) return c0;
+                if (w < 0.004) return half4(c0.rgb, 1.0);
 
                 float radiusPx = w * _Radius * _Dims.y;      // blur radius in pixels, grows towards the edge
                 float2 duv = _Dims.zw * radiusPx;            // pixels -> uv (keeps the blur round on any aspect ratio)
@@ -61,7 +61,7 @@ Shader "RocketWorld/EdgeBlur"
                     sum += SAMPLE_TEXTURE2D_X_LOD(_BlitTexture, sampler_LinearClamp, uv + o * duv, 0).rgb;
                     wsum += 1.0;
                 }
-                return half4(sum / wsum, c0.a);
+                return half4(sum / wsum, 1.0);          // opaque: the browser composites the canvas by alpha
             }
             ENDHLSL
         }

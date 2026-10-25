@@ -5,6 +5,13 @@ namespace RocketWorld.Tests
 {
     public class CinematicPolicyTests
     {
+        [Test] public void PresetsAreBitMasks()
+        {
+            Assert.AreEqual(0, CinematicPolicy.PresetMask(0));
+            Assert.AreEqual(CinematicPolicy.Bloom | CinematicPolicy.Grade, CinematicPolicy.PresetMask(1));
+            Assert.AreEqual(CinematicPolicy.Full, CinematicPolicy.PresetMask(2));
+            Assert.AreEqual(0, CinematicPolicy.Full & CinematicPolicy.Edge);   // edge blur is opt-in
+        }
         [Test] public void DaylightIsOneAtNoonAndZeroAtMidnight()
         {
             Assert.AreEqual(1f, CinematicPolicy.Daylight(14f), 1e-4f);

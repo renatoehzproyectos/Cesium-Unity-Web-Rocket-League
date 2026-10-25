@@ -8,6 +8,13 @@ namespace RocketWorld.Sim
     /// </summary>
     public static class CinematicPolicy
     {
+        // Each effect is its own bit so a misbehaving one can be switched off alone (settings panel, ?fx=<mask>).
+        public const int Bloom = 1, Grade = 2, Edge = 4, Dof = 8, MotionBlur = 16;
+        public const int Light = Bloom | Grade;                       // standard URP effects only
+        public const int Full = Light | Dof | MotionBlur;
+        /// <summary>Preset 0 = off, 1 = light, 2 = full. The custom edge blur is a separate toggle until it has been verified on devices.</summary>
+        public static int PresetMask(int level) => level <= 0 ? 0 : level == 1 ? Light : Full;
+
         static float Clamp01(float v) => Math.Max(0f, Math.Min(1f, v));
         static float Lerp(float a, float b, float t) => a + (b - a) * Clamp01(t);
         static float Sp(float speedMs) => Clamp01(speedMs / 46f);        // 46 m/s = the car's top speed

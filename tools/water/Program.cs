@@ -83,6 +83,7 @@ static class P
         Near(HeliCamPolicy.Height(0, false, 0.01f), 38 * HeliCamPolicy.MinZoom, 1e-4, "heli zoom is clamped to the minimum");
 
         // cinematic post-processing numbers
+        Check(CinematicPolicy.PresetMask(0) == 0 && CinematicPolicy.PresetMask(1) == 3 && CinematicPolicy.PresetMask(2) == 27, "cinematic presets: off 0, light 3, full 27");
         Near(CinematicPolicy.Daylight(14), 1, 1e-4, "daylight at 14:00 = 1");
         Near(CinematicPolicy.Daylight(0), 0, 1e-4, "daylight at midnight = 0");
         Check(CinematicPolicy.BloomIntensity(0, false) > CinematicPolicy.BloomIntensity(1, false), "bloom is stronger at night");

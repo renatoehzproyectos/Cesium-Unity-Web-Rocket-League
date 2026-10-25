@@ -8,7 +8,7 @@ namespace RocketWorld
     /// <summary>
     /// Cinematic look: a global URP Volume (built in code, no assets) with bloom, colour grading (contrast, saturation, split toning),
     /// Gaussian depth of field and camera motion blur, plus the viewport edge blur (<see cref="EdgeBlurFeature"/>).
-    /// Level 0 = off, 1 = light (bloom + grade + edge blur), 2 = full (adds depth of field, motion blur, HDR on desktop).
+    /// Each effect is a bit of <see cref="GameSettings.fxMask"/> (CinematicPolicy.Bloom / Grade / Edge / Dof / MotionBlur); Full also turns on HDR on desktop.
     /// All numbers come from <see cref="CinematicPolicy"/>. Not verified in Unity: the look needs tuning on a real build.
     /// </summary>
     [DefaultExecutionOrder(200)]                 // after the cameras have moved this frame
@@ -68,7 +68,7 @@ namespace RocketWorld
             _mb.clamp.Override(0.06f);
 
             _vol.sharedProfile = _profile;
-            Apply(root.settings.cinematic);
+            Apply(root.settings.fxMask);
         }
 
         void OnDestroy()
@@ -77,16 +77,18 @@ namespace RocketWorld
             if (_profile != null) Destroy(_profile);
         }
 
-        /// <summary>Switch quality level: which effects are on, camera post-processing flag, HDR.</summary>
-        void Apply(int level)
+        /// <summary>Apply an effect mask: which effects are on, the camera post-processing flag, HDR.</summary>
+        void Apply(int mask)
         {
-            _applied = level;
+            _applied = mask;
             bool mobile = DeviceProfile.IsMobile;
-            bool full = level >= 2, on = level >= 1;
-            _vol.enabled = on;
-            _bloom.active = on; _color.active = on; _split.active = on;
-            _dof.active = full; _mb.active = full;
-            bool hdr = full && !mobile;                                       // HDR makes bloom pick real highlights; too heavy for phones
+            bool bloom = (mask & CinematicPolicy.Bloom) != 0, grade = (mask & CinematicPolicy.Grade) != 0, edge = (mask & CinematicPolicy.Edge) != 0;
+            bool dof = (mask & CinematicPolicy.Dof) != 0, mb = (mask & CinematicPolicy.MotionBlur) != 0;
+            bool anyVolume = bloom || grade || dof || mb;
+            _vol.enabled = anyVolume;
+            _bloom.active = bloom; _color.active = grade; _split.active = grade;
+            _dof.active = dof; _mb.active = mb;
+            bool hdr = (mask & CinematicPolicy.Full) == CinematicPolicy.Full && !mobile;                                       // HDR makes bloom pick real highlights; too heavy for phones
             _bloom.threshold.value = CinematicPolicy.BloomThreshold(hdr);
             _bloom.highQualityFiltering.value = hdr;
             var asset = UniversalRenderPipeline.asset;
@@ -94,10 +96,10 @@ namespace RocketWorld
             if (root.cam != null)
             {
                 root.cam.allowHDR = hdr;
-                root.cam.GetUniversalAdditionalCameraData().renderPostProcessing = on;
+                root.cam.GetUniversalAdditionalCameraData().renderPostProcessing = anyVolume || edge;
             }
-            EdgeBlurFeature.Active = on;
-            EdgeBlurFeature.Taps = full ? 12f : 8f;
+            EdgeBlurFeature.Active = edge;
+            EdgeBlurFeature.Taps = mobile ? 8f : 12f;
             EdgeBlurFeature.Inner = 0.55f;
             EdgeBlurFeature.Radius = 0.012f;
             _mbCur = 0f;
@@ -106,9 +108,9 @@ namespace RocketWorld
         void LateUpdate()
         {
             if (_vol == null || root == null || root.cam == null || root.carCtl == null) return;
-            int level = root.settings.cinematic;
-            if (level != _applied) Apply(level);
-            if (level <= 0) return;
+            int mask = root.settings.fxMask;
+            if (mask != _applied) Apply(mask);
+            if (mask == 0) return;
 
             float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
             var camPos = root.cam.transform.position;
@@ -121,12 +123,15 @@ namespace RocketWorld
             bool boosting = car.IsBoosting;
             float day = CinematicPolicy.Daylight(root.settings.timeOfDay);
 
-            _bloom.intensity.value = CinematicPolicy.BloomIntensity(day, boosting);
-            _color.saturation.value = CinematicPolicy.Saturation(day);
-            _color.contrast.value = CinematicPolicy.Contrast(day);
+            if ((mask & CinematicPolicy.Bloom) != 0) _bloom.intensity.value = CinematicPolicy.BloomIntensity(day, boosting);
+            if ((mask & CinematicPolicy.Grade) != 0)
+            {
+                _color.saturation.value = CinematicPolicy.Saturation(day);
+                _color.contrast.value = CinematicPolicy.Contrast(day);
+            }
             EdgeBlurFeature.Strength = CinematicPolicy.EdgeBlurStrength(speed);
 
-            if (level >= 2)
+            if ((mask & (CinematicPolicy.Dof | CinematicPolicy.MotionBlur)) != 0)
             {
                 float start = CinematicPolicy.DofStart(Vector3.Distance(camPos, car.transform.position));
                 _dof.gaussianStart.value = start;

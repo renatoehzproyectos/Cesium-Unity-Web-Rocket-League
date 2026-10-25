@@ -40,10 +40,16 @@ namespace RocketWorld
         class Pass : ScriptableRenderPass
         {
             public Material material;
+            static bool _logged;
 
             public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
             {
                 var resources = frameData.Get<UniversalResourceData>();
+                if (!_logged)
+                {
+                    _logged = true;
+                    Debug.Log("[RocketWorld] EdgeBlur pass running, active target is back buffer: " + resources.isActiveTargetBackBuffer);
+                }
                 if (resources.isActiveTargetBackBuffer) return;                 // nothing to read from: the stack renders straight to the screen
                 var cameraData = frameData.Get<UniversalCameraData>();
                 int w = cameraData.cameraTargetDescriptor.width, h = cameraData.cameraTargetDescriptor.height;

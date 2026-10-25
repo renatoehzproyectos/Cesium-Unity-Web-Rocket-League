@@ -90,6 +90,15 @@ namespace RocketWorld
             _open = open;
         }
 
+        static bool FxToggle(GameSettings s, string label, int bit)
+        {
+            bool on = (s.fxMask & bit) != 0;
+            bool now = GUILayout.Toggle(on, label);
+            if (now == on) return false;
+            s.fxMask = now ? s.fxMask | bit : s.fxMask & ~bit;
+            return true;
+        }
+
         /// <summary>True when a screen position (pixels, origin bottom-left) is over HUD, so the camera ignores that drag.</summary>
         public bool Over(Vector2 screenPos)
         {
@@ -262,11 +271,20 @@ namespace RocketWorld
             GUILayout.EndHorizontal();
 
             GUILayout.Space(6);
-            GUILayout.Label("Cinematic effects: " + (s.cinematic == 0 ? "off" : s.cinematic == 1 ? "light" : "full") + "  (bloom, colour grade, edge blur; full adds depth of field + motion blur)");
+            GUILayout.Label("Cinematic effects (each one can be switched on its own)");
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Off")) { s.cinematic = 0; changed = true; }
-            if (GUILayout.Button("Light")) { s.cinematic = 1; changed = true; }
-            if (GUILayout.Button("Full")) { s.cinematic = 2; changed = true; }
+            if (GUILayout.Button("Off")) { s.fxMask = 0; changed = true; }
+            if (GUILayout.Button("Light")) { s.fxMask = RocketWorld.Sim.CinematicPolicy.Light; changed = true; }
+            if (GUILayout.Button("Full")) { s.fxMask = RocketWorld.Sim.CinematicPolicy.Full; changed = true; }
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            changed |= FxToggle(s, "Bloom", RocketWorld.Sim.CinematicPolicy.Bloom);
+            changed |= FxToggle(s, "Colour", RocketWorld.Sim.CinematicPolicy.Grade);
+            changed |= FxToggle(s, "Edge blur", RocketWorld.Sim.CinematicPolicy.Edge);
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            changed |= FxToggle(s, "Depth of field", RocketWorld.Sim.CinematicPolicy.Dof);
+            changed |= FxToggle(s, "Motion blur", RocketWorld.Sim.CinematicPolicy.MotionBlur);
             GUILayout.EndHorizontal();
 
             GUILayout.Space(6);
