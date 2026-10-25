@@ -27,7 +27,8 @@ namespace RocketWorld
         public CarInput carInput;
         public TileColliderBudget budget;
         public ChaseCamera chase;
-        public int cameraMode;                                // 0 chase, 1 orbit
+        public HeliCamera heli;
+        public int cameraMode;                                // 0 chase, 1 orbit, 2 helicopter
         public Camera cam;
         public OrbitCamera orbit;
         public DebugHud hud;
@@ -126,6 +127,7 @@ namespace RocketWorld
             tileLog.root = this;
             if (tileset != null) tileLog.Begin(tileset);   // the first tileset was created before the log existed
             orbit.pointerBlocked = hud.Over;
+            if (heli != null) heli.pointerBlocked = hud.Over;
             orbit.padBlocked = () => carInput != null && carInput.Blocked;
         }
 
@@ -157,7 +159,7 @@ namespace RocketWorld
                     CommitSse(EffectiveSse, protectCar: false);
                 }
             }
-            if (carInput != null && carInput.CameraTogglePressed) SetCameraMode(1 - cameraMode);
+            if (carInput != null && carInput.CameraTogglePressed) ChooseCamera(NextCameraMode(cameraMode));
             // ?bench=1: start once the first tiles are in (or after 25 s on a slow link / no key)
             if (settings.bench && !_benchStarted && (tileset == null || tileset.ComputeLoadProgress() >= 99f || Time.realtimeSinceStartup > 25f))
             { _benchStarted = true; benchmark.Begin(); }
@@ -491,13 +493,15 @@ namespace RocketWorld
             go.AddComponent<CesiumGlobeAnchor>();                        // keeps the camera valid across origin shifts
             chase = go.AddComponent<ChaseCamera>();
             chase.car = carCtl;
+            heli = go.AddComponent<HeliCamera>();
+            heli.car = carCtl;
             var streamGo = new GameObject("StreamingCameras");
             var stream = streamGo.AddComponent<StreamingCameras>(); stream.root = this; stream.follow = car;
             orbit = go.AddComponent<OrbitCamera>();
             orbit.target = car;
             orbit.yaw = settings.camYaw; orbit.pitch = settings.camPitch; orbit.distance = settings.camDist;
             orbit.autoRotate = settings.autoRotate;
-            SetCameraMode(0);
+            SetCameraMode(settings.camMode);
         }
 
         // ---- multiplayer helpers ----------------------------------------------------------------------------
@@ -506,7 +510,7 @@ namespace RocketWorld
         public void BeginPlay()
         {
             if (carCtl != null) carCtl.ReleaseStart();
-            SetCameraMode(0);
+            SetCameraMode(settings.camMode);
         }
 
         /// <summary>Put the ball in front of the local car (solo / host) or ask the host to do it (client).</summary>
@@ -569,6 +573,18 @@ namespace RocketWorld
             cameraMode = mode;
             if (chase != null) chase.enabled = mode == 0;
             if (orbit != null) orbit.enabled = mode == 1;
+            if (heli != null) heli.enabled = mode == 2;
+        }
+
+        /// <summary>C key / pad button cycles chase -> helicopter -> orbit -> chase.</summary>
+        public static int NextCameraMode(int mode) => mode == 0 ? 2 : mode == 2 ? 1 : 0;
+
+        /// <summary>Switch the camera and remember it (it is the one used the next time you start driving).</summary>
+        public void ChooseCamera(int mode)
+        {
+            settings.camMode = Mathf.Clamp(mode, 0, 2);
+            SetCameraMode(settings.camMode);
+            SaveSettings();
         }
     }
 }

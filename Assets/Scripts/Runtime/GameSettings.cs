@@ -31,6 +31,7 @@ namespace RocketWorld
         public bool bench;                           // ?bench=1 runs the benchmark right after the world is ready
         public int carColor = 0;
         public float camYaw = 200f, camPitch = 14f, camDist = 7.5f;
+        public int camMode = 0;                      // driving camera: 0 chase, 1 orbit, 2 helicopter (?cam=chase|orbit|heli)
 
         // name, lat, lon, approximate ground height above the ellipsoid (geoid + terrain). Adjust with the slider if the car floats/sinks.
         public static readonly (string name, double lat, double lon, float h)[] Presets =
@@ -74,6 +75,7 @@ namespace RocketWorld
                 debugHud = false,                     // locked off
                 autoQuality = false,                  // locked off
                 carColor = PlayerPrefs.GetInt(P + "car", 0),
+                camMode = Mathf.Clamp(PlayerPrefs.GetInt(P + "cammode", 0), 0, 2),
             };
             DeviceProfile.Load();
             if (!PlayerPrefs.HasKey(P + "init")) DeviceProfile.ApplyFirstRunDefaults(s);
@@ -108,6 +110,7 @@ namespace RocketWorld
             s.viewDistance = Mathf.Clamp((float)D(WebBridge.Query("far"), s.viewDistance), 200f, 20000f);
             s.renderScale = Mathf.Clamp((float)D(WebBridge.Query("scale"), s.renderScale), 0.3f, 2f);
             s.carColor = Mathf.Clamp((int)D(WebBridge.Query("car"), s.carColor), 0, CarColors.Length - 1);
+            if (!string.IsNullOrEmpty(q = WebBridge.Query("cam"))) { q = q.ToLowerInvariant(); s.camMode = q.StartsWith("heli") ? 2 : q.StartsWith("orb") ? 1 : q.StartsWith("chase") ? 0 : s.camMode; }
             s.camYaw = (float)D(WebBridge.Query("yaw"), s.camYaw);
             s.camPitch = (float)D(WebBridge.Query("pitch"), s.camPitch);
             s.camDist = (float)D(WebBridge.Query("dist"), s.camDist);
@@ -121,7 +124,7 @@ namespace RocketWorld
             PlayerPrefs.SetFloat(P + "gh", groundHeight); PlayerPrefs.SetFloat(P + "hdg", heading); PlayerPrefs.SetFloat(P + "tod", timeOfDay);
             PlayerPrefs.SetFloat(P + "sse", sse); PlayerPrefs.SetFloat(P + "far", viewDistance); PlayerPrefs.SetFloat(P + "scale", renderScale); PlayerPrefs.SetFloat(P + "radius", loadRadius); PlayerPrefs.SetFloat(P + "dq", distantQuality);
             PlayerPrefs.SetInt(P + "baked", bakedLighting ? 1 : 0); PlayerPrefs.SetInt(P + "auto", autoRotate ? 1 : 0); PlayerPrefs.SetInt(P + "psky", proceduralSky ? 1 : 0); PlayerPrefs.SetInt(P + "hud", debugHud ? 1 : 0);
-            PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1); PlayerPrefs.SetInt(P + "tv", TerrainVersion);
+            PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1); PlayerPrefs.SetInt(P + "tv", TerrainVersion); PlayerPrefs.SetInt(P + "cammode", camMode);
             PlayerPrefs.Save();
         }
 

@@ -74,6 +74,14 @@ static class P
         Near(TileCachePolicy.AheadRange(20), 590, 1e-4, "look-ahead range at 20 m/s = 590 m");
         Near(TileCachePolicy.AheadRange(500), 900, 1e-6, "look-ahead range is capped at 900 m");
 
+        // helicopter camera
+        Near(HeliCamPolicy.Height(0, false, 1), 38, 1e-4, "heli camera hovers 38 m above a parked car");
+        Near(HeliCamPolicy.Back(0, false, 1), 14, 1e-4, "heli camera sits 14 m behind a parked car");
+        Near(HeliCamPolicy.PitchDeg(HeliCamPolicy.Height(0, false, 1), HeliCamPolicy.Back(0, false, 1)), 69.8, 0.2, "heli camera looks down ~70 degrees");
+        Check(HeliCamPolicy.Height(46, false, 1) > HeliCamPolicy.Height(0, false, 1) && HeliCamPolicy.Back(46, false, 1) > HeliCamPolicy.Back(0, false, 1), "heli camera climbs and pulls back with speed");
+        Near(HeliCamPolicy.Height(0, false, 10), 38 * HeliCamPolicy.MaxZoom, 1e-4, "heli zoom is clamped to the maximum");
+        Near(HeliCamPolicy.Height(0, false, 0.01f), 38 * HeliCamPolicy.MinZoom, 1e-4, "heli zoom is clamped to the minimum");
+
         // robustness: garbage must throw / return cleanly, never hang
         try { MvtReader.Read(new byte[] { 0x1a, 0xff, 0xff, 0xff, 0xff, 0x0f }); Check(true, "garbage tile handled"); }
         catch (Exception) { Check(true, "garbage tile throws a catchable exception"); }

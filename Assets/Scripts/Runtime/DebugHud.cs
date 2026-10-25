@@ -254,6 +254,14 @@ namespace RocketWorld
             s.renderScale = GUILayout.HorizontalSlider(s.renderScale, 0.3f, 2f);
 
             GUILayout.Space(6);
+            GUILayout.Label("Camera (C key cycles)");
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Chase")) root.ChooseCamera(0);
+            if (GUILayout.Button("Helicopter")) root.ChooseCamera(2);
+            if (GUILayout.Button("Orbit")) root.ChooseCamera(1);
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6);
             GUILayout.Label("Car colour");
             GUILayout.BeginHorizontal();
             for (int i = 0; i < GameSettings.CarColors.Length; i++)

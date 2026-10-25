@@ -10,6 +10,7 @@
     <Compile Include="../../Assets/Scripts/Sim/Water/*.cs" />
     <Compile Include="../../Assets/Tests/EditMode/WaterTestTiles.cs" />
     <Compile Include="../../Assets/Scripts/Sim/TileCachePolicy.cs" />
+    <Compile Include="../../Assets/Scripts/Sim/HeliCamPolicy.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>
 </Project>
