@@ -105,5 +105,12 @@
         }
       ]
     }
+  ],
+  "redirects": [
+    {
+      "source": "/lite",
+      "destination": "/lite/",
+      "permanent": false
+    }
   ]
 }

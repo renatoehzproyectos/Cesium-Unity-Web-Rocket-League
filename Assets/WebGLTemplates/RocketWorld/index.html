@@ -7,7 +7,10 @@
     // (default) iPhones/iPads go to /lite/. Any device whose last two loads never reached the first frame is moved there too.
     // Overrides: ?lite=1 / ?lite=0 force a build; ?anticrash=0 turns the whole thing off. Flags live in localStorage (shared by both builds).
     (function () {
-      var L = location, inLite = /\/lite\/(index\.html)?$/.test(L.pathname);
+      var L = location;
+      // "/lite" (no slash) would resolve Build/... against the site root and hang on the loader: always use "/lite/".
+      if (/\/lite$/.test(L.pathname)) { window.rwRedirecting = true; L.replace(L.pathname + '/' + L.search + L.hash); return; }
+      var inLite = /\/lite\/(index\.html)?$/.test(L.pathname);
       function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { } return null; }
       var qs = new URLSearchParams(L.search), qAC = qs.get('anticrash'), qLite = qs.get('lite');
       var ac = qAC !== null ? qAC !== '0' : ls('rw_anticrash') !== '0';
@@ -147,6 +150,7 @@
     } else {
       var script = document.createElement("script");
       script.src = loaderUrl;
+      script.onerror = function () { showError("Couldn't load the game files (" + loaderUrl + "). Reload the page; if it keeps happening, the deploy is incomplete."); msg.textContent = ""; };
       script.onload = function () {
         createUnityInstance(document.querySelector("#unity-canvas"), config, function (p) {
           fill.style.width = Math.max(4, Math.round(p * 92)) + "%";

@@ -124,6 +124,7 @@ namespace RocketWorld.Editor
             // `-rwFast 1` (CI pull requests / throw-away builds): no Brotli pass (the slowest post-step), nothing is deployed from these.
             bool fast = Arg("-rwFast") == "1";
             PlayerSettings.WebGL.compressionFormat = fast ? WebGLCompressionFormat.Disabled : WebGLCompressionFormat.Brotli;
+            if (fast) TryFastCodeOptimization();
             PlayerSettings.WebGL.decompressionFallback = false;     // vercel.json sends Content-Encoding: br
             PlayerSettings.WebGL.dataCaching = true;
             PlayerSettings.WebGL.nameFilesAsHashes = true;          // content-hashed file names => safe to cache forever (see deploy/vercel.json)
@@ -141,6 +142,21 @@ namespace RocketWorld.Editor
             if (lite) PlayerSettings.WebGL.dataCaching = false;   // no second in-memory copy of the .data file
             TrySet(typeof(PlayerSettings.WebGL), "initialMemorySize", lite ? 256 : 512);
             TrySet(typeof(PlayerSettings.WebGL), "maximumMemorySize", lite ? 1024 : 2048);
+        }
+
+        // Throw-away CI builds (pull requests): "Build Times" code optimization skips wasm-opt/LTO, the slowest part of the emscripten link.
+        // Looked up by reflection because the type lives in the WebGL extension assembly and its name varies between Unity versions.
+        static void TryFastCodeOptimization()
+        {
+            try
+            {
+                var t = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType("UnityEditor.WebGL.UserBuildSettings", false)).FirstOrDefault(x => x != null);
+                var p = t?.GetProperty("codeOptimization", BindingFlags.Public | BindingFlags.Static);
+                if (p == null) { Debug.Log("[RocketWorld] WebGL codeOptimization not available, skipped"); return; }
+                p.SetValue(null, Enum.Parse(p.PropertyType, "BuildTimes"));
+                Debug.Log("[RocketWorld] fast build: WebGL code optimization = BuildTimes");
+            }
+            catch (Exception e) { Debug.LogWarning("[RocketWorld] could not set WebGL code optimization: " + e.Message); }
         }
 
         static void TrySet(Type t, string prop, object value)

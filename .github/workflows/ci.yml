@@ -3,7 +3,9 @@ name: build-and-deploy
 on:
   push:
     branches: [main]
+    paths-ignore: ['**.md', 'docs/**']      # docs-only commits do not need a 30+ minute Unity build
   pull_request:
+    paths-ignore: ['**.md', 'docs/**']
   workflow_dispatch:
     inputs:
       graphics:
@@ -25,42 +27,58 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  unity-web:
-    name: Unity 6000.0.62f1 WebGL build
+  license:
+    name: Check Unity license secrets
     runs-on: ubuntu-latest
     outputs:
-      built: ${{ steps.lic.outputs.ok }}
+      ok: ${{ steps.lic.outputs.ok }}
     steps:
-      - uses: actions/checkout@v4
-        with: { lfs: false }
-      - name: Check Unity license secrets
-        id: lic
+      - id: lic
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
         run: |
           if [ -n "$UNITY_LICENSE" ] || [ -n "$UNITY_SERIAL" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::warning::No UNITY_LICENSE/UNITY_SERIAL secret - skipping the Unity build. See README."; fi
+
+  # The main player and the low-memory /lite/ player build IN PARALLEL (wall time = the slower one, not the sum).
+  # Pull requests only build the main one, and skip Brotli + wasm-opt (nothing is deployed from them).
+  unity-web:
+    name: Unity 6000.0.62f1 WebGL (${{ matrix.variant }})
+    needs: license
+    if: needs.license.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        variant: ${{ fromJSON(github.event_name == 'pull_request' && '["main"]' || '["main","lite"]') }}
+    env:
+      BUILD_NAME: ${{ matrix.variant == 'lite' && 'lite' || 'WebGL' }}
+      BUILD_ARGS: >-
+        -rwLite ${{ matrix.variant == 'lite' && '1' || '0' }}
+        -rwGfx ${{ inputs.graphics == 'webgpu' && 'webgpu' || 'webgl2' }}
+        -rwFast ${{ github.event_name == 'pull_request' && '1' || '0' }}
+        -rwSpeed ${{ inputs.optimize_speed == true && '1' || '0' }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: false }
       - uses: actions/cache@v4
-        if: steps.lic.outputs.ok == 'true'
         with:
           path: Library
-          # v4: keep Bee/IL2CPP output so the C++ compile is incremental (it was the bulk of the build time)
-          key: Library-WebGL-v4-${{ hashFiles('Packages/manifest.json', 'Assets/**/*.cs') }}
+          # One cache per variant so the two parallel jobs never fight over a key; the plain prefix lets a first lite run start from the main cache.
+          key: Library-WebGL-v5-${{ matrix.variant }}-${{ hashFiles('Packages/manifest.json', 'Assets/**/*.cs') }}
           restore-keys: |
+            Library-WebGL-v5-${{ matrix.variant }}-
             Library-WebGL-v4-
       - name: Drop stale Bee / IL2CPP artifacts (manual only)
-        if: steps.lic.outputs.ok == 'true' && inputs.clean_cache == true
+        if: inputs.clean_cache == true
         run: |
           # Partial Library restores leave inconsistent Bee/IL2CPP state; il2cpp then SIGSEGVs (exit 139).
           rm -rf Library/Bee Library/Il2cppBuildCache Library/BuildPlayerData \
                  Library/PlayerDataCache Library/ShaderCache Library/BuildCache
-          echo "Cleaned Bee/IL2CPP caches. Remaining Library:"
-          du -sh Library 2>/dev/null || true
       - name: Unity WebGL build
         id: build
         continue-on-error: true
         uses: game-ci/unity-builder@v4
-        if: steps.lic.outputs.ok == 'true'
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
@@ -71,17 +89,16 @@ jobs:
         with:
           unityVersion: 6000.0.62f1
           targetPlatform: WebGL
+          buildName: ${{ env.BUILD_NAME }}
           buildMethod: RocketWorld.Editor.BuildScript.BuildWebGL
-          customParameters: -rwGfx ${{ inputs.graphics == 'webgpu' && 'webgpu' || 'webgl2' }} -rwFast ${{ github.event_name == 'pull_request' && '1' || '0' }} -rwSpeed ${{ inputs.optimize_speed == true && '1' || '0' }}
+          customParameters: ${{ env.BUILD_ARGS }}
           versioning: None
           allowDirtyBuild: true
-      - name: Retry from clean Bee/IL2CPP state (only if the cached build failed, e.g. exit 139)
-        id: retry
-        if: steps.lic.outputs.ok == 'true' && steps.build.outcome == 'failure'
-        run: |
-          sudo rm -rf Library/Bee Library/Il2cppBuildCache Library/BuildPlayerData Library/PlayerDataCache Library/ShaderCache Library/BuildCache
+      - name: Drop Bee / IL2CPP state (only if the cached build failed, e.g. exit 139)
+        if: steps.build.outcome == 'failure'
+        run: sudo rm -rf Library/Bee Library/Il2cppBuildCache Library/BuildPlayerData Library/PlayerDataCache Library/ShaderCache Library/BuildCache
       - name: Unity WebGL build (clean retry)
-        if: steps.lic.outputs.ok == 'true' && steps.build.outcome == 'failure'
+        if: steps.build.outcome == 'failure'
         uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -93,82 +110,51 @@ jobs:
         with:
           unityVersion: 6000.0.62f1
           targetPlatform: WebGL
+          buildName: ${{ env.BUILD_NAME }}
           buildMethod: RocketWorld.Editor.BuildScript.BuildWebGL
-          customParameters: -rwGfx ${{ inputs.graphics == 'webgpu' && 'webgpu' || 'webgl2' }} -rwFast ${{ github.event_name == 'pull_request' && '1' || '0' }} -rwSpeed ${{ inputs.optimize_speed == true && '1' || '0' }}
+          customParameters: ${{ env.BUILD_ARGS }}
           versioning: None
           allowDirtyBuild: true
-      - name: Unity WebGL build (low-memory /lite/ build for iOS Safari and crash recovery)
-        if: steps.lic.outputs.ok == 'true' && github.event_name != 'pull_request'
-        uses: game-ci/unity-builder@v4
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
-          ION_TOKEN: ${{ secrets.ION_TOKEN }}
-          UNITY_CLOUD_PROJECT_ID: ${{ secrets.UNITY_CLOUD_PROJECT_ID }}
-        with:
-          unityVersion: 6000.0.62f1
-          targetPlatform: WebGL
-          buildName: lite
-          buildMethod: RocketWorld.Editor.BuildScript.BuildWebGL
-          customParameters: -rwLite 1 -rwGfx ${{ inputs.graphics == 'webgpu' && 'webgpu' || 'webgl2' }} -rwFast 0 -rwSpeed ${{ inputs.optimize_speed == true && '1' || '0' }}
-          versioning: None
-          allowDirtyBuild: true
-      - name: Add Vercel config + bake ION_TOKEN into index.html
-        if: steps.lic.outputs.ok == 'true'
+      - name: Bake ION_TOKEN + patch workers
         env:
           ION_TOKEN: ${{ secrets.ION_TOKEN }}
         run: |
-          # game-ci builds inside a root container: take ownership first. The player lands in build/WebGL/WebGL.
+          # game-ci builds inside a root container: take ownership first. The player lands in build/WebGL/<BUILD_NAME>.
           sudo chown -R "$(id -u):$(id -g)" build
-          cp deploy/vercel.json build/WebGL/WebGL/vercel.json
-          cp deploy/cesiumjs-compare.html build/WebGL/WebGL/cesiumjs-compare.html   # CesiumJS reference page: /cesiumjs-compare.html
-          # Ensure the Cesium ion token is present even if Unity's PostProcessIndex did not see the env var.
-          if [ -n "$ION_TOKEN" ]; then
-            python3 tools/bake_ion_token.py build/WebGL/WebGL/index.html
-          else
-            echo "::warning::ION_TOKEN secret is empty — Cesium tiles will not load until a token is provided"
-          fi
+          D="build/WebGL/$BUILD_NAME"
+          if [ -n "$ION_TOKEN" ]; then python3 tools/bake_ion_token.py "$D/index.html"; else echo "::warning::ION_TOKEN secret is empty — Cesium tiles will not load until a token is provided"; fi
           # Unity Transport WebSockets run inside the pthread workers: patch their shared-memory TextDecoder/send calls.
-          node tools/patch_worker.js build/WebGL/WebGL/Build
-          # Low-memory build: served from /lite/ next to the main one (index.html sends iPhones/iPads and crash-looping devices there).
-          if [ -d build/WebGL/lite ]; then
-            cp -r build/WebGL/lite build/WebGL/WebGL/lite
-            [ -n "$ION_TOKEN" ] && python3 tools/bake_ion_token.py build/WebGL/WebGL/lite/index.html
-            node tools/patch_worker.js build/WebGL/WebGL/lite/Build
-          elif [ "${{ github.event_name }}" != "pull_request" ]; then
-            echo "::error::lite build missing: iOS would be redirected to a 404"; exit 1
-          fi
-          ls -la build/WebGL/WebGL build/WebGL/WebGL/Build
+          node tools/patch_worker.js "$D/Build"
+          ls -la "$D" "$D/Build"
       - uses: actions/upload-artifact@v4
-        if: steps.lic.outputs.ok == 'true'
         with:
-          name: rocketworld-webgl
-          path: build/WebGL/WebGL
+          name: rocketworld-${{ matrix.variant }}
+          path: build/WebGL/${{ env.BUILD_NAME }}
           compression-level: 0   # Build files are already Brotli-compressed
+          retention-days: 3
 
-  # After the WebGL artifact is produced: download-artifact unpacks it,
-  # then the player is force-pushed to renatoehzproyectos/op-test (main).
+  # Main player at the site root, low-memory player in /lite/ (index.html sends iPhones/iPads and crash-looping devices there),
+  # then the whole thing is force-pushed to renatoehzproyectos/op-test (main).
   deploy-op-test:
     name: Deploy WebGL → op-test
     runs-on: ubuntu-latest
-    needs: [unity-web]
-    if: needs.unity-web.outputs.built == 'true' && github.event_name != 'pull_request'
+    needs: [license, unity-web]
+    if: needs.license.outputs.ok == 'true' && github.event_name != 'pull_request'
     steps:
-      - name: Download rocketworld-webgl artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
         with:
-          name: rocketworld-webgl
-          path: webgl
-
-      - name: Show what will be published
+          lfs: false
+          sparse-checkout: deploy
+      - uses: actions/download-artifact@v4
+        with: { name: rocketworld-main, path: webgl }
+      - uses: actions/download-artifact@v4
+        with: { name: rocketworld-lite, path: webgl/lite }
+      - name: Add Vercel config and check the layout
         run: |
-          echo "Contents of the WebGL player:"
-          find webgl -maxdepth 2 -type f | head -40
-          test -f webgl/index.html
-          test -d webgl/Build
-
+          cp deploy/vercel.json webgl/vercel.json
+          cp deploy/cesiumjs-compare.html webgl/cesiumjs-compare.html   # CesiumJS reference page: /cesiumjs-compare.html
+          test -f webgl/index.html && test -d webgl/Build && test -f webgl/lite/index.html && test -d webgl/lite/Build
+          du -sh webgl webgl/lite
       - name: Push to renatoehzproyectos/op-test
         uses: peaceiris/actions-gh-pages@v4
         with:
