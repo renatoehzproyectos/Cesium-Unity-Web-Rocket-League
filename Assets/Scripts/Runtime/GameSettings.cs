@@ -86,7 +86,7 @@ namespace RocketWorld
             s.proceduralSky = true;
             s.debugHud = false;
             s.autoQuality = false;
-            s.antiCrash = PlayerPrefs.GetInt(P + "anticrash", 1) == 1;
+            s.antiCrash = WebBridge.AntiCrashSync(PlayerPrefs.GetInt(P + "anticrash", 1) == 1);   // browser flag wins: it also picks the build in index.html
             s.fxDof = PlayerPrefs.GetFloat(P + "fxd", 2f);
             s.fxMotion = PlayerPrefs.GetFloat(P + "fxm", 0.75f);
             // Terrain beauty pass: browsers that saved the old coarse default (32) move once to the sharper one; later custom values are respected.
@@ -133,7 +133,7 @@ namespace RocketWorld
             PlayerPrefs.SetFloat(P + "gh", groundHeight); PlayerPrefs.SetFloat(P + "hdg", heading); PlayerPrefs.SetFloat(P + "tod", timeOfDay);
             PlayerPrefs.SetFloat(P + "sse", sse); PlayerPrefs.SetFloat(P + "far", viewDistance); PlayerPrefs.SetFloat(P + "scale", renderScale); PlayerPrefs.SetFloat(P + "radius", loadRadius); PlayerPrefs.SetFloat(P + "dq", distantQuality);
             PlayerPrefs.SetInt(P + "baked", bakedLighting ? 1 : 0); PlayerPrefs.SetInt(P + "auto", autoRotate ? 1 : 0); PlayerPrefs.SetInt(P + "psky", proceduralSky ? 1 : 0); PlayerPrefs.SetInt(P + "hud", debugHud ? 1 : 0);
-            PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1); PlayerPrefs.SetInt(P + "tv", TerrainVersion); PlayerPrefs.SetInt(P + "cammode", camMode); PlayerPrefs.SetInt(P + "anticrash", antiCrash ? 1 : 0); PlayerPrefs.SetFloat(P + "fxd", fxDof); PlayerPrefs.SetFloat(P + "fxm", fxMotion);
+            PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1); PlayerPrefs.SetInt(P + "tv", TerrainVersion); PlayerPrefs.SetInt(P + "cammode", camMode); PlayerPrefs.SetInt(P + "anticrash", antiCrash ? 1 : 0); WebBridge.SetAntiCrash(antiCrash); PlayerPrefs.SetFloat(P + "fxd", fxDof); PlayerPrefs.SetFloat(P + "fxm", fxMotion);
             PlayerPrefs.Save();
         }
 

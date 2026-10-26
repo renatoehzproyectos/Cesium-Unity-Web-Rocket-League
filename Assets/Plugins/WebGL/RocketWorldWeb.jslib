@@ -15,7 +15,7 @@ mergeInto(LibraryManager.library, {
   },
   RW_GetBaseUrl: function () {
     var v = '';
-    try { v = window.location.origin + window.location.pathname; } catch (e) {}
+    try { v = window.location.origin + window.location.pathname.replace(/lite\/(index\.html)?$/, ''); } catch (e) {}   // shared links always point at the main build
     var size = lengthBytesUTF8(v) + 1, buf = _malloc(size);
     stringToUTF8(v, buf, size);
     return buf;
@@ -32,7 +32,17 @@ mergeInto(LibraryManager.library, {
     stringToUTF8(v, buf, size);
     return buf;
   },
+  // Anti crash flag shared with index.html (which has to decide which build to load before Unity exists). localStorage is the source of
+  // truth across the main and /lite/ builds (their PlayerPrefs are separate); the PlayerPrefs value only seeds it the first time.
+  RW_AntiCrashSync: function (pref) {
+    var v = pref ? 1 : 0;
+    try { var s = localStorage.getItem('rw_anticrash'); if (s === '0' || s === '1') v = +s; else localStorage.setItem('rw_anticrash', String(v)); } catch (e) {}
+    return v;
+  },
+  RW_SetAntiCrash: function (on) { try { localStorage.setItem('rw_anticrash', on ? '1' : '0'); } catch (e) {} },
+  RW_IsLiteBuild: function () { return window.rwLite ? 1 : 0; },
   RW_HideLoading: function () {
+    try { localStorage.setItem('rw_boot', '0'); } catch (e) {}   // first frame reached: this load did not crash
     try { var l = document.getElementById('rw-loading'); if (l) { l.style.opacity = '0'; setTimeout(function () { l.style.display = 'none'; }, 500); } } catch (e) {}
   },
   // Baked by BuildScript from the ION_TOKEN GitHub secret (window.RW_DEFAULT_ION_TOKEN).

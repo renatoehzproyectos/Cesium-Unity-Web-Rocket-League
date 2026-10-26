@@ -12,6 +12,14 @@ namespace RocketWorld
         [DllImport("__Internal")] static extern string RW_GetBaseUrl();
         [DllImport("__Internal")] static extern string RW_GetDeviceInfo();
         [DllImport("__Internal")] static extern string RW_GetDefaultIonToken();
+        [DllImport("__Internal")] static extern int RW_AntiCrashSync(int pref);
+        [DllImport("__Internal")] static extern void RW_SetAntiCrash(int on);
+        [DllImport("__Internal")] static extern int RW_IsLiteBuild();
+        /// <summary>Anti crash flag as stored in the browser (shared by the main and /lite/ builds); seeds it from <paramref name="pref"/> the first time.</summary>
+        public static bool AntiCrashSync(bool pref) => RW_AntiCrashSync(pref ? 1 : 0) == 1;
+        public static void SetAntiCrash(bool on) => RW_SetAntiCrash(on ? 1 : 0);
+        /// <summary>True when this page is the low-memory build served at /lite/.</summary>
+        public static bool IsLiteBuild() => RW_IsLiteBuild() == 1;
         public static string DeviceInfo() => RW_GetDeviceInfo();
         public static string BaseUrl() => RW_GetBaseUrl();
         public static string Query(string name) => RW_GetQueryParam(name);
@@ -20,6 +28,9 @@ namespace RocketWorld
         /// <summary>Token baked into index.html by CI from the ION_TOKEN secret (empty if not set).</summary>
         public static string DefaultIonToken() => RW_GetDefaultIonToken() ?? "";
 #else
+        public static bool AntiCrashSync(bool pref) => pref;
+        public static void SetAntiCrash(bool on) { }
+        public static bool IsLiteBuild() => false;
         public static string Query(string name) => System.Environment.GetEnvironmentVariable("RW_" + name.ToUpperInvariant()) ?? "";
         public static string Prompt(string message, string def) => def;   // Editor/desktop: use the RW_KEY env var
         public static string BaseUrl() => "http://localhost/";

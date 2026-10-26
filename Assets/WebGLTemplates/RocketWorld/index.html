@@ -1,6 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>
+    // Anti crash boot: pick the main build or the low-memory one in /lite/ BEFORE any heavy download starts.
+    // iOS Safari kills the tab ("A problem repeatedly occurred") when the big shared wasm heap is reserved, so with Anti crash on
+    // (default) iPhones/iPads go to /lite/. Any device whose last two loads never reached the first frame is moved there too.
+    // Overrides: ?lite=1 / ?lite=0 force a build; ?anticrash=0 turns the whole thing off. Flags live in localStorage (shared by both builds).
+    (function () {
+      var L = location, inLite = /\/lite\/(index\.html)?$/.test(L.pathname);
+      function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { } return null; }
+      var qs = new URLSearchParams(L.search), qAC = qs.get('anticrash'), qLite = qs.get('lite');
+      var ac = qAC !== null ? qAC !== '0' : ls('rw_anticrash') !== '0';
+      var ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+      var tries = parseInt(ls('rw_boot') || '0', 10) || 0;          // loads that never reached the first frame (cleared by RW_HideLoading)
+      if (!inLite && ac && tries >= 2) ls('rw_lite', '1');
+      var want = qLite !== null ? qLite === '1' : (ac && (ios || ls('rw_lite') === '1'));
+      window.rwLite = inLite;
+      if (want !== inLite) {
+        window.rwRedirecting = true;
+        L.replace((want ? 'lite/' : '../') + L.search + L.hash);
+        return;
+      }
+      if (!ac) ls('rw_lite', '0');
+      ls('rw_boot', String(tries + 1));
+    })();
+  </script>
   <script src="TemplateData/peerjs.min.js"></script>
   <script>
     // Unity WebGL with threads: HEAPU8.buffer is a SharedArrayBuffer, and browsers refuse to send one over a WebSocket
@@ -116,7 +140,9 @@
     if (!window.crossOriginIsolated) problem = "Rocket World can't start here: this page isn't cross-origin isolated (COOP/COEP headers are missing on the host).";
     else if (!window.WebGL2RenderingContext) problem = "This browser doesn't support WebGL 2. Try an up-to-date Chrome, Edge, Firefox or Safari.";
 
-    if (problem) {
+    if (window.rwRedirecting) {
+      msg.textContent = "Switching to the low-memory build…";
+    } else if (problem) {
       showError(problem); msg.textContent = "";
     } else {
       var script = document.createElement("script");

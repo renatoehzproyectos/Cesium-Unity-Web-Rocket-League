@@ -97,6 +97,24 @@ jobs:
           customParameters: -rwGfx ${{ inputs.graphics == 'webgpu' && 'webgpu' || 'webgl2' }} -rwFast ${{ github.event_name == 'pull_request' && '1' || '0' }} -rwSpeed ${{ inputs.optimize_speed == true && '1' || '0' }}
           versioning: None
           allowDirtyBuild: true
+      - name: Unity WebGL build (low-memory /lite/ build for iOS Safari and crash recovery)
+        if: steps.lic.outputs.ok == 'true' && github.event_name != 'pull_request'
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          ION_TOKEN: ${{ secrets.ION_TOKEN }}
+          UNITY_CLOUD_PROJECT_ID: ${{ secrets.UNITY_CLOUD_PROJECT_ID }}
+        with:
+          unityVersion: 6000.0.62f1
+          targetPlatform: WebGL
+          buildName: lite
+          buildMethod: RocketWorld.Editor.BuildScript.BuildWebGL
+          customParameters: -rwLite 1 -rwGfx ${{ inputs.graphics == 'webgpu' && 'webgpu' || 'webgl2' }} -rwFast 0 -rwSpeed ${{ inputs.optimize_speed == true && '1' || '0' }}
+          versioning: None
+          allowDirtyBuild: true
       - name: Add Vercel config + bake ION_TOKEN into index.html
         if: steps.lic.outputs.ok == 'true'
         env:
@@ -114,6 +132,14 @@ jobs:
           fi
           # Unity Transport WebSockets run inside the pthread workers: patch their shared-memory TextDecoder/send calls.
           node tools/patch_worker.js build/WebGL/WebGL/Build
+          # Low-memory build: served from /lite/ next to the main one (index.html sends iPhones/iPads and crash-looping devices there).
+          if [ -d build/WebGL/lite ]; then
+            cp -r build/WebGL/lite build/WebGL/WebGL/lite
+            [ -n "$ION_TOKEN" ] && python3 tools/bake_ion_token.py build/WebGL/WebGL/lite/index.html
+            node tools/patch_worker.js build/WebGL/WebGL/lite/Build
+          elif [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "::error::lite build missing: iOS would be redirected to a 404"; exit 1
+          fi
           ls -la build/WebGL/WebGL build/WebGL/WebGL/Build
       - uses: actions/upload-artifact@v4
         if: steps.lic.outputs.ok == 'true'

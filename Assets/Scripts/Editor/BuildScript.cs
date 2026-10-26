@@ -135,8 +135,12 @@ namespace RocketWorld.Editor
             PlayerSettings.WebGL.threadsSupport = true;
             // Names differ between 6000.0.x patch releases; set the ones that exist.
             TrySet(typeof(PlayerSettings.WebGL), "wasm2023", true);
-            TrySet(typeof(PlayerSettings.WebGL), "initialMemorySize", 512);
-            TrySet(typeof(PlayerSettings.WebGL), "maximumMemorySize", 2048);
+            // `-rwLite 1`: the low-memory build served at /lite/ (see Assets/WebGLTemplates/RocketWorld/index.html). iOS Safari kills the tab
+            // ("A problem repeatedly occurred") when a shared wasm heap this big is reserved at startup; threads stay on (Cesium needs them).
+            bool lite = Arg("-rwLite") == "1";
+            if (lite) PlayerSettings.WebGL.dataCaching = false;   // no second in-memory copy of the .data file
+            TrySet(typeof(PlayerSettings.WebGL), "initialMemorySize", lite ? 256 : 512);
+            TrySet(typeof(PlayerSettings.WebGL), "maximumMemorySize", lite ? 1024 : 2048);
         }
 
         static void TrySet(Type t, string prop, object value)

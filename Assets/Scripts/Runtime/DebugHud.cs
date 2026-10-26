@@ -252,7 +252,9 @@ namespace RocketWorld
             s.viewDistance = GUILayout.HorizontalSlider(s.viewDistance, 400f, 20000f);
             GUILayout.Label($"Render scale {s.renderScale:0.00}");
             s.renderScale = GUILayout.HorizontalSlider(s.renderScale, 0.3f, 2f);
-            s.antiCrash = GUILayout.Toggle(s.antiCrash, "Anti crash (keeps 30+ FPS: render scale, depth of field and motion blur start at minimum and adapt; the sliders are the maximum)");
+            bool ac = GUILayout.Toggle(s.antiCrash, "Anti crash (keeps 30+ FPS: render scale, depth of field and motion blur start at minimum and adapt; the sliders are the maximum. On iPhone/iPad it also loads the low-memory build: reload the page after changing it)");
+            if (ac != s.antiCrash) { s.antiCrash = ac; WebBridge.SetAntiCrash(ac); }
+            if (WebBridge.IsLiteBuild()) GUILayout.Label("Low-memory build active");
 
             GUILayout.Space(6);
             GUILayout.Label("Camera (C key cycles)");
