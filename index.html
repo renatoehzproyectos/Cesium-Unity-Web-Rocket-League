@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OBRA360 | Postventa</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--green:#7b9933;--gd:#5E752B;--gdeep:#3f5220;--gl:#97b332;--gp:#eef3e0;--or:#ff6900;--ord:#d95500;--ink:#121212;--soft:#3c3c3c;--paper:#fcfbf8;--p2:#f4f2ec;--line:#e2ded4;--card:#fff;--red:#b3261e;
+--fd:"Bricolage Grotesque","Trebuchet MS",sans-serif;--fb:"DM Sans","Helvetica Neue",Arial,sans-serif;--sh:0 1px 2px rgba(18,18,18,.06),0 8px 24px rgba(18,18,18,.06)}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--paper:#161714;--p2:#1f201c;--line:#34362e;--card:#1c1d19;--ink:#f3f1ea;--soft:#c9c6bb;--gp:#262d17;--gd:#a9c75a}}
+*{box-sizing:border-box}html,body{margin:0}
+body{font-family:var(--fb);color:var(--ink);background:var(--paper);line-height:1.5;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+h1,h2,h3{font-family:var(--fd);letter-spacing:-.02em;margin:0;line-height:1.1}
+button,input,select,textarea{font:inherit;color:inherit}
+.wrap{max-width:1180px;margin:auto;padding:0 clamp(14px,4vw,32px)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.65rem 1.2rem;border-radius:999px;font-weight:700;font-size:.88rem;border:1.5px solid transparent;cursor:pointer;background:none;transition:transform .2s,background .2s}
+.btn:hover{transform:translateY(-2px)}.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--or);outline-offset:2px}
+.solid{background:var(--or);color:#fff;box-shadow:0 8px 20px rgba(255,105,0,.28)}.solid:hover{background:var(--ord)}
+.dark{background:var(--ink);color:var(--paper)}.out{border-color:var(--gd);color:var(--gd)}.out:hover{background:var(--gd);color:#fff}.danger{border-color:var(--red);color:var(--red)}
+header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+header .wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:68px;flex-wrap:wrap}
+.logo{font-family:var(--fd);font-weight:800;font-size:1.5rem}.logo b{color:var(--or)}
+.bar{border-top:3px solid var(--or);background:var(--gd);color:#fff;font-size:.82rem;padding:.4rem 0}
+.tabs{display:flex;gap:.5rem;flex-wrap:wrap;margin:1.4rem 0 1rem}
+.tab{padding:.55rem 1.1rem;border-radius:999px;border:1.5px solid var(--line);background:var(--card);cursor:pointer;font-weight:700;font-size:.88rem}
+.tab.on{background:var(--gd);color:#fff;border-color:var(--gd)}
+.tools{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem}
+.tools .sp{flex:1}
+input,select,textarea{border:1.5px solid var(--line);border-radius:12px;padding:.6rem .8rem;background:var(--card);width:100%}
+.tools input,.tools select{width:auto}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:1.2rem;align-items:start}
+@media(max-width:900px){.main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;box-shadow:var(--sh);padding:1.1rem}
+.side h3{font-size:1.15rem;margin-bottom:.6rem}
+.scroll{overflow-x:auto}
+.grid{display:grid;grid-template-columns:repeat(7,minmax(92px,1fr));gap:1px;background:var(--line);border-radius:12px;overflow:hidden;min-width:660px}
+.dh{background:var(--p2);padding:.4rem;font-size:.75rem;font-weight:700;text-align:center}
+.cell{background:var(--card);min-height:104px;padding:.3rem;cursor:pointer}.cell.out2{opacity:.45}.cell.today .n{background:var(--or);color:#fff}
+.n{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:50%;font-size:.78rem;font-weight:700}
+.chip{display:block;width:100%;text-align:left;border:0;border-left:4px solid var(--green);background:var(--gp);border-radius:6px;padding:2px 6px;margin-top:3px;font-size:.74rem;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.s-pendiente{border-color:var(--or)}.s-en-curso{border-color:var(--gdeep)}.s-completado{border-color:#999;opacity:.7}.s-cancelado{border-color:var(--red);text-decoration:line-through;opacity:.7}
+.row{display:flex;gap:.8rem;padding:.7rem 0;border-bottom:1px solid var(--line);align-items:center;cursor:pointer}
+.row time{font-family:var(--fd);font-weight:800;min-width:92px;font-size:.92rem}
+.pill{font-size:.7rem;font-weight:700;padding:2px 9px;border-radius:99px;background:var(--gp);color:var(--gd);white-space:nowrap}
+.pill.pr{background:var(--or);color:#fff}
+.cols{display:grid;grid-template-columns:repeat(7,minmax(130px,1fr));gap:.5rem;min-width:930px}
+.mem{display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.45rem 0;border-bottom:1px solid var(--line);font-size:.86rem}
+.mem select{padding:.25rem .4rem;width:auto;font-size:.8rem}
+.mask{position:fixed;inset:0;background:rgba(18,18,18,.55);display:grid;place-items:center;z-index:50;padding:14px}
+.modal{background:var(--card);border-radius:22px;max-width:560px;width:100%;max-height:92vh;overflow:auto;padding:1.4rem;box-shadow:0 24px 60px rgba(18,18,18,.3)}
+.f{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin:1rem 0}.f label{font-size:.78rem;font-weight:700;color:var(--soft);display:block}.f .w{grid-column:1/-1}
+@media(max-width:520px){.f{grid-template-columns:1fr}}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:.7rem 1.2rem;border-radius:99px;z-index:90;font-size:.88rem}
+.toast.err{background:var(--red);color:#fff}
+.auth{max-width:420px;margin:8vh auto}.auth .card{padding:1.8rem}.auth input{margin:.35rem 0}
+.mut{color:var(--soft);font-size:.84rem}.acts{display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end;margin-top:1rem}
+.inv{background:var(--gp);border-radius:12px;padding:.7rem;margin-bottom:.7rem;font-size:.86rem}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style><script src="config.js"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script></head><body><div id="app"></div>
+<script>
+const K='obra360-v1',ROLES={admin:'Administrador',editor:'Editor',lector:'Lector'},ST=['pendiente','confirmado','en curso','completado','cancelado'],TY=['Visita técnica','Reparación','Inspección','Reunión','Otro'];
+const uid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const iso=d=>{const z=new Date(d-d.getTimezoneOffset()*6e4);return z.toISOString().slice(0,16)};
+let db,S={view:'month',d:new Date(),cal:null,q:'',st:'',modal:null};
+function seed(){const n=new Date(),d=(o,h)=>{const x=new Date(n.getFullYear(),n.getMonth(),n.getDate()+o,h);return iso(x)};
+ return{session:null,users:[{email:'ana@obra360.cl',name:'Ana Rojas',pw:'demo123'},{email:'marco@obra360.cl',name:'Marco Silva',pw:'demo123'}],
+ cals:[{id:'p-ana',name:'Personal',owner:'ana@obra360.cl',type:'personal'},{id:'p-marco',name:'Personal',owner:'marco@obra360.cl',type:'personal'},{id:'s1',name:'Postventa Torre Norte',owner:'ana@obra360.cl',type:'shared'}],
+ members:[{cal:'s1',email:'ana@obra360.cl',role:'admin'},{cal:'s1',email:'marco@obra360.cl',role:'editor'}],invites:[],
+ events:[{id:uid(),cal:'p-ana',title:'Inspección filtraciones depto 504',type:'Inspección',start:d(1,10),end:d(1,11),loc:'Torre Norte, piso 5',desc:'Revisar sellos de ventana',status:'pendiente',prio:'alta',creator:'ana@obra360.cl'},
+ {id:uid(),cal:'s1',title:'Reunión de entrega postventa',type:'Reunión',start:d(2,15),end:d(2,16),loc:'Oficina de obra',desc:'',status:'confirmado',prio:'normal',creator:'marco@obra360.cl'}]}}
+try{db=JSON.parse(localStorage.getItem(K))}catch(e){}if(!db)db=seed();
+function save(){try{localStorage.setItem(K,JSON.stringify(db))}catch(e){}}
+const me=()=>db.users.find(u=>u.email===db.session);
+const role=(c,e=db.session)=>{const k=db.cals.find(x=>x.id===c);if(!k)return null;if(k.type==='personal')return k.owner===e?'admin':null;const m=db.members.find(x=>x.cal===c&&x.email===e);return m?m.role:null};
+const myCals=()=>db.cals.filter(c=>role(c.id));
+const canEdit=c=>['admin','editor'].includes(role(c)),canAdd=canEdit;
+const canDel=ev=>role(ev.cal)==='admin'||(role(ev.cal)==='editor'&&ev.creator===db.session);
+function toast(m,err){const t=document.createElement('div');t.className='toast'+(err?' err':'');t.textContent=m;document.body.append(t);setTimeout(()=>t.remove(),2800)}
+// --- auth
+function login(f){const u=db.users.find(u=>u.email===f.email.value.trim().toLowerCase()&&u.pw===f.pw.value);if(!u)return toast('Correo o contraseña incorrectos',1);db.session=u.email;save();S.cal=null;render()}
+function register(f){const e=f.email.value.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(e)||f.pw.value.length<6)return toast('Usa un correo válido y una contraseña de 6+ caracteres',1);if(db.users.some(u=>u.email===e))return toast('Ese correo ya tiene cuenta',1);
+ db.users.push({email:e,name:f.name.value.trim()||e,pw:f.pw.value});db.cals.push({id:'p-'+uid(),name:'Personal',owner:e,type:'personal'});db.session=e;save();S.cal=null;render()}
+function logout(){db.session=null;save();render()}
+// --- data ops
+const evs=()=>db.events.filter(e=>e.cal===S.cal&&role(e.cal)&&(!S.q||(e.title+e.loc+e.desc).toLowerCase().includes(S.q.toLowerCase()))&&(!S.st||e.status===S.st));
+function saveEv(f){const id=f.id.value,c=f.cal.value;if(!canEdit(c))return toast('No tienes permiso para editar este calendario',1);
+ const o={title:f.title.value.trim(),type:f.type.value,start:f.start.value,end:f.end.value,loc:f.loc.value,desc:f.desc.value,status:f.status.value,prio:f.prio.value};
+ if(!o.title||!o.start||!o.end||o.end<o.start)return toast('Revisa título y fechas: el término no puede ser anterior al inicio',1);
+ if(id){const e=db.events.find(x=>x.id===id);if(!canEdit(e.cal))return toast('Sin permiso',1);Object.assign(e,o,{modified:Date.now()})}else db.events.push({id:uid(),cal:c,creator:db.session,created:Date.now(),...o});
+ save();S.modal=null;render();toast('Evento guardado')}
+function delEv(id){const e=db.events.find(x=>x.id===id);if(!e||!canDel(e))return toast('Sin permiso para eliminar',1);if(!confirm('¿Eliminar este evento?'))return;db.events=db.events.filter(x=>x.id!==id);save();S.modal=null;render();toast('Evento eliminado')}
+function share(id,mode,dest){const e=db.events.find(x=>x.id===id);
+ if(!e||!dest||role(e.cal)!=='admin'&&e.creator!==db.session||!canAdd(dest))return toast('No tienes permiso en origen o destino',1);
+ const snap=JSON.stringify(db);try{if(mode==='move'){e.cal=dest;e.modified=Date.now()}else db.events.push({...e,id:uid(),cal:dest,creator:db.session,created:Date.now()});save()}catch(x){db=JSON.parse(snap);return toast('Error: no se aplicó ningún cambio',1)}
+ S.modal=null;render();toast(mode==='move'?'Evento movido al calendario compartido':'Copia creada; el original sigue en tu calendario personal')}
+function newCal(){const n=prompt('Nombre del calendario compartido');if(!n)return;const id='s-'+uid();db.cals.push({id,name:n.trim(),owner:db.session,type:'shared'});db.members.push({cal:id,email:db.session,role:'admin'});save();S.cal=id;render()}
+function invite(f){if(role(S.cal)!=='admin')return toast('Solo administradores',1);const e=f.email.value.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(e))return toast('Correo no válido',1);
+ if(db.members.some(m=>m.cal===S.cal&&m.email===e))return toast('Ya es miembro',1);db.invites=db.invites.filter(i=>!(i.cal===S.cal&&i.email===e&&i.status==='pendiente'));
+ db.invites.push({id:uid(),cal:S.cal,email:e,role:f.role.value,by:db.session,status:'pendiente',token:uid()+uid(),exp:Date.now()+7*864e5});save();render();toast('Invitación creada (7 días de vigencia)')}
+function accept(id){const i=db.invites.find(x=>x.id===id);if(!i||i.email!==db.session||i.status!=='pendiente'||i.exp<Date.now())return toast('Invitación no válida o vencida',1);i.status='aceptada';db.members.push({cal:i.cal,email:i.email,role:i.role});save();S.cal=i.cal;render();toast('Ya formas parte del calendario')}
+var setRole=(e,r)=>{if(role(S.cal)!=='admin')return;db.members.find(m=>m.cal===S.cal&&m.email===e).role=r;save();render()};
+function rmMember(e){const k=db.cals.find(c=>c.id===S.cal);if(role(S.cal)!=='admin'||e===k.owner)return toast('No se puede retirar al propietario',1);db.members=db.members.filter(m=>!(m.cal===S.cal&&m.email===e));save();render()}
+function revoke(id){db.invites.find(i=>i.id===id).status='revocada';save();render()}
+// --- render
+const fmt=(s,o)=>new Date(s).toLocaleString('es-CL',o);
+const hm=s=>fmt(s,{hour:'2-digit',minute:'2-digit'});
+const chip=e=>`<button class="chip s-${e.status.replace(' ','-')}" onclick="event.stopPropagation();openEv('${e.id}')">${hm(e.start)} ${esc(e.title)}</button>`;
+const sameDay=(a,b)=>a.toDateString()===b.toDateString();
+const dayEvs=d=>evs().filter(e=>sameDay(new Date(e.start),d)).sort((a,b)=>a.start<b.start?-1:1);
+const row=e=>`<div class="row" onclick="openEv('${e.id}')"><time>${fmt(e.start,{day:'numeric',month:'short'})}<br><span class="mut">${hm(e.start)}–${hm(e.end)}</span></time><div style="flex:1;min-width:0"><b>${esc(e.title)}</b><div class="mut">${esc(e.loc)} · ${esc(e.type)}</div></div>${e.prio!=='normal'?`<span class="pill pr">${e.prio}</span>`:''}<span class="pill">${e.status}</span></div>`;
+function body(){const d=S.d,v=S.view;
+ if(v==='agenda'){const l=evs().sort((a,b)=>a.start<b.start?-1:1);return l.length?l.map(row).join(''):'<p class="mut">Aún no hay eventos. Crea el primero con «Nuevo evento».</p>'}
+ if(v==='day'){const l=dayEvs(d);return l.length?l.map(row).join(''):'<p class="mut">Sin eventos este día.</p>'}
+ if(v==='week'){const s=new Date(d);s.setDate(d.getDate()-((d.getDay()+6)%7));return`<div class="scroll"><div class="cols">${[...Array(7)].map((_,i)=>{const x=new Date(s);x.setDate(s.getDate()+i);return`<div><b class="mut">${fmt(x,{weekday:'short',day:'numeric'})}</b>${dayEvs(x).map(chip).join('')}</div>`}).join('')}</div></div>`}
+ const f=new Date(d.getFullYear(),d.getMonth(),1),s=new Date(f);s.setDate(1-((f.getDay()+6)%7));let h='<div class="scroll"><div class="grid">'+['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(x=>`<div class="dh">${x}</div>`).join('');
+ for(let i=0;i<42;i++){const x=new Date(s);x.setDate(s.getDate()+i);h+=`<div class="cell ${x.getMonth()!==d.getMonth()?'out2':''} ${sameDay(x,new Date())?'today':''}" onclick="openEv(null,'${iso(new Date(x.getFullYear(),x.getMonth(),x.getDate(),9))}')"><span class="n">${x.getDate()}</span>${dayEvs(x).slice(0,3).map(chip).join('')}</div>`}
+ return h+'</div></div>'}
+function nav(n){const d=S.d,v=S.view;if(n===0)S.d=new Date();else if(v==='month')d.setMonth(d.getMonth()+n);else d.setDate(d.getDate()+n*(v==='week'?7:1));S.d=new Date(S.d);render()}
+function side(){const k=db.cals.find(c=>c.id===S.cal);const inv=db.invites.filter(i=>i.email===db.session&&i.status==='pendiente'&&i.exp>Date.now());
+ let h=inv.map(i=>`<div class="inv"><b>${esc(db.cals.find(c=>c.id===i.cal).name)}</b><br>${esc(i.by)} te invita como ${ROLES[i.role]}<div class="acts" style="justify-content:flex-start"><button class="btn solid" onclick="accept('${i.id}')">Aceptar</button></div></div>`).join('');
+ if(k.type==='personal')return h+`<div class="card side"><h3>Calendario personal</h3><p class="mut">Privado: nadie más puede verlo. Abre un evento para moverlo o copiarlo a un calendario compartido.</p><button class="btn out" onclick="newCal()">Crear calendario compartido</button></div>`;
+ const adm=role(k.id)==='admin',ms=db.members.filter(m=>m.cal===k.id),is=db.invites.filter(i=>i.cal===k.id);
+ return h+`<div class="card side"><h3>Miembros</h3><p class="mut">Tu rol: ${ROLES[role(k.id)]}</p>${ms.map(m=>`<div class="mem"><span style="overflow:hidden;text-overflow:ellipsis">${esc(db.users.find(u=>u.email===m.email)?.name||m.email)}</span>${adm&&m.email!==k.owner?`<span><select onchange="setRole('${m.email}',this.value)">${Object.entries(ROLES).map(([r,l])=>`<option value="${r}" ${r===m.role?'selected':''}>${l}</option>`).join('')}</select> <button class="btn danger" style="padding:.2rem .6rem" onclick="rmMember('${m.email}')">Retirar</button></span>`:`<span class="pill">${ROLES[m.role]}</span>`}</div>`).join('')}
+ ${adm?`<form onsubmit="invite(this);return false" style="margin-top:.8rem"><input name="email" type="email" placeholder="correo@ejemplo.cl" required><select name="role" style="margin:.4rem 0">${Object.entries(ROLES).map(([r,l])=>`<option value="${r}" ${r==='lector'?'selected':''}>${l}</option>`).join('')}</select><button class="btn dark" style="width:100%">Enviar invitación</button></form>
+ ${is.map(i=>`<div class="mem"><span style="overflow:hidden;text-overflow:ellipsis">${esc(i.email)}<br><span class="mut">${i.status}</span></span>${i.status==='pendiente'?`<button class="btn danger" style="padding:.2rem .6rem" onclick="revoke('${i.id}')">Revocar</button>`:''}</div>`).join('')}`:''}</div>`}
+function app(){const u=me();
+ if(!u)return`<div class="auth wrap"><div class="logo" style="text-align:center;font-size:2.2rem">OBRA<b>360</b></div><p class="mut" style="text-align:center">Postventa de obras, sin llamadas de por medio.</p><div class="card"><form onsubmit="login(this);return false"><h2>Iniciar sesión</h2><input name="email" type="email" placeholder="Correo" required><input name="pw" type="password" placeholder="Contraseña" required><button class="btn solid" style="width:100%;margin-top:.6rem">Entrar</button></form><hr style="border:0;border-top:1px solid var(--line);margin:1.2rem 0"><form onsubmit="register(this);return false"><h3>Crear cuenta</h3><input name="name" placeholder="Nombre"><input name="email" type="email" placeholder="Correo" required><input name="pw" type="password" placeholder="Contraseña (6+ caracteres)" required><button class="btn out" style="width:100%;margin-top:.6rem">Registrarme</button></form><p class="mut">${window.OBRA_CFG&&OBRA_CFG.url?'<a href="#" onclick="forgot();return false">¿Olvidaste tu contraseña?</a>':'Demo: ana@obra360.cl o marco@obra360.cl, contraseña demo123.'}</p></div></div>`;
+ const cs=myCals();if(!cs.some(c=>c.id===S.cal))S.cal=cs[0].id;const k=db.cals.find(c=>c.id===S.cal),title={month:fmt(S.d,{month:'long',year:'numeric'}),week:'Semana del '+fmt(S.d,{day:'numeric',month:'long'}),day:fmt(S.d,{weekday:'long',day:'numeric',month:'long'}),agenda:'Agenda'}[S.view];
+ return`<header><div class="wrap"><span class="logo">OBRA<b>360</b></span><span><span class="mut">${esc(u.name)}</span> <button class="btn out" onclick="logout()">Salir</button></span></div></header><div class="bar"><div class="wrap">Estás en: <b>${k.type==='personal'?'Calendario personal (privado)':'Calendario compartido · '+esc(k.name)}</b></div></div>
+ <div class="wrap"><div class="tabs">${cs.map(c=>`<button class="tab ${c.id===S.cal?'on':''}" onclick="S.cal='${c.id}';render()">${c.type==='personal'?'Personal':esc(c.name)}</button>`).join('')}</div>
+ <div class="tools"><button class="btn out" onclick="nav(-1)" aria-label="Anterior">‹</button><button class="btn out" onclick="nav(0)">Hoy</button><button class="btn out" onclick="nav(1)" aria-label="Siguiente">›</button><h2 style="font-size:1.4rem;text-transform:capitalize">${title}</h2><span class="sp"></span>
+ <select onchange="S.view=this.value;render()" aria-label="Vista">${[['month','Mes'],['week','Semana'],['day','Día'],['agenda','Agenda']].map(([v,l])=>`<option value="${v}" ${v===S.view?'selected':''}>${l}</option>`).join('')}</select>
+ <input id="q" placeholder="Buscar" value="${esc(S.q)}" oninput="S.q=this.value;render(true)"><select onchange="S.st=this.value;render()" aria-label="Estado"><option value="">Todos los estados</option>${ST.map(s=>`<option ${s===S.st?'selected':''}>${s}</option>`).join('')}</select>
+ ${canAdd(S.cal)?'<button class="btn solid" onclick="openEv()">+ Nuevo evento</button>':''}</div>
+ <div class="main"><div class="card" id="cal">${body()}</div><div>${side()}</div></div><p class="mut" style="margin:2rem 0">${window.OBRA_CFG&&OBRA_CFG.url?'':'Versión de demostración: los datos se guardan solo en este navegador.'}</p></div>${S.modal||''}`}
+function render(keep){const a=document.getElementById('app');if(keep&&document.getElementById('cal')){document.getElementById('cal').innerHTML=body();return}a.innerHTML=app()}
+function openEv(id,start){const e=id?db.events.find(x=>x.id===id):null,c=e?e.cal:S.cal,ro=!canEdit(c),n=new Date(),s=start||iso(new Date(n.getFullYear(),n.getMonth(),n.getDate(),n.getHours()+1)),en=e?.end||iso(new Date(new Date(s).getTime()+36e5));e0=e;
+ if(!e&&!canAdd(c))return toast('Tu rol no permite crear eventos',1);
+ const o=(a,v)=>a.map(x=>`<option ${x===v?'selected':''}>${x}</option>`).join(''),d=ro?'disabled':'';
+ S.modal=`<div class="mask" onclick="if(event.target===this){S.modal=null;render()}"><form class="modal" onsubmit="saveEv(this);return false"><h2>${e?(ro?'Evento':'Editar evento'):'Nuevo evento'}</h2><div class="mut">${e?'Creado por '+esc(db.users.find(u=>u.email===e.creator)?.name||e.creator):'Se creará en: '+esc(db.cals.find(x=>x.id===c).name)}</div>
+ <input type="hidden" name="id" value="${e?.id||''}"><input type="hidden" name="cal" value="${c}"><div class="f"><div class="w"><label>Título<input name="title" value="${esc(e?.title)}" required ${d}></label></div>
+ <label>Tipo<select name="type" ${d}>${o(TY,e?.type)}</select></label><label>Estado<select name="status" ${d}>${o(ST,e?.status||'pendiente')}</select></label>
+ <label>Inicio<input type="datetime-local" name="start" value="${e?.start||s}" required ${d}></label><label>Término<input type="datetime-local" name="end" value="${en}" required ${d}></label>
+ <label>Ubicación (obra, unidad)<input name="loc" value="${esc(e?.loc)}" ${d}></label><label>Prioridad<select name="prio" ${d}>${o(['normal','alta','urgente'],e?.prio||'normal')}</select></label>
+ <div class="w"><label>Descripción y observaciones<textarea name="desc" rows="3" ${d}>${esc(e?.desc)}</textarea></label></div></div>
+ <div class="acts">${e&&canDel(e)?`<button type="button" class="btn danger" onclick="delEv('${e.id}')">Eliminar</button>`:''}${e&&db.cals.find(x=>x.id===c).type==='personal'?`<button type="button" class="btn out" onclick="openShare('${e.id}')">Mover o copiar…</button>`:''}<button type="button" class="btn out" onclick="S.modal=null;render()">Cerrar</button>${ro?'':'<button class="btn solid">Guardar</button>'}</div></form></div>`;render()}
+function openShare(id){const ds=myCals().filter(c=>c.type==='shared'&&canAdd(c.id));
+ if(!ds.length){S.modal=null;render();return toast('Necesitas un calendario compartido con permiso de edición',1)}
+ S.modal=`<div class="mask"><form class="modal" onsubmit="share('${id}',this.mode.value,this.dest.value);return false"><h2>Compartir evento</h2><div class="f"><div class="w"><label>Calendario de destino<select name="dest">${ds.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label></div>
+ <label class="w"><input type="radio" name="mode" value="move" checked style="width:auto"> <b>Mover</b>: sale de tu calendario personal y pasa al compartido.</label><label class="w"><input type="radio" name="mode" value="copy" style="width:auto"> <b>Copiar</b>: el original sigue privado; la copia es independiente.</label></div>
+ <div class="acts"><button type="button" class="btn out" onclick="S.modal=null;render()">Cancelar</button><button class="btn solid">Confirmar</button></div></form></div>`;render()}
+let e0;
+if(!(window.OBRA_CFG&&OBRA_CFG.url)){render()}else{
+db={session:null,users:[],cals:[],members:[],invites:[],events:[]};
+const SB=supabase.createClient(OBRA_CFG.url,OBRA_CFG.anon);let UID,P={},TK=(location.hash.match(/invite=([0-9a-f]+)/)||[])[1];
+if(TK)history.replaceState(null,'',location.pathname);
+save=()=>{};
+const sync=async()=>{const {data:{session}}=await SB.auth.getSession();
+ if(!session){db.session=null;return}
+ UID=session.user.id;
+ const R=await Promise.all(['profiles','calendars','calendar_members','events','calendar_invitations'].map(t=>SB.from(t).select('*')));
+ const bad=R.find(r=>r.error);if(bad)return toast(bad.error.message,1);
+ const [pr,ca,mm,ev,iv]=R.map(r=>r.data);P=Object.fromEntries(pr.map(p=>[p.id,p.email]));
+ db.session=session.user.email;db.users=pr.map(p=>({email:p.email,name:p.name||p.email}));
+ db.cals=ca.map(c=>({id:c.id,name:c.name,type:c.type,owner:P[c.owner_id]}));
+ db.members=mm.map(m=>({cal:m.calendar_id,email:P[m.user_id],role:m.role}));
+ db.events=ev.map(e=>({id:e.id,cal:e.calendar_id,title:e.title,type:e.type,start:iso(new Date(e.start_at)),end:iso(new Date(e.end_at)),loc:e.location||'',desc:e.description||'',status:e.status,prio:e.priority,creator:P[e.creator_id]}));
+ db.invites=iv.map(i=>({id:i.id,cal:i.calendar_id,email:i.email,role:i.role,by:i.invited_by_email,status:i.status,exp:Date.parse(i.expires_at)}));
+ iv.forEach(i=>{if(!db.cals.some(c=>c.id===i.calendar_id))db.cals.push({id:i.calendar_id,name:i.calendar_name,type:'shared',owner:''})})};
+const go=async(p,ok)=>{const r=await p;if(r.error){toast(r.error.message||'Error',1);return null}await sync();S.modal=null;render();if(ok)toast(ok);return r.data};
+const uidOf=e=>Object.keys(P).find(k=>P[k]===e);
+saveEv=async f=>{const o={title:f.title.value.trim(),type:f.type.value,start_at:f.start.value&&new Date(f.start.value).toISOString(),end_at:f.end.value&&new Date(f.end.value).toISOString(),location:f.loc.value,description:f.desc.value,status:f.status.value,priority:f.prio.value};
+ if(!o.title||!o.start_at||!o.end_at||o.end_at<o.start_at)return toast('Revisa título y fechas: el término no puede ser anterior al inicio',1);
+ go(f.id.value?SB.from('events').update({...o,modified_at:new Date().toISOString()}).eq('id',f.id.value):SB.from('events').insert({...o,calendar_id:f.cal.value,creator_id:UID}),'Evento guardado')};
+delEv=id=>{if(confirm('¿Eliminar este evento?'))go(SB.from('events').delete().eq('id',id),'Evento eliminado')};
+share=(id,m,d)=>go(SB.rpc('share_event',{p_event:id,p_dest:d,p_mode:m}),m==='move'?'Evento movido al calendario compartido':'Copia creada; el original sigue en tu calendario personal');
+newCal=()=>{const n=prompt('Nombre del calendario compartido');if(!n)return;const id=crypto.randomUUID();go(SB.from('calendars').insert({id,name:n.trim(),type:'shared',owner_id:UID}),'Calendario creado').then(()=>{S.cal=id;render()})};
+invite=async f=>{const {data,error}=await SB.functions.invoke('invite',{body:{calendar_id:S.cal,email:f.email.value,role:f.role.value}});
+ if(error||data?.error){let m=data?.error;try{m=m||(await error.context.json()).error}catch(x){}return toast(m||'No se pudo enviar la invitación',1)}
+ await sync();render();toast('Invitación enviada por correo')};
+accept=id=>go(SB.rpc('accept_invitation',{p_id:id}),'Ya formas parte del calendario');
+setRole=(e,r)=>go(SB.from('calendar_members').update({role:r}).eq('calendar_id',S.cal).eq('user_id',uidOf(e)));
+rmMember=e=>confirm('¿Retirar a este miembro? Perderá el acceso.')&&go(SB.from('calendar_members').delete().eq('calendar_id',S.cal).eq('user_id',uidOf(e)),'Acceso revocado');
+revoke=id=>go(SB.from('calendar_invitations').update({status:'revocada'}).eq('id',id));
+login=async f=>{const r=await SB.auth.signInWithPassword({email:f.email.value.trim(),password:f.pw.value});if(r.error)toast('Correo o contraseña incorrectos, o correo sin verificar',1)};
+register=async f=>{const r=await SB.auth.signUp({email:f.email.value.trim(),password:f.pw.value,options:{data:{name:f.name.value.trim()},emailRedirectTo:location.origin+location.pathname}});toast(r.error?r.error.message:'Te enviamos un correo para verificar tu cuenta',!!r.error)};
+logout=()=>SB.auth.signOut();
+forgot=async()=>{const e=prompt('Tu correo');if(!e)return;const r=await SB.auth.resetPasswordForEmail(e.trim(),{redirectTo:location.origin+location.pathname});toast(r.error?r.error.message:'Si el correo existe, recibirás un enlace',!!r.error)};
+SB.auth.onAuthStateChange(ev=>{if(ev==='TOKEN_REFRESHED')return;setTimeout(async()=>{try{
+ if(ev==='PASSWORD_RECOVERY'){const p=prompt('Nueva contraseña (6+ caracteres)');if(p){const r=await SB.auth.updateUser({password:p});toast(r.error?r.error.message:'Contraseña actualizada',!!r.error)}}
+ await sync();
+ if(db.session&&TK){const t=TK;TK=null;const r=await SB.rpc('accept_invitation',{p_token:t});if(r.error)toast(r.error.message,1);else{await sync();S.cal=r.data;toast('Ya formas parte del calendario')}}
+ if(!S.modal||!db.session)render()}catch(x){document.getElementById('app').innerHTML='<pre style="padding:1rem;white-space:pre-wrap">Error al iniciar: '+esc(x.message||x)+'</pre>'}},0)});
+let tm;SB.channel('o360').on('postgres_changes',{event:'*',schema:'public'},()=>{clearTimeout(tm);tm=setTimeout(async()=>{await sync();if(!S.modal)render()},400)}).subscribe();
+}
+
+</script></body></html>
