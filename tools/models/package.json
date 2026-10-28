@@ -1,0 +1,13 @@
+{
+  "name": "rocketworld-model-prep",
+  "private": true,
+  "type": "module",
+  "description": "Optimises the vehicle GLBs for the web build: node prep.mjs all <dir with the source GLBs> <output dir>",
+  "dependencies": {
+    "@gltf-transform/core": "^4",
+    "@gltf-transform/extensions": "^4",
+    "@gltf-transform/functions": "^4",
+    "meshoptimizer": "^1",
+    "sharp": "^0.33"
+  }
+}

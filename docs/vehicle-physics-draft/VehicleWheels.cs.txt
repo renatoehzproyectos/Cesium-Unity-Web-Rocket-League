@@ -1,0 +1,94 @@
+using UnityEngine;
+
+namespace RocketWorld
+{
+    /// <summary>
+    /// Ray-cast wheel / skid contacts shared by the aircraft, the helicopter and the DeLorean: a spring + damper strut along the ground normal and a
+    /// viscous tyre model (lateral grip, rolling resistance, brakes, drive force). The Rigidbody's own colliders stay as the crash hull.
+    /// </summary>
+    internal sealed class VehicleWheels
+    {
+        public struct Params
+        {
+            public float steerDeg, brake01, driveN, rollRes, muLat, muLatRear, muBrake, muLong;
+            public static Params Default => new Params { rollRes = 0.03f, muLat = 0.9f, muLatRear = 0.9f, muBrake = 0.6f, muLong = 1.0f };
+        }
+
+        readonly WheelDef[] _w; readonly Vector3 _com; readonly bool[] _contact; readonly float _k, _c, _maxN; readonly int _nDrive;
+        public int Contacts { get; private set; }
+        public bool OnGround => Contacts > 0;
+        public float Load { get; private set; }
+        public const float Travel = 0.35f;
+
+        public VehicleWheels(WheelDef[] wheels, Vector3 com, float mass)
+        {
+            _w = wheels; _com = com; _contact = new bool[wheels.Length];
+            int n = Mathf.Max(1, wheels.Length);
+            _k = mass * Vehicles.G / (n * 0.18f);                              // static compression 0.18 m
+            _c = 0.55f * 2f * Mathf.Sqrt(_k * mass / n);
+            _maxN = 8f * mass * Vehicles.G / n;
+            foreach (var w in wheels) if (w.drive) _nDrive++;
+        }
+
+        public void Apply(Rigidbody rb, in Params p)
+        {
+            Contacts = 0; Load = 0f;
+            Quaternion q = rb.rotation; Vector3 vW = rb.linearVelocity, wW = rb.angularVelocity;
+            for (int i = 0; i < _w.Length; i++)
+            {
+                var w = _w[i]; _contact[i] = false;
+                Vector3 arm = q * (w.pos - _com), wp = rb.position + arm;
+                const float lift = 0.4f;
+                if (!Physics.Raycast(wp + Vector3.up * lift, Vector3.down, out var h, lift + w.radius + Travel, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore)) continue;
+                float comp = w.radius - (h.distance - lift);                   // > 0: the strut is compressed
+                if (comp <= 0f) continue;
+                comp = Mathf.Min(comp, Travel);
+                Vector3 n = h.normal, vp = vW + Vector3.Cross(wW, arm);
+                float N = Mathf.Min(Mathf.Max(0f, _k * comp - _c * Vector3.Dot(vp, n)), _maxN);
+                rb.AddForceAtPosition(n * N, h.point, ForceMode.Force);
+                Vector3 fwd = Vector3.ProjectOnPlane(q * Vector3.forward, n);
+                if (fwd.sqrMagnitude < 1e-6f) continue;
+                fwd.Normalize();
+                if (w.steer && Mathf.Abs(p.steerDeg) > 0.01f) fwd = Quaternion.AngleAxis(p.steerDeg, n) * fwd;
+                Vector3 right = Vector3.Cross(n, fwd).normalized;
+                float vx = Vector3.Dot(vp, fwd), vy = Vector3.Dot(vp, right);
+                float muLat = w.rear ? p.muLatRear : p.muLat;
+                float fy = -Mathf.Clamp(vy, -1f, 1f) * muLat * N;
+                float fx = -Mathf.Clamp(vx / 0.6f, -1f, 1f) * (p.rollRes + p.brake01 * p.muBrake) * N;
+                if (w.drive && _nDrive > 0 && p.driveN != 0f) fx += Mathf.Clamp(p.driveN / _nDrive, -p.muLong * N, p.muLong * N);
+                rb.AddForceAtPosition(right * fy + fwd * fx, h.point, ForceMode.Force);
+                _contact[i] = true; Contacts++; Load += N;
+            }
+        }
+    }
+
+    /// <summary>Attitude-command hover + vertical-speed hold, shared by the helicopter, the F-35B in VTOL mode and the DeLorean's anti-gravity mode.</summary>
+    internal static class HoverCore
+    {
+        public struct Params { public float maxPitch, maxRoll, kp, kd, vsUp, vsDown, vsGain, accUp, accDown, thrustMaxG; }
+        public static Params Default => new Params { maxPitch = 0.42f, maxRoll = 0.5f, kp = 18f, kd = 7f, vsUp = 10f, vsDown = 8f, vsGain = 1.8f, accUp = 7f, accDown = 6f, thrustMaxG = 2.2f };
+
+        /// <summary>Pitch (nose up +) and roll (right wing down +) angular accelerations that steer the body to the stick's attitude (stick pitch +1 = nose down).</summary>
+        public static void Attitude(Rigidbody rb, in Params p, float stickPitch, float stickRoll, out float aPitchUp, out float aRollRight)
+        {
+            Quaternion q = rb.rotation; Vector3 wb = Quaternion.Inverse(q) * rb.angularVelocity;
+            float pitch = Mathf.Asin(Mathf.Clamp((q * Vector3.forward).y, -1f, 1f));
+            float roll = Mathf.Asin(Mathf.Clamp(-(q * Vector3.right).y, -1f, 1f));
+            aPitchUp = p.kp * (-stickPitch * p.maxPitch - pitch) - p.kd * (-wb.x);
+            aRollRight = p.kp * (stickRoll * p.maxRoll - roll) - p.kd * (-wb.z);
+        }
+
+        /// <summary>Thrust along the body's up axis (N) that makes the vertical speed follow the command (-1..1), after the aerodynamic lift already provided.</summary>
+        public static float Vertical(Rigidbody rb, in Params p, float vert, float liftUpN, float groundCushion = 0f)
+        {
+            float vsT = vert >= 0f ? vert * p.vsUp : vert * p.vsDown;
+            float a = Mathf.Clamp((vsT - rb.linearVelocity.y) * p.vsGain + groundCushion, -p.accDown, p.accUp);
+            float need = rb.mass * (Vehicles.G + a) - liftUpN;
+            float cosT = Mathf.Max(0.55f, (rb.rotation * Vector3.up).y);
+            return Mathf.Clamp(need / cosT, 0f, p.thrustMaxG * rb.mass * Vehicles.G);
+        }
+
+        /// <summary>Angular acceleration (rad/s2) that drives a body rate toward <paramref name="target"/>, limited to <paramref name="max"/>.</summary>
+        public static float RateAccel(float target, float rate, float gain, float max) => Mathf.Clamp(gain * (target - rate), -max, max);
+    }
+}

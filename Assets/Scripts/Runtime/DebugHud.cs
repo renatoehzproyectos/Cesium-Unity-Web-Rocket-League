@@ -15,6 +15,7 @@ namespace RocketWorld
         Vector2 _scroll;
         GUIStyle _small, _center, _attr;
         float _k = 1f;
+        bool _vehOpen;
         Rect _gear, _panel, _report;
         // IMGUI allocates every frame it builds strings, so the stats text is rebuilt 4x per second and cached.
         readonly float[] _ring = new float[120]; int _ringN, _ringI;
@@ -126,6 +127,60 @@ namespace RocketWorld
             if (p.Stalled) Shadowed(new Rect(W * 0.5f - 120, 150, 240, 30), "STALL", UiTheme.Unit);
         }
 
+        /// <summary>Touch widgets of the current vehicle: buttons (lit while held / latched), the throttle lever, the spring sliders and the rudder.</summary>
+        void DrawTouchWidgets(float W, float H)
+        {
+            var ws = CarInput.Widgets; var cc = root.carCtl; var oc = GUI.color;
+            for (int i = 0; i < ws.Length; i++)
+            {
+                var w = ws[i];
+                var r = new Rect(w.zone.x * W, (1f - w.zone.y - w.zone.height) * H, w.zone.width * W, w.zone.height * H);
+                bool on = root.carInput.WidgetOn(i);
+                switch (w.kind)
+                {
+                    case WidgetKind.SliderSticky:
+                    case WidgetKind.SliderSpring:
+                    case WidgetKind.SliderH:
+                    {
+                        GUI.Box(r, "", UiTheme.Touch);
+                        float v = root.carInput.WidgetValue(i); bool touched = root.carInput.WidgetTouched(i);
+                        if (w.kind == WidgetKind.SliderSticky && !touched) v = cc != null ? cc.LeverDisplay : 0f;      // follow the real lever (keys / gamepad move it too)
+                        if (Event.current.type == EventType.Repaint)
+                        {
+                            GUI.color = new Color(0.4f, 0.85f, 1f, touched ? 0.55f : 0.35f);
+                            if (w.kind == WidgetKind.SliderSticky) { float hh = r.height * Mathf.Clamp01(v); GUI.DrawTexture(new Rect(r.x + 4, r.yMax - hh - 3, r.width - 8, Mathf.Max(hh, 3)), Texture2D.whiteTexture); }
+                            else if (w.kind == WidgetKind.SliderSpring) { float cy = r.center.y, hy = -v * r.height * 0.5f; GUI.DrawTexture(new Rect(r.x + 4, Mathf.Min(cy, cy + hy), r.width - 8, Mathf.Max(Mathf.Abs(hy), 3)), Texture2D.whiteTexture); GUI.color = new Color(1, 1, 1, 0.5f); GUI.DrawTexture(new Rect(r.x, cy - 1, r.width, 2), Texture2D.whiteTexture); }
+                            else { float cx = r.center.x, hx = v * r.width * 0.5f; GUI.DrawTexture(new Rect(Mathf.Min(cx, cx + hx), r.y + 4, Mathf.Max(Mathf.Abs(hx), 3), r.height - 8), Texture2D.whiteTexture); GUI.color = new Color(1, 1, 1, 0.5f); GUI.DrawTexture(new Rect(cx - 1, r.y, 2, r.height), Texture2D.whiteTexture); }
+                            GUI.color = oc;
+                        }
+                        GUI.Label(new Rect(r.x, r.y + (w.kind == WidgetKind.SliderH ? 2 : -18), r.width, 18), w.label, UiTheme.Unit);
+                        break;
+                    }
+                    default:
+                        if (on) GUI.color = new Color(0.45f, 0.9f, 1f, 1f);
+                        GUI.Box(r, w.label, UiTheme.Touch);
+                        GUI.color = oc;
+                        break;
+                }
+            }
+        }
+
+        /// <summary>Vehicle mode (F-35B, F-15E, helicopter, DeLorean, airliner): speed, altitude, vertical speed, status line, throttle lever.</summary>
+        void DrawVehicleInstruments(RocketCar cc, float W, float H)
+        {
+            var d = cc.vehicle; if (d == null || !d.Active) return;
+            Shadowed(new Rect(W * 0.5f - 200, H - 176, 400, 22), $"{d.Spec.name.ToUpperInvariant()}   ALT {d.AltM:0} m   VS {d.VsMs:+0.0;-0.0;0.0} m/s", UiTheme.Unit);
+            if (!string.IsNullOrEmpty(d.Status)) Shadowed(new Rect(W * 0.5f - 200, H - 198, 400, 22), d.Status, UiTheme.Unit);
+            if (Event.current.type == EventType.Repaint)
+            {
+                var oc = GUI.color; float x = W * 0.5f - 160, y = H - 152;
+                GUI.color = new Color(0, 0, 0, 0.45f); GUI.DrawTexture(new Rect(x, y, 320, 6), Texture2D.whiteTexture);
+                GUI.color = d.Lever > 0.85f ? new Color(1f, 0.6f, 0.2f) : new Color(0.4f, 0.9f, 0.5f); GUI.DrawTexture(new Rect(x, y, 320 * d.Lever, 6), Texture2D.whiteTexture);
+                GUI.color = oc;
+            }
+            if (d.Stalled) Shadowed(new Rect(W * 0.5f - 120, 150, 240, 30), "STALL", UiTheme.Unit);
+        }
+
         void DrawSpeed(float W, float H)
         {
             var cc = root.carCtl;
@@ -134,6 +189,8 @@ namespace RocketWorld
             bool boosting = cc.IsBoosting;
             if (cc.InBoat) Shadowed(new Rect(W * 0.5f - 120, H - 150, 240, 20), "BOAT", UiTheme.Unit);
             if (cc.InPlane) DrawFlightInstruments(cc, W, H);
+            else if (cc.InVehicle) DrawVehicleInstruments(cc, W, H);
+            if (cc.HyperT > 0.05f) Shadowed(new Rect(W * 0.5f - 160, H - 222, 320, 24), $"HYPER BOOST  ×{cc.HyperMul:0.#}", UiTheme.Unit);
             Shadowed(new Rect(W * 0.5f - 120, H - 128, 240, 66), Mathf.RoundToInt(_shownSpeed * 3.6f).ToString(), UiTheme.Big);
             Shadowed(new Rect(W * 0.5f - 120, H - 62, 240, 20), "KM/H", UiTheme.Unit);
             if (Event.current.type != EventType.Repaint) return;
@@ -183,8 +240,7 @@ namespace RocketWorld
 
             if (touch)
             {
-                foreach (var z in CarInput.TouchZones)
-                    GUI.Box(new Rect(z.zone.x * W, (1f - z.zone.y - z.zone.height) * H, z.zone.width * W, z.zone.height * H), z.label, UiTheme.Touch);
+                DrawTouchWidgets(W, H);
                 var sr = CarInput.StickRect;
                 var box = new Rect(sr.x / _k, (Screen.height - sr.yMax) / _k, sr.width / _k, sr.height / _k);
                 GUI.Box(box, "", UiTheme.Touch);
@@ -216,7 +272,16 @@ namespace RocketWorld
             }
             if (GUI.Button(_ctl, "Controls", _btn)) SetControlsOpen(!_ctlOpen);
             if (GUI.Button(new Rect(W - 252, 14, 80, 46), "Ball", _btn)) root.RequestBall();
-            if (GUI.Button(new Rect(W - 252, 66, 80, 34), root.carCtl != null && root.carCtl.InPlane ? "Car" : "Plane", _btn)) root.RequestPlane();
+            string curVeh = root.carCtl != null ? Vehicles.NameOf(root.carCtl.CurrentVehicle) : "Car";
+            if (GUI.Button(new Rect(W - 252, 66, 154, 34), curVeh + " ▾", _btn)) _vehOpen = !_vehOpen;
+            if (_vehOpen)
+            {
+                for (int i = 0; i < Vehicles.Order.Length; i++)
+                {
+                    var k = Vehicles.Order[i]; bool cur = root.carCtl != null && root.carCtl.CurrentVehicle == k;
+                    if (GUI.Button(new Rect(W - 332, 104 + i * 36, 160, 32), (cur ? "● " : "   ") + Vehicles.NameOf(k), _btn)) { root.RequestVehicle(k); _vehOpen = false; }
+                }
+            }
             if (Time.unscaledTime < _toast) GUI.Box(new Rect(W * 0.5f - 160, 134, 320, 38), _toastText, UiTheme.Toast);
             if (_reportOpen && root.benchmark != null) DrawReport(H);
             if (_ctlOpen) DrawControls();

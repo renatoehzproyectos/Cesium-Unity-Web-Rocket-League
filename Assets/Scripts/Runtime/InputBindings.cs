@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace RocketWorld
 {
-    public enum CarAction { Accelerate, Brake, SteerLeft, SteerRight, RollLeft, RollRight, Jump, Boost, Handbrake, CameraToggle, Reset, Ball, Plane, Menu }
+    public enum CarAction { Accelerate, Brake, SteerLeft, SteerRight, RollLeft, RollRight, Jump, Boost, Handbrake, CameraToggle, Reset, Ball, Plane, Vehicle, HyperBoost, VehicleMode, Gear, Flaps, Menu }
 
     /// <summary>Gamepad inputs a car action can be bound to (buttons, triggers, d-pad and the four directions of each stick).</summary>
     public enum PadInput
@@ -52,6 +52,11 @@ namespace RocketWorld
                 case CarAction.Reset: return "Reset car";
                 case CarAction.Ball: return "Summon ball";
                 case CarAction.Plane: return "Plane mode on / off";
+                case CarAction.Vehicle: return "Next vehicle";
+                case CarAction.HyperBoost: return "Hyper Boost (+500% speed)";
+                case CarAction.VehicleMode: return "VTOL / hover mode";
+                case CarAction.Gear: return "Landing gear";
+                case CarAction.Flaps: return "Flaps";
                 default: return "Settings menu";
             }
         }
@@ -76,6 +81,11 @@ namespace RocketWorld
                 case CarAction.Reset: return new Binding { key0 = "R", pad = PadInput.Select };
                 case CarAction.Ball: return new Binding { key0 = "B", pad = PadInput.RightStickPress };
                 case CarAction.Plane: return new Binding { key0 = "P", pad = PadInput.LeftStickPress };
+                case CarAction.Vehicle: return new Binding { key0 = "V", pad = PadInput.DpadRight };
+                case CarAction.HyperBoost: return new Binding { key0 = "H", pad = PadInput.DpadUp };
+                case CarAction.VehicleMode: return new Binding { key0 = "M", pad = PadInput.DpadDown };
+                case CarAction.Gear: return new Binding { key0 = "G", pad = PadInput.DpadLeft };
+                case CarAction.Flaps: return new Binding { key0 = "F" };
                 default: return new Binding { pad = PadInput.Start };
             }
         }

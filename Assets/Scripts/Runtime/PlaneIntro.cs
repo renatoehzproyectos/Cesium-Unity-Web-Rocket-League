@@ -321,7 +321,7 @@ namespace RocketWorld
         /// glTFast's shader-graph materials are stripped from WebGL builds (the meshes then render as nothing - same problem the car had).
         /// Swap them for URP Lit, which is always in the build, keeping the base texture. Double sided, opaque (even the glass).
         /// </summary>
-        static void FixMaterials(GameObject model)
+        internal static void FixMaterials(GameObject model)
         {
             var cache = new System.Collections.Generic.Dictionary<Material, Material>();
             foreach (var r in model.GetComponentsInChildren<Renderer>(true))
@@ -361,7 +361,7 @@ namespace RocketWorld
             return m;
         }
 
-        static void SetLayer(GameObject go, int layer)
+        internal static void SetLayer(GameObject go, int layer)
         {
             foreach (var t in go.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = layer;
         }

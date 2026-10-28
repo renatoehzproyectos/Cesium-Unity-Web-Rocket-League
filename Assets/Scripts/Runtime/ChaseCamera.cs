@@ -32,11 +32,13 @@ namespace RocketWorld
             _heading = Vector3.Lerp(_heading, dir, 1f - Mathf.Exp(-dt * (grounded ? 3.6f : 2f))).normalized;
 
             float sp = Mathf.Clamp01(car.SpeedMS / 46f);   // (plane speeds exceed this: the clamp keeps the car-tuned FOV / distance bounded)
-            bool plane = car.InPlane;                                      // the airplane is bigger and faster: sit further back and higher
-            var want = carPos - _heading * (plane ? 17f : 7.6f + sp * 2.2f); want.y = carPos.y + (plane ? 4.8f : 2.9f + sp * 0.5f);   // pulls back a little with speed
+            bool plane = car.InPlane || car.InVehicle;                                      // the airplane is bigger and faster: sit further back and higher
+            bool veh = car.InVehicle; var vs = veh ? car.vehicle.Spec : null;
+            float back = veh ? vs.camBack : plane ? 17f : 7.6f + sp * 2.2f, upD = veh ? vs.camUp : plane ? 4.8f : 2.9f + sp * 0.5f, ahead = veh ? vs.camLook : plane ? 12f : 5f;
+            var want = carPos - _heading * back; want.y = carPos.y + upD;   // pulls back a little with speed
             if (Physics.Linecast(carPos + Vector3.up * 0.8f, want, out var hit, PhysicsSetup.WorldMask, QueryTriggerInteraction.Ignore))
                 want = hit.point + hit.normal * 0.4f;
-            var tgt = carPos + _heading * (plane ? 12f : 5f) + Vector3.up;
+            var tgt = carPos + _heading * ahead + Vector3.up;
             var pos = transform.position;                                  // camera has a CesiumGlobeAnchor: valid across origin shifts
             if (!_ready) { pos = want; _lookOffset = tgt - carPos; _ready = true; }
             pos = Vector3.Lerp(pos, want, 1f - Mathf.Exp(-dt * 6.5f));
@@ -45,7 +47,7 @@ namespace RocketWorld
                 pos.y = gh.point.y + 0.8f;
 
             transform.SetPositionAndRotation(pos, Quaternion.LookRotation((carPos + _lookOffset) - pos, Vector3.up));
-            float f = 72f + Mathf.SmoothStep(0f, 1f, Mathf.Min(car.SpeedMS / 46f, 1f)) * 16f;
+            float f = 72f + Mathf.SmoothStep(0f, 1f, Mathf.Min(car.SpeedMS / 46f, 1f)) * 16f + car.HyperT * 18f;   // Hyper Boost widens the view
             _fov += (f - _fov) * Mathf.Min(1f, dt * 2.5f);
             if (_cam != null) _cam.fieldOfView = _fov;
         }

@@ -19,3 +19,9 @@
 - **OpenFreeMap** vector tiles (https://openfreemap.org, no key) with **OpenStreetMap** data (c) OpenStreetMap contributors, ODbL, OpenMapTiles schema. Used at runtime for water polygons; attribution is shown in the HUD.
 
 - **JSBSim** (https://github.com/JSBSim-Team/jsbsim, LGPL-2.1): `Assets/Scripts/Sim/Flight/JsbModel.cs` is a C# port of parts of it; `Assets/Resources/Flight/*.xml` derive from JSBSim's c172x aircraft and propeller data (GPL, Tony Peden et al.). Check these licences before redistributing the project or a build.
+
+## Vehicle models (Assets/Resources/Models/Vehicles)
+
+F-35B, F-15E, helicopter, DeLorean and A320 are optimised derivatives of GLB files supplied for this project (`f-35b_lightning_ii.glb`,
+`f-15e_strike_eagle_-_fighter_jet_-_free.glb`, `helicopter.glb`, `delorean_highpoly.glb`, `a320_cockpit.glb`). Their original authors and licences
+were not included with the files: TODO fill in author, source URL and licence for each before publishing.

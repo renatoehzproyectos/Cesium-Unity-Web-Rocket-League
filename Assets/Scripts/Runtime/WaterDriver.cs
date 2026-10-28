@@ -210,13 +210,14 @@ namespace RocketWorld
                 axis = axis.sqrMagnitude < 0.01f ? fwd : axis.normalized;
                 rb.AddTorque(axis * (rightingTorque * (tilt - 0.15f) * (0.3f + 0.7f * s)), ForceMode.Force);
             }
+            if (car.HyperMul > 1.001f) VehicleDriver.HyperDrive(car, rb, Vector3.ProjectOnPlane(fwd, Vector3.up).normalized, RL.CarMaxSpeed * RL.UuToBt, dt, true);   // Hyper Boost
         }
 
         /// <summary>Replaces PostTick / FinishTick while <see cref="Active"/>: RocketSim's speed limits.</summary>
         public void PostStep()
         {
             var rb = car.Body;
-            float max = RL.CarMaxSpeed * RL.UuToBt;
+            float max = RL.CarMaxSpeed * RL.UuToBt * car.HyperMul;
             var v = rb.linearVelocity; if (v.sqrMagnitude > max * max) rb.linearVelocity = v.normalized * max;
             var w = rb.angularVelocity; if (w.sqrMagnitude > RL.CarMaxAngSpeed * RL.CarMaxAngSpeed) rb.angularVelocity = w.normalized * RL.CarMaxAngSpeed;
         }

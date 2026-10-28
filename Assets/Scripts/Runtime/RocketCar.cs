@@ -26,6 +26,8 @@ namespace RocketWorld
         public WaterDriver water;
         /// <summary>Plane mode (null = off): while it is Active the body is a JSBSim-driven airplane.</summary>
         public PlaneDriver plane;
+        /// <summary>F-35B / F-15E / helicopter / DeLorean / airliner (null = off); the Cessna is <see cref="plane"/>.</summary>
+        public VehicleDriver vehicle;
         public bool infiniteBoost = true;
         public float spawnHeadingDeg;
 
@@ -46,8 +48,26 @@ namespace RocketWorld
         /// <summary>True while floating on water (boat dynamics instead of the wheel model).</summary>
         public bool InBoat => water != null && water.Active;
         public bool InPlane => plane != null && plane.Active;
+        public bool InVehicle => vehicle != null && vehicle.Active;
+        /// <summary>The vehicle being driven, across the car, the Cessna and the VehicleDriver ones.</summary>
+        public VehicleKind CurrentVehicle => InVehicle ? vehicle.Kind : InPlane ? VehicleKind.Cessna : VehicleKind.Car;
+        /// <summary>Throttle lever (0..1) of the current aircraft, for the touch slider.</summary>
+        public float LeverDisplay => InVehicle ? vehicle.Lever : InPlane ? plane.ThrottleLever : 0f;
+        public TouchProfile TouchProfile => InVehicle ? vehicle.Spec.profile : InPlane ? TouchProfile.Cessna : TouchProfile.Car;
+
+        // Hyper Boost: +500 % speed on every vehicle. _hyperT eases 0..1 (0.6 s in, 1.8 s out) so nothing jerks; the drivers read HyperMul.
+        float _hyperT; bool _hyperBurst;
+        public float HyperT => _hyperT;
+        public float HyperMul => HyperBoost.Mul(_hyperT);
+        void UpdateHyper(bool on)
+        {
+            _hyperT = Mathf.MoveTowards(_hyperT, on ? 1f : 0f, Tick / (on ? 0.6f : 1.8f));
+            if (colliderBudget == null) return;
+            if (_hyperT > 0.05f) { colliderBudget.burst = true; _hyperBurst = true; }      // load ground colliders faster while flying / driving this fast
+            else if (_hyperBurst) { colliderBudget.burst = false; _hyperBurst = false; }
+        }
         /// <summary>Boost flame / HUD: the boat's own boost while afloat, RocketSim's otherwise.</summary>
-        public bool IsBoosting => InPlane ? false : InBoat ? water.Boosting : Vehicle.state.isBoosting;
+        public bool IsBoosting => InPlane || InVehicle ? false : InBoat ? water.Boosting : Vehicle.state.isBoosting;
 
         public Phase CurrentPhase { get; private set; }
         public string Status { get; private set; } = "";
@@ -79,6 +99,41 @@ namespace RocketWorld
         float _puppetSink;
         GameObject _puppetPlane; Renderer[] _puppetHidden;
         /// <summary>Puppets: show the box plane instead of the car model while the host's car is in plane mode.</summary>
+        // Puppets: the host's new vehicle kinds (F-35B ... airliner) are shown with their own model.
+        readonly System.Collections.Generic.Dictionary<int, VehicleVisual> _puppetVeh = new System.Collections.Generic.Dictionary<int, VehicleVisual>();
+        int _puppetKind; Renderer[] _puppetVehHidden;
+        void SetPuppetVehicle(int kind)
+        {
+            kind = kind >= 2 ? kind : 0;
+            if (kind == _puppetKind || visual == null) return;
+            if (_puppetKind != 0 && _puppetVeh.TryGetValue(_puppetKind, out var old))
+            {
+                old.gameObject.SetActive(false); foreach (var r in old.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
+            }
+            if (kind == 0)
+            {
+                if (_puppetVehHidden != null) foreach (var r in _puppetVehHidden) if (r != null) r.enabled = true;
+                _puppetVehHidden = null; _puppetKind = 0; return;
+            }
+            var spec = Vehicles.Get((VehicleKind)kind);
+            if (spec == null) return;
+            if (!_puppetVeh.TryGetValue(kind, out var vis) || vis == null) { vis = VehicleVisual.Build(visual, spec); _puppetVeh[kind] = vis; }
+            if (_puppetKind == 0)
+            {
+                var all = visual.GetComponentsInChildren<Renderer>(true); var keep = new System.Collections.Generic.List<Renderer>();
+                foreach (var r in all) if (r != null && r.enabled && !IsUnderPuppetVehicle(r.transform)) keep.Add(r);
+                _puppetVehHidden = keep.ToArray(); foreach (var r in _puppetVehHidden) r.enabled = false;
+            }
+            vis.gameObject.SetActive(true); foreach (var r in vis.GetComponentsInChildren<Renderer>(true)) r.enabled = true;
+            _puppetKind = kind;
+        }
+        bool IsUnderPuppetVehicle(Transform t) { foreach (var v in _puppetVeh.Values) if (v != null && t.IsChildOf(v.transform)) return true; return false; }
+        void TickPuppetVehicle(bool onGround, float speed)
+        {
+            if (_puppetKind == 0 || !_puppetVeh.TryGetValue(_puppetKind, out var v) || v == null) return;
+            v.Tick(new VehicleViz { gear = onGround ? 1f : 0f, rotorRpm = 1f, burner = Mathf.Clamp01(speed / 200f) * 0.6f, wheelSpeed = onGround ? speed : 0f, fold = (_puppetKind == (int)VehicleKind.DeLorean && !onGround) ? 1f : 0f }, Time.deltaTime);
+        }
+
         void SetPuppetPlane(bool on)
         {
             if (on == (_puppetPlane != null && _puppetPlane.activeSelf) || visual == null) return;
@@ -175,6 +230,7 @@ namespace RocketWorld
             {
                 if (water != null) water.ForceExit();
                 if (plane != null) plane.ForceExit();
+                if (vehicle != null) vehicle.ForceExit();
                 if (_rb != null) { _rb.isKinematic = true; }
                 CurrentPhase = Phase.WaitingForGround; Status = "";
             }
@@ -220,9 +276,11 @@ namespace RocketWorld
         public void Rescue() { if (CurrentPhase == Phase.Running && simulated) { _rescue = true; BeginWaiting(); } }
 
         /// <summary>Puppet pose from a snapshot (multiplayer clients).</summary>
-        public void ApplyPuppetPose(Vector3 pos, Quaternion rot, Vector3 vel, bool onGround, bool boosting, bool running, bool boat = false, bool planeFlag = false)
+        public void ApplyPuppetPose(Vector3 pos, Quaternion rot, Vector3 vel, bool onGround, bool boosting, bool running, bool boat = false, bool planeFlag = false, int vehicleKind = 0)
         {
-            SetPuppetPlane(planeFlag);
+            SetPuppetPlane(planeFlag && vehicleKind < 2);
+            SetPuppetVehicle(planeFlag ? vehicleKind : 0);
+            TickPuppetVehicle(onGround, vel.magnitude);
             transform.SetPositionAndRotation(pos, rot);
             _puppetSink = Mathf.MoveTowards(_puppetSink, boat ? WaterDriver.DefaultVisualSink : 0f, Mathf.Min(Time.unscaledDeltaTime, 0.1f) * 0.8f);
             if (visual != null) visual.SetPositionAndRotation(pos - rot * Vector3.up * _puppetSink, rot);
@@ -273,6 +331,7 @@ namespace RocketWorld
         {
             if (water != null) water.ForceExit();
             if (plane != null) plane.ForceExit();
+                if (vehicle != null) vehicle.ForceExit();
             if (colliderBudget != null) colliderBudget.burst = true;
             CurrentPhase = Phase.WaitingForGround; _waitStart = Time.realtimeSinceStartup; _stableSince = -1f;
             if (_rb != null) { _rb.linearVelocity = Vector3.zero; _rb.angularVelocity = Vector3.zero; _rb.isKinematic = true; }
@@ -327,6 +386,8 @@ namespace RocketWorld
                 throttle = c.throttle, steer = c.steer, pitch = c.pitch, yaw = c.yaw, roll = c.roll,
                 jump = c.jump, boost = c.boost, handbrake = c.handbrake,
             };
+            UpdateHyper(c.hyper);
+            if (vehicle != null && vehicle.Active) { vehicle.PreStep(c, Tick); return; }       // F-35B / F-15E / helicopter / DeLorean / airliner
             if (plane != null && plane.Active) { plane.PreStep(c, Tick); return; }       // plane mode: JSBSim forces replace the wheel model
             if (water != null && water.Active) { water.PreStep(c, Tick); return; }     // afloat: boat forces replace the wheel model
             if (infiniteBoost) Vehicle.state.boost = RL.BoostMax;
@@ -336,9 +397,30 @@ namespace RocketWorld
             _body.Push();
         }
 
+        /// <summary>Hyper Boost for the car: lets the speed exceed RocketSim's 46 m/s limit (up to 6x), pushing along the nose and turning the velocity toward it.</summary>
+        void ApplyCarHyper(Vector3 vPre)
+        {
+            float cap = RL.CarMaxSpeed * RL.UuToBt * HyperMul;
+            Vector3 f = _rb.rotation * Vector3.forward, v = vPre;
+            if (_hyperT > 0.02f)
+            {
+                float need = cap - Vector3.Dot(v, f);
+                if (need > 0f) v += f * (Mathf.Min(need * 2.5f, 120f) * Tick);
+                if (v.magnitude > 5f) v = Vector3.RotateTowards(v, f, 1.0f * Mathf.Clamp01(_hyperT) * Tick, 0f);
+            }
+            float sp = v.magnitude; if (sp > cap) v *= cap / sp;
+            if (v.magnitude > _rb.linearVelocity.magnitude) _rb.linearVelocity = v;      // never slower than RocketSim's own result
+        }
+
         /// <summary>Second half of a tick, after the shared Physics.Simulate.</summary>
         public void PostStep()
         {
+            if (vehicle != null && vehicle.Active)
+            {
+                _prevPos = _currPos; _prevRot = _currRot;
+                _currPos = _rb.position; _currRot = _rb.rotation;
+                return;
+            }
             if (plane != null && plane.Active)
             {
                 plane.PostStep();
@@ -353,10 +435,12 @@ namespace RocketWorld
                 _currPos = _rb.position; _currRot = _rb.rotation;
                 return;
             }
+            Vector3 vPre = _rb.linearVelocity;                // before RocketSim's speed limit: Hyper Boost keeps what the limit would remove
             _body.Pull();
             Vehicle.PostTick(Tick);
             Vehicle.FinishTick();                             // speed / angular speed limits
             _body.PushVelocity();
+            if (_hyperT > 0.001f) ApplyCarHyper(vPre);
 
             _prevPos = _currPos; _prevRot = _currRot;
             _currPos = _rb.position; _currRot = _rb.rotation;
@@ -417,6 +501,7 @@ namespace RocketWorld
         {
             if (water != null) water.ForceExit();
             if (plane != null) plane.ForceExit();
+                if (vehicle != null) vehicle.ForceExit();
             _rb.isKinematic = false;
             transform.SetPositionAndRotation(pos, rot);
             _rb.position = pos; _rb.rotation = rot;

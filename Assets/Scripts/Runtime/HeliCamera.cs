@@ -37,7 +37,7 @@ namespace RocketWorld
             var carPos = car.visual != null ? car.visual.position : car.transform.position;
             var carFwd = car.visual != null ? car.visual.forward : car.transform.forward;
             bool grounded = car.CurrentPhase == RocketCar.Phase.Running && (car.State.isOnGround || car.InBoat);
-            bool plane = car.InPlane;
+            bool plane = car.InPlane || car.InVehicle;
             float speed = car.SpeedMS;
 
             var vel = car.UnityVelocity; var hv = new Vector3(vel.x, 0, vel.z);

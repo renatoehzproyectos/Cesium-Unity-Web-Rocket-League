@@ -21,6 +21,8 @@ namespace RocketWorld.Net
         public bool Running => (flags & 4) != 0;
         public bool Boat => (flags & 8) != 0;
         public bool Plane => (flags & 16) != 0;
+        /// <summary>Which <c>VehicleKind</c> the player is in when <see cref="Plane"/> is set (0 = the Cessna).</summary>
+        public int VehicleKind => (flags >> 5) & 7;
 
         public void NetworkSerialize<T>(BufferSerializer<T> s) where T : IReaderWriter
         {

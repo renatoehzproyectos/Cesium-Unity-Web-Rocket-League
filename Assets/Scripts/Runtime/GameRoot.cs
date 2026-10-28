@@ -145,7 +145,18 @@ namespace RocketWorld
 
         void Update()
         {
-            if (carInput != null && carInput.PlanePressed) RequestPlane();
+            if (carInput != null)
+            {
+                if (carCtl != null) CarInput.Profile = carCtl.TouchProfile;
+                if (carInput.PlanePressed) RequestPlane();
+                if (carInput.VehiclePressed) CycleVehicle();
+                if (carCtl != null && carCtl.vehicle != null && carCtl.vehicle.Active)
+                {
+                    if (carInput.ModePressed) carCtl.vehicle.Toggle(VehicleToggle.Mode);
+                    if (carInput.GearPressed) carCtl.vehicle.Toggle(VehicleToggle.Gear);
+                    if (carInput.FlapsPressed) carCtl.vehicle.Toggle(VehicleToggle.Flaps);
+                }
+            }
             if (tileset != null && Time.unscaledTime - _radChkT >= 6f)
             {
                 float p = tileset.ComputeLoadProgress();
@@ -476,6 +487,8 @@ namespace RocketWorld
             if (c == null || c.plane != null) return;
             var d = c.gameObject.AddComponent<PlaneDriver>();
             d.car = c; c.plane = d;
+            var v = c.gameObject.AddComponent<VehicleDriver>();
+            v.car = c; c.vehicle = v;
         }
 
         void AttachWater(RocketCar c)
@@ -527,7 +540,20 @@ namespace RocketWorld
         /// <summary>Plane mode on / off for the local car (solo and host; a client-only player has no local physics to switch).</summary>
         public void RequestPlane()
         {
-            if (carCtl != null && carCtl.plane != null && carCtl.simulated) carCtl.plane.Toggle();
+            if (carCtl == null || !carCtl.simulated) return;
+            if (carCtl.vehicle != null) carCtl.vehicle.Select(carCtl.CurrentVehicle == VehicleKind.Cessna ? VehicleKind.Car : VehicleKind.Cessna);
+            else if (carCtl.plane != null) carCtl.plane.Toggle();
+        }
+
+        /// <summary>Switch the local car to any vehicle (solo and host; a client-only player has no local physics to switch).</summary>
+        public void RequestVehicle(VehicleKind k)
+        {
+            if (carCtl != null && carCtl.simulated && carCtl.vehicle != null) carCtl.vehicle.Select(k);
+        }
+
+        public void CycleVehicle()
+        {
+            if (carCtl != null && carCtl.simulated && carCtl.vehicle != null) carCtl.vehicle.Cycle();
         }
 
         public void RequestBall()

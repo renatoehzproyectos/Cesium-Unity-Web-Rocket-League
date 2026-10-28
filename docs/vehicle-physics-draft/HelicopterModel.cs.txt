@@ -1,0 +1,142 @@
+using UnityEngine;
+
+namespace RocketWorld
+{
+    /// <summary>
+    /// Helicopter: attitude-command cyclic (stick tilts the fuselage, the rotor thrust vector does the rest), a collective that commands vertical speed
+    /// with an automatic hover hold when centred, rudder pedals that command yaw rate, body-frame drag and skid contacts. Hyper Boost drives the speed to 6x.
+    /// </summary>
+    internal sealed class HelicopterModel : IVehicleModel
+    {
+        readonly VehicleSpec s; readonly VehicleWheels _wheels; float _rpm, _vertSmooth;
+        public float Lever => Mathf.Clamp01(0.5f + 0.5f * _vertSmooth);
+        public bool OnGround { get; private set; }
+        public float AlphaDeg => 0f;
+        public bool Stalled => false;
+        public string Status => _rpm < 0.95f ? "ROTOR SPOOLING" : (OnGround ? "ON SKIDS" : "HOVER HOLD");
+
+        public HelicopterModel(VehicleSpec spec) { s = spec; _wheels = new VehicleWheels(spec.wheels, spec.com, spec.mass); }
+
+        public void Enter(VehicleDriver d, Rigidbody rb, bool airborne) { _rpm = airborne ? 1f : 0f; _vertSmooth = 0f; }
+        public void Toggle(VehicleDriver d, VehicleToggle what) { }
+
+        public void Step(VehicleDriver d, Rigidbody rb, in CarInput.Controls c, float dt)
+        {
+            Quaternion q = rb.rotation, inv = Quaternion.Inverse(q);
+            Vector3 vW = rb.linearVelocity, vb = inv * vW, wb = inv * rb.angularVelocity;
+            Vector3 fwd = q * Vector3.forward, up = q * Vector3.up;
+            float alt = d.HeightMeters(rb), rho = Atmosphere.Density(alt), m = rb.mass, g = Vehicles.G;
+            _rpm = Mathf.MoveTowards(_rpm, 1f, dt / 3f);
+
+            float vert = Mathf.Clamp(c.vert + (c.jump ? 1f : 0f) - (c.handbrake ? 1f : 0f), -1f, 1f);
+            _vertSmooth = Mathf.MoveTowards(_vertSmooth, vert, 3f * dt);
+            var hp = HoverCore.Default;
+            HoverCore.Attitude(rb, hp, c.throttle, c.steer, out float aP, out float aR);
+            float aY = HoverCore.RateAccel(Mathf.Clamp(c.roll, -1f, 1f) * 1.7f, wb.y, 4f, 4.5f);
+            Vector3 I = rb.inertiaTensor;
+            rb.AddRelativeTorque(new Vector3(-aP * I.x, aY * I.y, -aR * I.z) * _rpm, ForceMode.Force);
+
+            bool grounded = _wheels.OnGround;
+            float tv = (grounded && vert <= 0.02f) ? 0.75f * m * g : HoverCore.Vertical(rb, hp, _vertSmooth, 0f);
+            Vector3 force = up * (tv * _rpm);
+
+            // body-frame quadratic drag (the speed used for it is capped so Hyper Boost does not turn it into a wall)
+            Vector3 vc = vb.magnitude > s.vMax * 1.1f ? vb.normalized * (s.vMax * 1.1f) : vb;
+            Vector3 fb = new Vector3(-vc.x * Mathf.Abs(vc.x) * 5.0f, -vc.y * Mathf.Abs(vc.y) * 7.0f, -vc.z * Mathf.Abs(vc.z) * 2.2f) * (0.5f * rho);
+            force += q * fb + Vector3.down * (g * m);
+            rb.AddForce(force, ForceMode.Force);
+            d.ApplyHyperDrive(rb, fwd, s.vMax, dt, true);
+
+            var wp = VehicleWheels.Params.Default; wp.rollRes = 0.35f; wp.muLat = 0.5f; wp.muLatRear = 0.5f; wp.muBrake = 0.3f; wp.brake01 = c.wheelBrake ? 1f : 0f;
+            _wheels.Apply(rb, wp);
+            OnGround = _wheels.OnGround;
+            var v = d.Viz; v.rotorRpm = _rpm; d.Viz = v;
+        }
+    }
+
+    /// <summary>
+    /// Back to the Future DeLorean. On the ground: four ray-cast wheels with drive on the rear pair, front steering, handbrake drift, boost.
+    /// Hover mode (anti-gravity): the wheels fold flat, a vertical-speed controller cancels gravity (altitude hold), the car glides over the ground with
+    /// lateral damping, banks into turns and strafes. Hyper Boost drives the speed to 6x in both modes.
+    /// </summary>
+    internal sealed class DeloreanModel : IVehicleModel
+    {
+        readonly VehicleSpec s; readonly VehicleWheels _wheels; float _fold, _autoRise, _vertSmooth; bool _hover;
+        public float Lever => Mathf.Clamp01(0.5f + 0.5f * _vertSmooth);
+        public bool OnGround { get; private set; }
+        public float AlphaDeg => 0f;
+        public bool Stalled => false;
+        public bool Hover => _hover;
+        public string Status => _hover ? "HOVER" : "WHEELS";
+
+        public DeloreanModel(VehicleSpec spec) { s = spec; _wheels = new VehicleWheels(spec.wheels, spec.com, spec.mass); }
+
+        public void Enter(VehicleDriver d, Rigidbody rb, bool airborne) { _hover = airborne; _fold = airborne ? 1f : 0f; _autoRise = 0f; _vertSmooth = 0f; }
+
+        public void Toggle(VehicleDriver d, VehicleToggle what)
+        {
+            if (what != VehicleToggle.Mode) return;
+            _hover = !_hover;
+            if (_hover) _autoRise = 1.3f;
+        }
+
+        public void Step(VehicleDriver d, Rigidbody rb, in CarInput.Controls c, float dt)
+        {
+            Quaternion q = rb.rotation;
+            Vector3 vW = rb.linearVelocity, fwd = q * Vector3.forward, up = q * Vector3.up;
+            float m = rb.mass, g = Vehicles.G;
+            _fold = Mathf.MoveTowards(_fold, _hover ? 1f : 0f, dt / 1.2f);
+            Vector3 fwdH = Vector3.ProjectOnPlane(fwd, Vector3.up); fwdH = fwdH.sqrMagnitude > 1e-4f ? fwdH.normalized : Vector3.forward;
+            Vector3 rightH = Vector3.Cross(Vector3.up, fwdH);
+            float vf = Vector3.Dot(vW, fwdH), vs = Vector3.Dot(vW, rightH);
+            float top = s.vMax * (c.boost ? 1.35f : 1f);
+            Vector3 I = rb.inertiaTensor;
+            Vector3 force = Vector3.down * (g * m);
+
+            if (_hover)
+            {
+                var hp = HoverCore.Default; hp.maxPitch = 0.18f; hp.maxRoll = 0.35f; hp.kp = 14f; hp.kd = 6f; hp.thrustMaxG = 1.8f; hp.vsUp = 9f; hp.vsDown = 7f;
+                float vert = Mathf.Clamp(c.vert + (c.jump ? 1f : 0f) - (c.handbrake ? 1f : 0f) + (_autoRise > 0f ? 0.5f : 0f), -1f, 1f);
+                _autoRise = Mathf.Max(0f, _autoRise - dt); _vertSmooth = Mathf.MoveTowards(_vertSmooth, vert, 4f * dt);
+                float cushion = 0f;
+                if (Physics.Raycast(rb.position, Vector3.down, out var hit, 8f, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore))
+                {
+                    float clearance = hit.distance - 0.68f;
+                    if (clearance < 1.0f) cushion = (1.0f - clearance) * 8f;                 // ground effect: never settle onto the road
+                }
+                HoverCore.Attitude(rb, hp, c.throttle * 0.7f, c.steer * 0.8f, out float aP, out float aR);
+                float aY = HoverCore.RateAccel(c.steer * 1.8f, (Quaternion.Inverse(q) * rb.angularVelocity).y, 4f, 5f);
+                rb.AddRelativeTorque(new Vector3(-aP * I.x, aY * I.y, -aR * I.z), ForceMode.Force);
+                force += up * HoverCore.Vertical(rb, hp, vert, 0f, cushion);
+                float aF = c.throttle >= 0f ? c.throttle * 16f * Mathf.Clamp01(1f - vf / top) : c.throttle * 14f;
+                force += fwdH * (m * aF) + rightH * (m * (c.roll * 12f - vs * 2.2f));
+                Vector3 vh = new Vector3(vW.x, 0f, vW.z);
+                force -= vh * (m * (c.wheelBrake ? 3f : 0.05f));                            // brake / light drag
+                OnGround = false;
+            }
+            else
+            {
+                _vertSmooth = Mathf.MoveTowards(_vertSmooth, 0f, 4f * dt);
+                var wp = VehicleWheels.Params.Default; wp.rollRes = 0.02f; wp.muLat = 1.25f; wp.muLatRear = 1.25f; wp.muBrake = 0.9f;
+                wp.steerDeg = c.steer * Mathf.Lerp(32f, 5f, Mathf.Clamp01(Mathf.Abs(vf) / 45f));
+                if (c.throttle > 0.02f) wp.driveN = m * 9f * c.throttle * Mathf.Clamp01(1f - vf / top) * (c.boost ? 1.7f : 1f);
+                else if (c.throttle < -0.02f) { if (vf > 1.5f) wp.brake01 = -c.throttle; else wp.driveN = m * 5f * c.throttle * Mathf.Clamp01(1f + vf / 12f); }
+                if (c.wheelBrake || c.handbrake) { wp.brake01 = Mathf.Max(wp.brake01, 0.5f); wp.muLatRear = 0.45f; }   // handbrake: the rear lets go
+                _wheels.Apply(rb, wp);
+                OnGround = _wheels.OnGround;
+                if (!OnGround)                                                                // in the air: stick pitches / rolls / yaws the car a little
+                {
+                    Vector3 wb = Quaternion.Inverse(q) * rb.angularVelocity;
+                    float aP = HoverCore.RateAccel(-c.throttle * 1.2f, -wb.x, 3f, 6f), aR = HoverCore.RateAccel(c.steer * 2f, -wb.z, 3f, 8f), aY = HoverCore.RateAccel(c.roll * 1.5f, wb.y, 3f, 6f);
+                    rb.AddRelativeTorque(new Vector3(-aP * I.x, aY * I.y, -aR * I.z), ForceMode.Force);
+                }
+                else if (c.jump && Vector3.Dot(vW, Vector3.up) < 1f) rb.AddForce(Vector3.up * (m * 14f), ForceMode.Force);   // small hop
+                Vector3 vd = new Vector3(vW.x, 0f, vW.z);
+                force -= vd.normalized * (0.5f * 1.225f * 0.7f * Mathf.Min(vd.sqrMagnitude, top * top * 1.2f));   // aero drag, capped
+            }
+            rb.AddForce(force, ForceMode.Force);
+            d.ApplyHyperDrive(rb, fwdH, s.vMax, dt, true);
+            var v = d.Viz; v.fold = _fold; v.wheelSpeed = OnGround ? vf : 0f; v.burner = c.boost ? 1f : 0f; d.Viz = v;
+        }
+    }
+}

@@ -19,6 +19,8 @@ namespace RocketWorld
     public class PlaneDriver : MonoBehaviour
     {
         public RocketCar car;
+        /// <summary>Normal top speed (m/s) that Hyper Boost multiplies.</summary>
+        public const float HyperRefSpeed = 70f;
         public bool Active { get; private set; }
         public float ThrottleLever { get; private set; }
         public float AirspeedKt { get; private set; }
@@ -71,6 +73,7 @@ namespace RocketWorld
         {
             if (!car.CanTeleport || Active) return;
             if (car.water != null) car.water.ForceExit();
+            if (car.vehicle != null) car.vehicle.ForceExit();
             BuildOnce();
             var rb = car.Body; var a = Model;
             _carMass = rb.mass; _carInertia = rb.inertiaTensor; _carInertiaRot = rb.inertiaTensorRotation; _carGravity = rb.useGravity;
@@ -152,7 +155,8 @@ namespace RocketWorld
             Vector3 vWorld = rb.linearVelocity, wWorld = rb.angularVelocity;
 
             // controls: stick-like smoothing, throttle lever
-            ThrottleLever = Mathf.Clamp01(ThrottleLever + ((c.jump ? 1f : 0f) - (c.handbrake ? 1f : 0f)) * 0.45f * dt);
+            if (c.leverSet) ThrottleLever = Mathf.MoveTowards(ThrottleLever, Mathf.Clamp01(c.lever), 2f * dt);          // touch throttle slider
+            else ThrottleLever = Mathf.Clamp01(ThrottleLever + ((c.jump ? 1f : 0f) - (c.handbrake ? 1f : 0f)) * 0.45f * dt);
             float tgtEl = Mathf.Clamp(c.throttle, -1f, 1f), tgtAil = Mathf.Clamp(c.steer, -1f, 1f), tgtRud = Mathf.Clamp(-(c.roll + (OnGround ? c.steer * 0.6f : c.steer * 0.8f)), -1f, 1f);   // JSBSim: positive rudder = nose LEFT (Cn_dr < 0), so negate; 0.8 in the air cancels the aileron adverse yaw (Cn_da)
             float rate = 3.2f * dt;
             _el = Mathf.MoveTowards(_el, tgtEl, rate); _ail = Mathf.MoveTowards(_ail, tgtAil, rate); _rud = Mathf.MoveTowards(_rud, tgtRud, rate);
@@ -161,11 +165,14 @@ namespace RocketWorld
             float altM = HeightMeters(rb);
             D3 uvw = PlaneModel.VelocityToBody(inv * vWorld), pqr = PlaneModel.RatesToBody(inv * wWorld);
             var o = a.Step(uvw, pqr, altM / PlaneModel.FtToM, dt);
-            rb.AddForce(q * PlaneModel.ForceToUnity(o.force), ForceMode.Force);
-            rb.AddTorque(q * PlaneModel.MomentToUnity(o.moment), ForceMode.Force);
+            // Hyper Boost: aerodynamic forces / moments are capped at 1.25x the normal top speed's dynamic pressure; the extra speed comes from the hyper drive
+            float spd = vWorld.magnitude, qs = spd > HyperRefSpeed * 1.25f ? Mathf.Pow(HyperRefSpeed * 1.25f / spd, 2f) : 1f;
+            rb.AddForce(q * PlaneModel.ForceToUnity(o.force) * qs, ForceMode.Force);
+            rb.AddTorque(q * PlaneModel.MomentToUnity(o.moment) * qs, ForceMode.Force);
             rb.AddForce(Vector3.down * (9.80665f * rb.mass), ForceMode.Force);
 
-            ApplyGear(rb, q, vWorld, wWorld, c.boost ? 1f : 0f, tgtAil);
+            ApplyGear(rb, q, vWorld, wWorld, c.boost || c.wheelBrake ? 1f : 0f, tgtAil);
+            if (car.HyperMul > 1.001f || spd > HyperRefSpeed * 1.1f) VehicleDriver.HyperDrive(car, rb, q * Vector3.forward, HyperRefSpeed, dt, true);
 
             AirspeedKt = (float)(uvw.Length / 1.68781); AlphaDeg = (float)(o.alpha * 57.2958);
             float altFt = altM / PlaneModel.FtToM;

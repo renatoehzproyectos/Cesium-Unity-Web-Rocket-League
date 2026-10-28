@@ -77,3 +77,7 @@ Press P: a box-built airplane flown by a C# port of JSBSim (checked against nati
 
 ## Tiles
 View-driven streaming with a large adaptive cache, no holes (coarse tiles outside the view), a look-ahead camera, haze and anisotropic filtering for a sharper, fuller terrain. See `docs/TILES.md`.
+
+## Vehicles
+
+Car, Cessna, F-35B (VTOL), F-15E, helicopter, DeLorean (hover) and an A320 airliner, each with its own touch layout, plus a Hyper Boost (+500 % speed) button on every vehicle. See [docs/VEHICLES.md](docs/VEHICLES.md). The vehicle physics is currently a placeholder (`VehiclePhysicsFactory`), ready for the JSBSim models.

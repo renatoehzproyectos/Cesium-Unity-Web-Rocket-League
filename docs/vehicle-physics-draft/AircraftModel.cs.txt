@@ -1,0 +1,181 @@
+using UnityEngine;
+
+namespace RocketWorld
+{
+    /// <summary>What the visual needs from a physics model each frame.</summary>
+    public struct VehicleViz { public float gear, fold, rotorRpm, burner, wheelSpeed, nozzle; }
+
+    internal interface IVehicleModel
+    {
+        void Enter(VehicleDriver d, Rigidbody rb, bool airborne);
+        void Step(VehicleDriver d, Rigidbody rb, in CarInput.Controls c, float dt);
+        void Toggle(VehicleDriver d, VehicleToggle what);
+        float Lever { get; }
+        bool OnGround { get; }
+        float AlphaDeg { get; }
+        bool Stalled { get; }
+        string Status { get; }
+    }
+
+    public enum VehicleToggle { Mode, Gear, Flaps }
+
+    /// <summary>
+    /// Jets and the airliner. Parametric flight model: stall-curve lift, induced / wave / configuration drag, Mach-dependent thrust with afterburner,
+    /// rate-command control (the stick commands body rates, limited by a g limit and by dynamic-pressure authority) and a weathercock yaw stability.
+    /// The F-35B adds a VTOL mode (lift fan + nozzle): a vertical-speed controller that supplies whatever the wings do not, with level-attitude control.
+    /// Hyper Boost caps the aerodynamic dynamic pressure at 1.25x the normal top speed's and drives the speed to 6x with a velocity controller,
+    /// so lift and control authority stay sane at any speed.
+    /// </summary>
+    internal sealed class AircraftModel : IVehicleModel
+    {
+        readonly VehicleSpec s; readonly VehicleWheels _wheels;
+        float _lever, _thrust, _nozzle, _gearPos = 1f, _flapPos, _el, _ail, _rud, _alpha, _beta, _autoRise;
+        int _flaps; bool _gearDown = true, _vtol, _burner; float _mach, _spoiler;
+        public float Lever => _lever;
+        public bool OnGround { get; private set; }
+        public float AlphaDeg => _alpha * Mathf.Rad2Deg;
+        public bool Stalled => Mathf.Abs(_alpha) > s.alphaStall + 0.02f && _speed > 20f;
+        float _speed;
+        public string Status
+        {
+            get
+            {
+                string t = s.hasGear ? (_gearPos > 0.95f ? "GEAR DN" : _gearPos < 0.05f ? "GEAR UP" : "GEAR …") : "";
+                if (s.flaps) t += "  FLAPS " + _flaps;
+                if (s.vtol) t += _nozzle > 0.5f ? "  VTOL" : "  CRUISE";
+                if (_burner) t += "  AB";
+                return t.Trim();
+            }
+        }
+
+        public AircraftModel(VehicleSpec spec) { s = spec; _wheels = new VehicleWheels(spec.wheels, spec.com, spec.mass); }
+
+        public void Enter(VehicleDriver d, Rigidbody rb, bool airborne)
+        {
+            _el = _ail = _rud = 0f; _thrust = 0f; _flaps = 0; _flapPos = 0f; _vtol = false; _nozzle = 0f; _autoRise = 0f;
+            _gearDown = !airborne; _gearPos = airborne ? 0f : 1f; _lever = airborne ? 0.7f : 0f;
+            if (airborne) _thrust = s.thrustMil * 0.7f;
+        }
+
+        public void Toggle(VehicleDriver d, VehicleToggle what)
+        {
+            if (what == VehicleToggle.Gear && s.hasGear) _gearDown = !_gearDown;
+            else if (what == VehicleToggle.Flaps && s.flaps) _flaps = (_flaps + 1) % 4;
+            else if (what == VehicleToggle.Mode && s.vtol) { _vtol = !_vtol; if (_vtol && OnGround) _autoRise = 0f; }
+        }
+
+        static float Sq(float x) => x * x;
+
+        float LiftCoef(float alpha)
+        {
+            float aS = s.alphaStall, a = Mathf.Abs(alpha), lin = s.clAlpha * alpha;
+            if (a <= aS) return lin;
+            float clMax = s.clAlpha * aS * Mathf.Sign(alpha);
+            float flat = Mathf.Sin(2f * a) * Mathf.Sign(alpha);
+            return Mathf.Lerp(clMax, flat, Atmosphere.Smooth01((a - aS) / 0.25f));
+        }
+
+        float Wave(float m)
+        {
+            if (s.aero == AeroClass.Airliner) { float x = Mathf.Max(0f, m - 0.78f) / 0.07f; return 0.0225f * x * x; }
+            return 0.034f * Atmosphere.Smooth01((m - 0.9f) / 0.2f) * Mathf.Pow(1.1f / Mathf.Max(m, 1.1f), 1.2f);
+        }
+
+        public void Step(VehicleDriver d, Rigidbody rb, in CarInput.Controls c, float dt)
+        {
+            Quaternion q = rb.rotation, inv = Quaternion.Inverse(q);
+            Vector3 vW = rb.linearVelocity, vb = inv * vW, wb = inv * rb.angularVelocity;
+            Vector3 fwd = q * Vector3.forward, up = q * Vector3.up, right = q * Vector3.right;
+            float alt = d.HeightMeters(rb), rho = Atmosphere.Density(alt), sos = Atmosphere.Sound(alt);
+            float V = vW.magnitude; _speed = V; _mach = V / sos;
+            float qdyn = 0.5f * rho * V * V, qcap = 0.5f * 1.225f * Sq(s.vMax * 1.25f), qa = Mathf.Min(qdyn, qcap);
+            float m = rb.mass, g = Vehicles.G;
+
+            // ---------------------------------------------------------------- controls
+            if (c.leverSet) _lever = Mathf.MoveTowards(_lever, Mathf.Clamp01(c.lever), 2f * dt);
+            else _lever = Mathf.Clamp01(_lever + ((c.jump ? 1f : 0f) - (c.handbrake ? 1f : 0f)) * 0.5f * dt);
+            bool ab = s.afterburner && c.boost;
+            float lev = ab ? 1f : _lever;
+            float surf = 4f * dt;
+            _el = Mathf.MoveTowards(_el, Mathf.Clamp(c.throttle, -1f, 1f), surf);        // +1 = stick forward = nose down (same as the Cessna)
+            _ail = Mathf.MoveTowards(_ail, Mathf.Clamp(c.steer, -1f, 1f), surf);
+            _rud = Mathf.MoveTowards(_rud, Mathf.Clamp(c.roll, -1f, 1f), surf);
+            _gearPos = Mathf.MoveTowards(_gearPos, _gearDown ? 1f : 0f, dt / 4f);
+            _flapPos = Mathf.MoveTowards(_flapPos, _flaps / 3f, 0.35f * dt);
+            if (s.vtol) _nozzle = Mathf.MoveTowards(_nozzle, _vtol ? 1f : 0f, 0.45f * dt);
+            float hov = s.vtol ? Atmosphere.Smooth01((_nozzle - 0.1f) / 0.8f) : 0f;
+
+            // ---------------------------------------------------------------- aerodynamics
+            Vector3 vDir = V > 0.5f ? vW / V : fwd;
+            _alpha = V > 1f ? Mathf.Atan2(-vb.y, vb.z) : 0f;
+            _beta = V > 1f ? Mathf.Asin(Mathf.Clamp(vb.x / V, -1f, 1f)) : 0f;
+            float cl = LiftCoef(_alpha) + s.flapCl * _flapPos;
+            bool spoilers = s.aero == AeroClass.Airliner && OnGround && _lever < 0.3f;
+            _spoiler = Mathf.MoveTowards(_spoiler, spoilers ? 1f : 0f, 3f * dt);
+            cl *= 1f - 0.65f * _spoiler;
+            float stallDrag = 1.2f * Sq(Mathf.Sin(_alpha)) * Atmosphere.Smooth01((Mathf.Abs(_alpha) - s.alphaStall) / 0.2f);
+            float cd = s.cd0 + s.kInd * cl * cl + Wave(_mach) + s.gearCd * _gearPos + s.flapCd * _flapPos + 0.08f * _spoiler + stallDrag + 0.25f * Mathf.Abs(_beta);
+            Vector3 liftDir = Vector3.Cross(vDir, right); liftDir = liftDir.sqrMagnitude > 1e-4f ? liftDir.normalized : up;
+            Vector3 lift = liftDir * (qa * s.wingArea * cl);
+            Vector3 force = lift - vDir * (qa * s.wingArea * cd) - right * (qa * s.wingArea * s.cyBeta * _beta);
+
+            // ---------------------------------------------------------------- engines
+            float target;
+            if (s.afterburner)
+            {
+                target = s.thrustMil * Mathf.Lerp(0.04f, 1f, Mathf.Clamp01(lev / 0.8f));
+                float abAmt = ab ? 1f : Mathf.Clamp01((lev - 0.8f) / 0.2f);
+                target += (s.thrustAb - s.thrustMil) * abAmt;
+            }
+            else target = s.thrustMil * Mathf.Lerp(0.03f, 1f, lev);
+            _thrust = Mathf.MoveTowards(_thrust, target, s.thrustMil * (s.afterburner ? 0.8f : 0.3f) * dt);
+            _burner = s.afterburner && _thrust > s.thrustMil * 1.05f;
+            float dens = Mathf.Pow(rho / 1.225f, 0.75f);
+            float T = _thrust * dens;
+            if (s.reverse && c.boost && OnGround && Vector3.Dot(vW, fwd) > 2f) T = -0.35f * s.thrustMil * _lever * dens;   // thrust reversers
+            force += fwd * (T * (1f - 0.75f * hov));
+
+            // ---------------------------------------------------------------- rotation: rate command
+            float au = Mathf.Clamp(qa / s.ctrlQ, 0.08f, 1f);
+            float auR = Mathf.Max(au, hov * 0.6f);
+            float pitchMax = Mathf.Min(s.pitchRate, s.gLimit * g / Mathf.Max(V, 30f));
+            float pitchRate = -wb.x, yawRate = wb.y, rollRate = -wb.z;                   // nose up +, nose right +, roll right +
+            float aP = HoverCore.RateAccel(-_el * pitchMax, pitchRate, 5f, s.pitchAccel * auR);
+            float aR = HoverCore.RateAccel(_ail * s.rollRate, rollRate, 5f, s.rollAccel * auR);
+            float aY = HoverCore.RateAccel(_rud * s.yawRate, yawRate, 4f, s.yawAccel * auR);
+            aY += s.kBeta * au * _beta;                                                  // weathercock: the nose follows the wind
+            float over = Mathf.Max(0f, Mathf.Abs(_alpha) - s.alphaStall);
+            aP -= Mathf.Sign(_alpha) * 3f * over * Mathf.Max(au, 0.3f);                  // stall nose drop
+
+            if (s.vtol)
+            {
+                var hp = HoverCore.Default; hp.maxPitch = 0.30f; hp.maxRoll = 0.35f; hp.thrustMaxG = 1.35f; hp.vsUp = 8f; hp.vsDown = 6f;
+                float vert = Mathf.Clamp(c.vert + (_autoRise > 0f ? 0.4f : 0f), -1f, 1f);
+                _autoRise = Mathf.Max(0f, _autoRise - dt);
+                HoverCore.Attitude(rb, hp, c.throttle, c.steer, out float hP, out float hR);
+                aP = Mathf.Lerp(aP, hP * auR, hov); aR = Mathf.Lerp(aR, hR * auR, hov);
+                float tv = HoverCore.Vertical(rb, hp, vert, Vector3.Dot(lift, Vector3.up)) * hov;
+                force += up * tv;
+                force += fwd * (_lever * 0.25f * s.thrustMil * hov * 0.35f);             // a little forward push from the vectored nozzle in the hover
+            }
+
+            Vector3 I = rb.inertiaTensor;
+            rb.AddRelativeTorque(new Vector3(-aP * I.x, aY * I.y, -aR * I.z), ForceMode.Force);
+
+            // ---------------------------------------------------------------- hyper boost, gravity, wheels
+            force += Vector3.down * (g * m);
+            rb.AddForce(force, ForceMode.Force);
+            d.ApplyHyperDrive(rb, fwd, s.vMax, dt, true);
+
+            var wp = VehicleWheels.Params.Default;
+            wp.steerDeg = Mathf.Clamp(c.roll + c.steer * 0.7f, -1f, 1f) * 35f * Mathf.Clamp01(1.2f - V / 60f);
+            bool parked = _lever < 0.05f && !ab && !c.leverSet;
+            wp.brake01 = (c.wheelBrake || parked || (spoilers && _lever < 0.15f)) ? 1f : 0f;
+            wp.muBrake = s.aero == AeroClass.Airliner ? 0.45f : 0.6f;
+            if (!s.hasGear || _gearPos > 0.6f) _wheels.Apply(rb, wp);                 // retracted gear: the hull's box colliders take the contact
+            OnGround = _wheels.OnGround;
+
+            var v = d.Viz; v.gear = _gearPos; v.burner = _burner ? 1f : Mathf.Clamp01(lev - 0.4f) * 0.35f; v.nozzle = _nozzle; v.wheelSpeed = OnGround ? V : 0f; d.Viz = v;
+        }
+    }
+}
