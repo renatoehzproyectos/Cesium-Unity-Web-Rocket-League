@@ -86,11 +86,11 @@ namespace RocketWorld
         {
             switch (k)
             {
-                case VehicleKind.F35B: return _f35 ?? (_f35 = MakeF35());
-                case VehicleKind.F15E: return _f15 ?? (_f15 = MakeF15());
+                case VehicleKind.F35B: return _f35 ?? (_f35 = JsbVehicleCfg.Align(MakeF35()));
+                case VehicleKind.F15E: return _f15 ?? (_f15 = JsbVehicleCfg.Align(MakeF15()));
                 case VehicleKind.Helicopter: return _heli ?? (_heli = MakeHeli());
-                case VehicleKind.DeLorean: return _dmc ?? (_dmc = MakeDeLorean());
-                case VehicleKind.Airliner: return _a320 ?? (_a320 = MakeA320());
+                case VehicleKind.DeLorean: return _dmc ?? (_dmc = JsbVehicleCfg.Align(MakeDeLorean()));
+                case VehicleKind.Airliner: return _a320 ?? (_a320 = JsbVehicleCfg.Align(MakeA320()));
                 default: return null;
             }
         }
@@ -113,7 +113,7 @@ namespace RocketWorld
             boxes = new[] { new BoxDef(0, -0.1f, 0.2f, 2.5f, 1.9f, 14.0f), new BoxDef(0, -0.3f, -1.8f, 10.6f, 0.25f, 4.6f), new BoxDef(0, -0.5f, -6.4f, 6.2f, 0.25f, 2.6f),
                             new BoxDef(1.1f, 0.9f, -5.8f, 0.25f, 1.8f, 2.4f), new BoxDef(-1.1f, 0.9f, -5.8f, 0.25f, 1.8f, 2.4f) },
             wheels = new[] { new WheelDef(1.7f, -1.55f, -1.5f, 0.28f, rear: true), new WheelDef(-1.7f, -1.55f, -1.5f, 0.28f, rear: true), new WheelDef(0, -1.55f, 4.2f, 0.25f, steer: true) },
-            vMax = 365f, camBack = 23f, camUp = 5.5f, camLook = 15f, profile = TouchProfile.Vtol, aero = AeroClass.Jet, vtol = true, afterburner = true,
+            vMax = 365f, camBack = 23f, camUp = 5.5f, camLook = 15f, profile = TouchProfile.Vtol, aero = AeroClass.Jet, vtol = true, afterburner = true, hasGear = true,
             wingArea = 42.7f, cd0 = 0.022f, kInd = 0.16f, clAlpha = 3.6f, alphaStall = 0.45f, cyBeta = 0.7f, gearCd = 0f,
             nozzles = new[] { new Vector3(0f, -0.1f, -7.7f) }, thrustMil = 125000f, thrustAb = 190000f, pitchRate = 1.1f, rollRate = 3.0f, yawRate = 0.45f, pitchAccel = 5.5f, rollAccel = 12f, yawAccel = 2.6f, gLimit = 9f, ctrlQ = 6000f, kBeta = 2.0f,
         };

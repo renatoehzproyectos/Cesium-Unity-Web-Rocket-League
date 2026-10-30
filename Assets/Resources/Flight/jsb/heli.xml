@@ -1,0 +1,304 @@
+<?xml version="1.0"?>
+<!--
+  Utility / light attack helicopter for RocketWorld, authored for JSBSim 1.x. Single main rotor (R = 21.0 ft, 2 blades, solidity 0.068, tip speed 704 ft/s) + tail rotor;
+  6,200 lb, 1,000 shp class engine. NOT FGRotor: the rotor is written with FCS functions and external reactions (see tools/flight2/gen_heli.py):
+  blade-element thrust with momentum-theory inflow + dynamic-inflow lag, forward-flight flap-back, rate-coupled flapping, hinge-offset hub moment, profile drag /
+  H-force, ground effect, rotor-speed dynamics (droop governor, rotor inertia -> autorotation), tail rotor with yaw-rate hold, attitude-hold SAS.
+  Generated file: edit gen_heli.py and re-run it.
+-->
+<fdm_config name="Helicopter" version="2.0" release="BETA">
+  <fileheader><author>RocketWorld</author><filecreationdate>2026-10-29</filecreationdate><version>1.0</version><description>Single rotor helicopter</description></fileheader>
+  <metrics>
+    <wingarea unit="FT2"> 100 </wingarea><wingspan unit="FT"> 10 </wingspan><chord unit="FT"> 10 </chord>
+    <location name="AERORP" unit="IN"><x> 0 </x><y> 0 </y><z> 0 </z></location>
+    <location name="EYEPOINT" unit="IN"><x> -90 </x><y> 0 </y><z> 30 </z></location>
+    <location name="VRP" unit="IN"><x> 0 </x><y> 0 </y><z> 0 </z></location>
+  </metrics>
+  <mass_balance>
+    <ixx unit="SLUG*FT2"> 1900 </ixx><iyy unit="SLUG*FT2"> 6500 </iyy><izz unit="SLUG*FT2"> 5200 </izz><ixz unit="SLUG*FT2"> 0 </ixz>
+    <emptywt unit="LBS"> 4800 </emptywt>
+    <location name="CG" unit="IN"><x> 0 </x><y> 0 </y><z> 0 </z></location>
+  </mass_balance>
+  <ground_reactions>
+    <contact type="BOGEY" name="SKID_FL">
+      <location unit="IN"><x> -95 </x><y> -56 </y><z> -100 </z></location>
+      <static_friction> 0.7 </static_friction><dynamic_friction> 0.5 </dynamic_friction><rolling_friction> 0.30 </rolling_friction>
+      <spring_coeff unit="LBS/FT"> 30000 </spring_coeff><damping_coeff unit="LBS/FT/SEC"> 6000 </damping_coeff>
+      <max_steer unit="DEG"> 0 </max_steer><brake_group> NONE </brake_group><retractable>0</retractable>
+    </contact>
+    <contact type="BOGEY" name="SKID_FR">
+      <location unit="IN"><x> -95 </x><y> 56 </y><z> -100 </z></location>
+      <static_friction> 0.7 </static_friction><dynamic_friction> 0.5 </dynamic_friction><rolling_friction> 0.30 </rolling_friction>
+      <spring_coeff unit="LBS/FT"> 30000 </spring_coeff><damping_coeff unit="LBS/FT/SEC"> 6000 </damping_coeff>
+      <max_steer unit="DEG"> 0 </max_steer><brake_group> NONE </brake_group><retractable>0</retractable>
+    </contact>
+    <contact type="BOGEY" name="SKID_RL">
+      <location unit="IN"><x> 51 </x><y> -56 </y><z> -100 </z></location>
+      <static_friction> 0.7 </static_friction><dynamic_friction> 0.5 </dynamic_friction><rolling_friction> 0.30 </rolling_friction>
+      <spring_coeff unit="LBS/FT"> 30000 </spring_coeff><damping_coeff unit="LBS/FT/SEC"> 6000 </damping_coeff>
+      <max_steer unit="DEG"> 0 </max_steer><brake_group> NONE </brake_group><retractable>0</retractable>
+    </contact>
+    <contact type="BOGEY" name="SKID_RR">
+      <location unit="IN"><x> 51 </x><y> 56 </y><z> -100 </z></location>
+      <static_friction> 0.7 </static_friction><dynamic_friction> 0.5 </dynamic_friction><rolling_friction> 0.30 </rolling_friction>
+      <spring_coeff unit="LBS/FT"> 30000 </spring_coeff><damping_coeff unit="LBS/FT/SEC"> 6000 </damping_coeff>
+      <max_steer unit="DEG"> 0 </max_steer><brake_group> NONE </brake_group><retractable>0</retractable>
+    </contact>
+  </ground_reactions>
+  <external_reactions>
+    <force name="rotor_x" frame="BODY" unit="LBS">
+      <function><property>rotor/fx</property></function>
+      <location unit="IN"><x> 0 </x><y> 0 </y><z> 96 </z></location>
+      <direction><x> 1 </x><y> 0 </y><z> 0 </z></direction>
+    </force>
+    <force name="rotor_y" frame="BODY" unit="LBS">
+      <function><property>rotor/fy</property></function>
+      <location unit="IN"><x> 0 </x><y> 0 </y><z> 96 </z></location>
+      <direction><x> 0 </x><y> 1 </y><z> 0 </z></direction>
+    </force>
+    <force name="rotor_z" frame="BODY" unit="LBS">
+      <function><property>rotor/fz</property></function>
+      <location unit="IN"><x> 0 </x><y> 0 </y><z> 96 </z></location>
+      <direction><x> 0 </x><y> 0 </y><z> 1 </z></direction>
+    </force>
+    <force name="tail" frame="BODY" unit="LBS">
+      <function><property>rotor/tail-thrust</property></function>
+      <location unit="IN"><x> 327 </x><y> 12 </y><z> 30 </z></location>
+      <direction><x> 0 </x><y> 1 </y><z> 0 </z></direction>
+    </force>
+    <moment name="rotor_torque" frame="BODY" unit="LBSFT">
+      <function><property>rotor/q-main</property></function>
+      <direction><x> 0 </x><y> 0 </y><z> 1 </z></direction>
+    </moment>
+    <moment name="hub_pitch" frame="BODY" unit="LBSFT">
+      <function><property>rotor/m-pitch</property></function>
+      <direction><x> 0 </x><y> 1 </y><z> 0 </z></direction>
+    </moment>
+    <moment name="hub_roll" frame="BODY" unit="LBSFT">
+      <function><property>rotor/m-roll</property></function>
+      <direction><x> 1 </x><y> 0 </y><z> 0 </z></direction>
+    </moment>
+  </external_reactions>
+  <propulsion>
+    <tank type="FUEL" number="0"><location unit="IN"><x> 20 </x><y> 0 </y><z> -10 </z></location><capacity unit="LBS"> 1800 </capacity><contents unit="LBS"> 1400 </contents></tank>
+  </propulsion>
+  <flight_control name="Helicopter">
+    <property value="33.5"> rotor/omega-rad_sec </property>
+    <property value="1"> propulsion/engine-on </property>
+    <property value="0"> rotor/tail-thrust </property>
+    <property value="0.5"> fcs/collective-cmd-norm </property>
+    <property value="0"> fcs/vert-cmd-norm </property>
+    <property value="1"> fcs/hold-on </property>
+    <channel name="Rotor">
+      <summer name="Collective Total">
+        <input>fcs/collective-cmd-norm</input>
+        <input>fcs/collective-sas</input>
+        <clipto><min>0</min><max>1</max></clipto>
+      </summer>
+      <fcs_function name="rotor/omr">
+        <function><product><property>rotor/omega-rad_sec</property><value>21.0</value></product></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/mu-x">
+        <function><quotient><property>velocities/u-aero-fps</property><property>rotor/omr</property></quotient></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/mu-y">
+        <function><quotient><property>velocities/v-aero-fps</property><property>rotor/omr</property></quotient></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/mu">
+        <function><sqrt><sum><product><property>rotor/mu-x</property><property>rotor/mu-x</property></product><product><property>rotor/mu-y</property><property>rotor/mu-y</property></product></sum></sqrt></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/lamc">
+        <function><quotient><product><value>-1</value><property>velocities/w-aero-fps</property></product><property>rotor/omr</property></quotient></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/theta0">
+        <function><product><sum><value>-0.0174533</value><product><value>0.2443</value><property>fcs/collective-total</property></product></sum><value>1</value></product></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/A">
+        <function><difference><product><product><value>0.66667</value><property>rotor/theta0</property></product><sum><value>1</value><product><value>1.5</value><pow><property>rotor/mu</property><value>2</value></pow></product></sum></product><property>rotor/lamc</property></difference></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/W">
+        <function><max><value>0.02</value><sqrt><sum><pow><property>rotor/mu</property><value>2</value></pow><pow><sum><property>rotor/lamc</property><property>rotor/lami</property></sum><value>2</value></pow></sum></sqrt></max></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/lami-target">
+        <function><max><value>-0.03</value><quotient><product><value>0.09741000000000001</value><property>rotor/A</property></product><sum><product><value>2</value><property>rotor/W</property></product><value>0.09741000000000001</value></sum></quotient></max></function>
+        
+      </fcs_function>
+      <lag_filter name="rotor/lami">
+        <input>rotor/lami-target</input>
+        <c1>5.555555555555555</c1>
+      </lag_filter>
+      <fcs_function name="rotor/hub-agl">
+        <function><max><product><value>0.5</value><value>21.0</value></product><sum><property>position/h-agl-ft</property><value>8.0</value></sum></max></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/ge">
+        <function><quotient><value>1</value><difference><value>1</value><min><value>0.3</value><pow><quotient><value>21.0</value><product><value>4</value><property>rotor/hub-agl</property></product></quotient><value>2</value></pow></min></difference></quotient></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/lami-eff">
+        <function><quotient><property>rotor/lami</property><property>rotor/ge</property></quotient></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/ct">
+        <function><max><value>0</value><product><value>0.09741000000000001</value><difference><property>rotor/A</property><property>rotor/lami-eff</property></difference></product></max></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/qh">
+        <function><product><property>atmosphere/rho-slugs_ft3</property><value>1385.44119</value><pow><property>rotor/omr</property><value>2</value></pow></product></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/thrust-lbs">
+        <function><product><property>rotor/ct</property><property>rotor/qh</property></product></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/theta-cmd">
+        <function><max><value>-0.3</value><min><value>0.3</value><product><value>-0.012</value><difference><product><value>100</value><property>fcs/elevator-cmd-norm</property></product><property>velocities/u-fps</property></difference></product></min></max></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/phi-cmd">
+        <function><max><value>-0.4</value><min><value>0.4</value><difference><product><value>0.012</value><difference><product><value>50</value><property>fcs/aileron-cmd-norm</property></product><property>velocities/v-fps</property></difference></product><quotient><property>rotor/tail-thrust</property><property>inertia/weight-lbs</property></quotient></difference></min></max></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/lon-cyc">
+        <function><sum><product><value>2.2</value><difference><property>attitude/theta-rad</property><property>rotor/theta-cmd</property></difference></product><product><value>0.55</value><property>velocities/q-rad_sec</property></product></sum></function>
+        <clipto><min>-1</min><max>1</max></clipto>
+      </fcs_function>
+      <fcs_function name="rotor/lat-cyc">
+        <function><sum><product><value>-2.2</value><difference><property>attitude/phi-rad</property><property>rotor/phi-cmd</property></difference></product><product><value>-0.55</value><property>velocities/p-rad_sec</property></product></sum></function>
+        <clipto><min>-1</min><max>1</max></clipto>
+      </fcs_function>
+      <fcs_function name="rotor/ffk">
+        <function><quotient><difference><product><value>2.6667</value><property>rotor/theta0</property></product><product><value>2</value><sum><property>rotor/lamc</property><property>rotor/lami-eff</property></sum></product></difference><difference><value>1</value><product><value>0.5</value><pow><property>rotor/mu</property><value>2</value></pow></product></difference></quotient></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/tilt-pitch-eq">
+        <function><sum><product><value>0.22</value><property>rotor/lon-cyc</property></product><product><value>-1</value><property>rotor/mu-x</property><property>rotor/ffk</property></product><product><quotient><value>3.2</value><property>rotor/omega-rad_sec</property></quotient><property>velocities/q-rad_sec</property></product></sum></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/tilt-roll-eq">
+        <function><sum><product><value>0.22</value><property>rotor/lat-cyc</property></product><product><value>-1</value><property>rotor/mu-y</property><property>rotor/ffk</property></product><product><quotient><value>-3.2</value><property>rotor/omega-rad_sec</property></quotient><property>velocities/p-rad_sec</property></product></sum></function>
+        
+      </fcs_function>
+      <lag_filter name="rotor/tilt-pitch">
+        <input>rotor/tilt-pitch-eq</input>
+        <c1>10.0</c1>
+      </lag_filter>
+      <lag_filter name="rotor/tilt-roll">
+        <input>rotor/tilt-roll-eq</input>
+        <c1>10.0</c1>
+      </lag_filter>
+      <fcs_function name="rotor/fx">
+        <function><sum><product><property>rotor/thrust-lbs</property><sin><property>rotor/tilt-pitch</property></sin></product><product><value>-1</value><property>rotor/qh</property><value>0.000187</value><property>rotor/mu-x</property></product></sum></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/fy">
+        <function><sum><product><property>rotor/thrust-lbs</property><sin><property>rotor/tilt-roll</property></sin></product><product><value>-1</value><property>rotor/qh</property><value>0.000187</value><property>rotor/mu-y</property></product></sum></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/fz">
+        <function><product><value>-1</value><property>rotor/thrust-lbs</property><cos><property>rotor/tilt-pitch</property></cos><cos><property>rotor/tilt-roll</property></cos></product></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/p-induced">
+        <function><product><property>rotor/thrust-lbs</property><sum><property>rotor/lamc</property><property>rotor/lami-eff</property></sum><property>rotor/omr</property></product></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/p-profile">
+        <function><product><property>rotor/qh</property><property>rotor/omr</property><value>9.35e-05</value><sum><value>1</value><product><value>4.6</value><pow><property>rotor/mu</property><value>2</value></pow></product></sum></product></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/p-rotor">
+        <function><product><value>1.08</value><sum><property>rotor/p-induced</property><property>rotor/p-profile</property></sum></product></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/q-main">
+        <function><quotient><property>rotor/p-rotor</property><property>rotor/omega-rad_sec</property></quotient></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/gov">
+        <function><product><property>propulsion/engine-on</property><max><value>0</value><min><value>1</value><sum><value>0.5</value><product><value>14</value><quotient><difference><value>33.5</value><property>rotor/omega-rad_sec</property></difference><value>33.5</value></quotient></product></sum></min></max></product></function>
+        
+      </fcs_function>
+      <lag_filter name="rotor/gov-lag">
+        <input>rotor/gov</input>
+        <c1>1.25</c1>
+      </lag_filter>
+      <fcs_function name="rotor/p-eng">
+        <function><product><value>550000.0</value><property>rotor/gov-lag</property></product></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/omega-rad_sec">
+        <function><max><value>8</value><min><value>42</value><sum><property>rotor/omega-rad_sec</property><product><property>simulation/dt</property><quotient><difference><property>rotor/p-eng</property><property>rotor/p-rotor</property></difference><product><value>1500.0</value><property>rotor/omega-rad_sec</property></product></quotient></product></sum></min></max></function>
+        <output>rotor/omega-rad_sec</output>
+      </fcs_function>
+      <fcs_function name="rotor/m-pitch">
+        <function><product><value>-3.15</value><property>rotor/thrust-lbs</property><property>rotor/tilt-pitch</property></product></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/m-roll">
+        <function><product><value>3.15</value><property>rotor/thrust-lbs</property><property>rotor/tilt-roll</property></product></function>
+        
+      </fcs_function>
+      <fcs_function name="rotor/yaw-cmd">
+        <function><product><value>-0.8</value><property>fcs/rudder-cmd-norm</property></product></function>
+        
+      </fcs_function>
+      <summer name="Yaw Error">
+        <input>rotor/yaw-cmd</input>
+        <input>-velocities/r-rad_sec</input>
+      </summer>
+      <pid name="Yaw PI">
+        <input>fcs/yaw-error</input>
+        <kp>0.9</kp>
+        <ki type="trap">0.5</ki>
+        <clipto><min>-1</min><max>1</max></clipto>
+      </pid>
+      <fcs_function name="rotor/tail-cmd">
+        <function><product><value>-1</value><property>fcs/yaw-pi</property></product></function>
+        <clipto><min>-1</min><max>1</max></clipto>
+      </fcs_function>
+      <fcs_function name="rotor/tail-thrust">
+        <function><product><value>1000.0</value><property>rotor/tail-cmd</property><pow><quotient><property>rotor/omega-rad_sec</property><value>33.5</value></quotient><value>2</value></pow></product></function>
+        
+      </fcs_function>
+      <fcs_function name="fcs/hdot-cmd">
+        <function><product><value>15</value><property>fcs/vert-cmd-norm</property></product></function>
+        
+      </fcs_function>
+      <summer name="Hdot Error">
+        <input>fcs/hdot-cmd</input>
+        <input>-velocities/h-dot-fps</input>
+      </summer>
+      <pid name="Collective SAS PI">
+        <input>fcs/hdot-error</input>
+        <kp>0.012</kp>
+        <ki type="trap">0.006</ki>
+        <clipto><min>-0.3</min><max>0.3</max></clipto>
+      </pid>
+      <fcs_function name="fcs/collective-sas">
+        <function><product><property>fcs/collective-sas-pi</property><property>fcs/hold-on</property></product></function>
+        
+      </fcs_function>
+    </channel>
+  </flight_control>
+  <aerodynamics>
+    <axis name="DRAG"><function name="aero/coefficient/fuselage-drag"><description>Equivalent flat-plate area 22 ft2 (drag area, whole airframe)</description><product><property>aero/qbar-psf</property><value>22</value></product></function></axis>
+    <axis name="SIDE"><function name="aero/coefficient/fuselage-side"><product><property>aero/qbar-psf</property><property>aero/beta-rad</property><value>-45</value></product></function></axis>
+    <axis name="LIFT"><function name="aero/coefficient/fuselage-lift"><product><property>aero/qbar-psf</property><property>aero/alpha-rad</property><value>6</value></product></function></axis>
+    <axis name="PITCH"><function name="aero/coefficient/stab-pitch"><description>Fuselage + horizontal stabiliser: weakly stable pitching moment, pitch damping</description><sum>
+      <product><property>aero/qbar-psf</property><property>aero/alpha-rad</property><value>-90</value></product>
+      <product><property>aero/qbar-psf</property><property>velocities/q-aero-rad_sec</property><value>-14</value></product></sum></function></axis>
+    <axis name="YAW"><function name="aero/coefficient/fin-yaw"><description>Vertical fin: weathercock stability and yaw damping</description><sum>
+      <product><property>aero/qbar-psf</property><property>aero/beta-rad</property><value>150</value></product>
+      <product><property>aero/qbar-psf</property><property>velocities/r-aero-rad_sec</property><value>-30</value></product></sum></function></axis>
+    <axis name="ROLL"><function name="aero/coefficient/roll-damp"><product><property>aero/qbar-psf</property><property>velocities/p-aero-rad_sec</property><value>-10</value></product></function></axis>
+  </aerodynamics>
+</fdm_config>

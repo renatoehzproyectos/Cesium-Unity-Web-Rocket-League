@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!-- F-35B LiftFan (shaft-driven fan behind the cockpit). Modelled as a second turbine whose thrust is 0 at idle and 18000 lbf * N2norm^2 at full speed (milthrust is 1 lbf so the idle fuel-flow floor, 107 pph * milthrust^0.2, stays negligible; the 18000 lbf sits in the MilThrust table).
+     It burns no fuel of its own (its shaft power comes from the main engine, whose throttle the FCS schedules together with the fan's). -->
+<turbine_engine name="LiftFan">
+  <milthrust> 1.0 </milthrust>
+  <maxthrust> 1.0 </maxthrust>
+  <bypassratio> 5.0 </bypassratio>
+  <tsfc> 0.0 </tsfc>
+  <atsfc> 0.0 </atsfc>
+  <idlen1> 20.0 </idlen1>
+  <idlen2> 20.0 </idlen2>
+  <maxn1> 100.0 </maxn1>
+  <maxn2> 100.0 </maxn2>
+  <augmented> 0 </augmented>
+  <augmethod> 0 </augmethod>
+  <injected> 0 </injected>
+  <n2spinup> 3.0 </n2spinup>
+  <function name="IdleThrust"><value>0.0</value></function>
+  <function name="MilThrust"><value>18000.0</value></function>
+  <function name="N1SpoolUp"><value>45.0</value></function>
+  <function name="N1SpoolDown"><value>45.0</value></function>
+  <function name="N2SpoolUp"><value>45.0</value></function>
+  <function name="N2SpoolDown"><value>45.0</value></function>
+</turbine_engine>

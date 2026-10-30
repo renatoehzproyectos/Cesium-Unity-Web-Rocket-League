@@ -149,7 +149,7 @@ namespace RocketWorld.Sim
         }
     }
 
-    public sealed class JsbGear
+    public sealed partial class JsbGear
     {
         public string name; public D3 locIn;                       // structural frame, inches
         public double spring, damp, dampRebound, staticF, dynamicF, rollingF, maxSteerDeg; public string brakeGroup;
