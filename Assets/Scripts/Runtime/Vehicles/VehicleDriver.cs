@@ -6,7 +6,7 @@ using UnityEngine;
 namespace RocketWorld
 {
     /// <summary>
-    /// Vehicle mode for the F-35B, F-15E, helicopter, DeLorean and airliner (the Cessna stays with <see cref="PlaneDriver"/>, the car with RocketSim).
+    /// Vehicle mode for the F-35B, F-15E, helicopter, and DeLorean (the Cessna stays with <see cref="PlaneDriver"/>, the car with RocketSim).
     /// Owns everything around the physics: mode switching (the car's Rigidbody is re-purposed exactly like the plane does), compound box colliders,
     /// the 3-D model and its animations, the HUD numbers, and Hyper Boost. The per-tick physics itself is an <see cref="IVehicleModel"/>
     /// (currently <see cref="PlaceholderPhysics"/>; see <see cref="VehiclePhysicsFactory"/>).

@@ -6,6 +6,7 @@ using UnityEngine.InputSystem;
 namespace RocketWorld
 {
     /// <summary>Orbit/zoom camera around the car: mouse drag + wheel, one-finger drag + pinch on touch, arrow keys, +/-.</summary>
+    [DefaultExecutionOrder(50)]                          // after CamRigBegin (40) undoes the Camera-menu offset, before CamRigEnd (200) re-applies it
     public class OrbitCamera : MonoBehaviour
     {
         public Transform target;

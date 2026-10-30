@@ -1,5 +1,5 @@
 // Headless 6-DOF flight tests of the JsbFdm aircraft (flat Earth, gear contacts on a runway at h = 0, simple Euler-quaternion integrator).
-// usage: dotnet run -- <resources/Flight/jsb dir> <f15e|a320|f35b-takeoff|f35b-vtol>
+// usage: dotnet run -- <resources/Flight/jsb dir> <f15e|f35b-takeoff|f35b-vtol>
 using System;
 using System.IO;
 using RocketWorld.Sim;
@@ -63,7 +63,6 @@ static class Fly
     {
         dir = a[0]; string sc = a[1];
         if (sc == "f15e") { Load("f15e"); Takeoff("F-15E", 1.0, 0.0, 0, 142, -0.30, 160, 1.0); }
-        else if (sc == "a320") { Load("a320"); f["fcs/flap-cmd-norm"] = 0.25; Takeoff("A320", 1.0, 0.0, 0, 135, -0.28, 150, 1.0, true); }
         else if (sc == "f35b") { Load("f35b"); Takeoff("F-35B (CTOL)", 1.0, 0.0, 0, 130, -0.30, 150, 1.0); }
         else if (sc == "f35b-vtol") Vtol();
         else if (sc == "delorean") Dmc();

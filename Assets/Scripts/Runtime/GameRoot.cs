@@ -28,6 +28,7 @@ namespace RocketWorld
         public TileColliderBudget budget;
         public ChaseCamera chase;
         public HeliCamera heli;
+        public CameraMenu camMenu;
         public CinematicFx cinematic;
         public int cameraMode;                                // 0 chase, 1 orbit, 2 helicopter
         public Camera cam;
@@ -105,6 +106,7 @@ namespace RocketWorld
             Texture.SetGlobalAnisotropicFilteringLimits(DeviceProfile.IsMobile ? 8 : 16, DeviceProfile.IsMobile ? 8 : 16);
             Application.runInBackground = false;                      // hidden tab: stop streaming/rendering (battery, bandwidth)
             settings = GameSettings.Load();
+            CamTuning.LoadSaved();                                    // Camera menu: last saved offsets / follow delay / axis mode
             if (DeviceProfile.IsMobile) Application.targetFrameRate = 60;
 
             var g = new GameObject("CesiumGeoreference");
@@ -123,6 +125,8 @@ namespace RocketWorld
             if (RequireMenu) { carCtl.HoldStart(); SetCameraMode(1); }   // start menu: show the city (orbit camera) until a mode is chosen
             hud = gameObject.AddComponent<DebugHud>();
             hud.root = this;
+            camMenu = gameObject.AddComponent<CameraMenu>();
+            camMenu.root = this;
             minimap = gameObject.AddComponent<Minimap>();
             minimap.root = this;
             autoQuality = gameObject.AddComponent<AutoQuality>();
@@ -514,6 +518,8 @@ namespace RocketWorld
             data.antialiasingQuality = AntialiasingQuality.Medium;
             data.renderShadows = false;
             go.AddComponent<CesiumGlobeAnchor>();                        // keeps the camera valid across origin shifts
+            var rigEnd = go.AddComponent<CamRigEnd>();                   // Camera menu offsets, applied after the active camera mode
+            go.AddComponent<CamRigBegin>().end = rigEnd;
             chase = go.AddComponent<ChaseCamera>();
             chase.car = carCtl;
             heli = go.AddComponent<HeliCamera>();

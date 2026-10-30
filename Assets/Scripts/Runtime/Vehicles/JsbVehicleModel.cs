@@ -25,7 +25,6 @@ namespace RocketWorld
             {
                 case VehicleKind.F15E: return new JsbVehicleCfg { file = "f15e", augmentedThrottle = true, speedbrake = true, autoTrim = true };
                 case VehicleKind.F35B: return new JsbVehicleCfg { file = "f35b", stovl = true };
-                case VehicleKind.Airliner: return new JsbVehicleCfg { file = "a320", flapDetents = true, reverser = true, speedbrake = true, autoTrim = true, flapSteps = new[] { 0f, 0.25f, 0.5f, 1f } };
                 case VehicleKind.Helicopter: return new JsbVehicleCfg { file = "heli", heli = true };
                 case VehicleKind.DeLorean: return new JsbVehicleCfg { file = "delorean", hoverCar = true };
                 default: return null;
@@ -61,7 +60,7 @@ namespace RocketWorld
     }
 
     /// <summary>
-    /// F-35B, F-15E and A320 on unmodified-format JSBSim aircraft files (see <see cref="JsbFdm"/>): the interpreter returns body forces and moments each 120 Hz tick
+    /// F-35B, F-15E, helicopter and DeLorean on unmodified-format JSBSim aircraft files (see <see cref="JsbFdm"/>): the interpreter returns body forces and moments each 120 Hz tick
     /// (aerodynamics, turbine engines with vectoring, lift fan, roll posts), this class applies them to the Rigidbody, adds gravity and the gear strut / tyre model.
     /// </summary>
     internal sealed class JsbJetModel : IVehicleModel

@@ -170,23 +170,6 @@ const jobs = {
     const c = bounds(doc).ctr; recenter(doc, c);
     return finish(doc, 'Heli', 24000, 1024);
   },
-  // ---------------------------------------------------------------------------------------------------------------- A320 airliner
-  async A320() {
-    const doc = await io.read(path.join(inDir, 'a320_cockpit.glb'));
-    await bake(doc);
-    const scene = doc.getRoot().listScenes()[0];
-    // the cockpit interior (hundreds of thousands of hidden triangles near the nose) is dropped
-    const dropped = dropNodes(doc, n => { const b = getBounds(n), sz = b.max.map((x, i) => x - b.min[i]); const cy = (b.min[1] + b.max[1]) / 2, cz = (b.min[2] + b.max[2]) / 2; return Math.max(...sz) < 1.0 && cz < 1.2 && cy > -0.1 && cy < 0.6; });
-    // landing gear: small parts hanging under the belly, near the centre line (engines sit at |x| > 1.3)
-    const gear = meshNodes(doc).filter(n => { const b = getBounds(n), sz = b.max.map((x, i) => x - b.min[i]); return b.min[1] < -0.3 && Math.abs((b.min[0] + b.max[0]) / 2) < 1.3 && Math.max(...sz) < 1.3; });
-    simplifyAll(doc, 46000, 0.05);
-    const rest = meshNodes(doc).filter(n => !gear.includes(n));
-    mergeNodes(doc, scene, gear, 'Gear'); mergeNodes(doc, scene, rest, 'Body');
-    applyMatrix(doc, rotY(180, 37.6 / 9.11));              // nose -Z -> +Z, 37.6 m long
-    const c = bounds(doc).ctr; recenter(doc, c);
-    console.log('A320: dropped', dropped, 'interior nodes,', gear.length, 'gear nodes');
-    return finish(doc, 'A320', Infinity, 1024);
-  },
   // ---------------------------------------------------------------------------------------------------------------- DeLorean
   async DeLorean() {
     const doc = await io.read(path.join(inDir, 'delorean_highpoly.glb'));

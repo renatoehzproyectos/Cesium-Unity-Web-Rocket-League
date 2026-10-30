@@ -10,7 +10,6 @@ Select with the **vehicle button** (top right, next to Ball), **V** (next vehicl
 | F-15E | `F15E.glb` | throttle slider, rudder slider, AFTERBURNER, BRAKE, GEAR, HYPER | G = gear, Shift = afterburner |
 | Helicopter | `Heli.glb` + procedural rotors | collective slider (springs back to centre = hover hold), rudder slider, BRAKE, HYPER | Space/Ctrl = collective |
 | DeLorean | `DeLorean.glb` | UP ▲ / DOWN ▼, HOVER toggle, BOOST, BRAKE, HYPER | M = hover (wheels fold flat), Space/Ctrl = up/down |
-| Airliner | `A320.glb` | throttle slider, rudder slider, BRAKE, REVERSE, GEAR, FLAPS, HYPER | G gear, F flaps, Shift reverse |
 
 * Throttle slider: drag to set the lever; it keeps its value and follows the keyboard / gamepad. Rudder slider springs back to centre.
 * **Hyper Boost** (H, D-pad up, or the HYPER button which latches on/off): the vehicle's normal top speed ×6 (+500 %), eased in over 0.6 s and out over 1.8 s. Works on every vehicle (car, boat, Cessna included).
@@ -44,8 +43,8 @@ For Hyper Boost with real aerodynamics, cap the dynamic pressure at ~1.25× the 
 
 `Assets/Resources/Models/Vehicles/*.glb` come from the five source models via `tools/models/prep.mjs` (`npm i` in that folder, then
 `node prep.mjs all <sources> Assets/Resources/Models/Vehicles`): nose +Z, up +Y, metres, origin at the bounding-box centre, materials reduced to base colour (the game
-rebuilds them as URP Lit), textures to 1024 px JPEG, geometry simplified (DeLorean 2.3 M → ~90 k triangles; a few unsimplifiable grille details were dropped; A320 cockpit interior removed).
-Named parts: `Gear_Down` / `Gear_Up` (F-15E), `Gear` (A320), `Wheel_F0/F1/R0/R1` → `Spin` (DeLorean), and `Marker_Origin/Nose/Up` (orientation).
+rebuilds them as URP Lit), textures to 1024 px JPEG, geometry simplified (DeLorean 2.3 M → ~90 k triangles; a few unsimplifiable grille details were dropped).
+Named parts: `Gear_Down` / `Gear_Up` (F-15E), `Wheel_F0/F1/R0/R1` → `Spin` (DeLorean), and `Marker_Origin/Nose/Up` (orientation).
 The licences of the source models were not part of the upload: check them (Sketchfab pages) before publishing, and add credits to `THIRD_PARTY.md`.
 
 ## Network

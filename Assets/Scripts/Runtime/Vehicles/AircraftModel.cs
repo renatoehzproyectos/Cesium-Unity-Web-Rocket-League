@@ -30,12 +30,12 @@ namespace RocketWorld
 
     public static class VehiclePhysicsFactory
     {
-        /// <summary>Physics for a vehicle kind: JSBSim-driven models for the jets and the airliner (and helicopter / DeLorean once their JSBSim models are wired).</summary>
+        /// <summary>Physics for a vehicle kind: JSBSim-driven models for the jets (and helicopter / DeLorean once their JSBSim models are wired).</summary>
         internal static IVehicleModel Create(VehicleSpec spec)
         {
             switch (spec.kind)
             {
-                case VehicleKind.F35B: case VehicleKind.F15E: case VehicleKind.Airliner: case VehicleKind.Helicopter: case VehicleKind.DeLorean: return new JsbJetModel(spec);
+                case VehicleKind.F35B: case VehicleKind.F15E: case VehicleKind.Helicopter: case VehicleKind.DeLorean: return new JsbJetModel(spec);
                 default: return new PlaceholderPhysics(spec);
             }
         }

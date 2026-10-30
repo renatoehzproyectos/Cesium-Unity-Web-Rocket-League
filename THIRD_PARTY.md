@@ -22,6 +22,6 @@
 
 ## Vehicle models (Assets/Resources/Models/Vehicles)
 
-F-35B, F-15E, helicopter, DeLorean and A320 are optimised derivatives of GLB files supplied for this project (`f-35b_lightning_ii.glb`,
-`f-15e_strike_eagle_-_fighter_jet_-_free.glb`, `helicopter.glb`, `delorean_highpoly.glb`, `a320_cockpit.glb`). Their original authors and licences
+F-35B, F-15E, helicopter and DeLorean are optimised derivatives of GLB files supplied for this project (`f-35b_lightning_ii.glb`,
+`f-15e_strike_eagle_-_fighter_jet_-_free.glb`, `helicopter.glb`, `delorean_highpoly.glb`). Their original authors and licences
 were not included with the files: TODO fill in author, source URL and licence for each before publishing.

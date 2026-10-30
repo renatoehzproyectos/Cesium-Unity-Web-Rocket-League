@@ -6,7 +6,7 @@ namespace RocketWorld.Tests
     /// <summary>Data-level checks of the vehicle table, the touch layouts and Hyper Boost (no scene, no physics).</summary>
     public class VehicleTests
     {
-        static readonly VehicleKind[] Driven = { VehicleKind.F35B, VehicleKind.F15E, VehicleKind.Helicopter, VehicleKind.DeLorean, VehicleKind.Airliner };
+        static readonly VehicleKind[] Driven = { VehicleKind.F35B, VehicleKind.F15E, VehicleKind.Helicopter, VehicleKind.DeLorean };
 
         [Test] public void EveryDrivenVehicleHasACompleteSpec()
         {
@@ -61,7 +61,7 @@ namespace RocketWorld.Tests
 
         [Test] public void AircraftHaveAThrottleSliderAndARudder()
         {
-            foreach (var p in new[] { TouchProfile.Cessna, TouchProfile.Jet, TouchProfile.Vtol, TouchProfile.Airliner })
+            foreach (var p in new[] { TouchProfile.Cessna, TouchProfile.Jet, TouchProfile.Vtol })
             {
                 var ids = new System.Collections.Generic.List<string>(); foreach (var w in TouchLayout.For(p)) ids.Add(w.id);
                 Assert.Contains("throttle", ids, p.ToString()); Assert.Contains("rudder", ids, p.ToString());

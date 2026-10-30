@@ -21,6 +21,7 @@ namespace RocketWorld
         const float GroundClearance = 4f;                    // m kept between the camera and the roofs / terrain directly under it
 
         Vector3 _heading = Vector3.forward, _lookOffset;
+        Quaternion _rot = Quaternion.identity;                  // full-axis mode: smoothed vehicle orientation (yaw + pitch + roll)
         bool _ready;
         float _fov = 70f, _pinchPrev;
         Camera _cam;
@@ -46,24 +47,35 @@ namespace RocketWorld
             if (dir.sqrMagnitude < 1e-4f) dir = _heading;
             dir.Normalize();
             if (!_ready) _heading = dir;
-            _heading = Vector3.Lerp(_heading, dir, 1f - Mathf.Exp(-dt * (grounded ? 2.2f : 1.4f))).normalized;   // slower than the chase camera
+            _heading = Vector3.Lerp(_heading, dir, CamTuning.Blend(grounded ? 2.2f : 1.4f, dt)).normalized;   // slower than the chase camera; the Camera menu's follow delay stretches it
 
             float h = HeliCamPolicy.Height(speed, plane, zoom), back = HeliCamPolicy.Back(speed, plane, zoom);
-            var want = carPos - _heading * back + Vector3.up * h;
+            bool full = CamTuning.fullAxis;                                  // Camera menu: follow the vehicle's roll as well
+            var camUp = Vector3.up;
+            Vector3 want;
+            if (full)
+            {
+                var vr = car.visual != null ? car.visual.rotation : car.transform.rotation;
+                if (!_ready) _rot = vr;
+                _rot = Quaternion.Slerp(_rot, vr, CamTuning.Blend(3f, dt));
+                camUp = _rot * Vector3.up;
+                want = carPos + _rot * new Vector3(0f, h, -back);
+            }
+            else want = carPos - _heading * back + Vector3.up * h;
 
             // A building between the car and the camera: climb (up to +100 %) until the line is clear instead of dragging the camera in.
             Vector3 from = carPos + Vector3.up * 1.5f;
             for (int k = 0; k < 4; k++)
             {
                 if (!Physics.Linecast(from, want, PhysicsSetup.WorldMask, QueryTriggerInteraction.Ignore)) break;
-                want.y += h * 0.33f;
+                want += camUp * (h * 0.33f);
             }
 
-            var tgt = carPos + _heading * HeliCamPolicy.LookAhead(speed, plane);
+            var tgt = full ? carPos + _rot * (Vector3.forward * HeliCamPolicy.LookAhead(speed, plane)) : carPos + _heading * HeliCamPolicy.LookAhead(speed, plane);
             var pos = transform.position;                                        // the camera has a CesiumGlobeAnchor: valid across origin shifts
             if (!_ready) { pos = want; _lookOffset = tgt - carPos; _ready = true; }
-            pos = Vector3.Lerp(pos, want, 1f - Mathf.Exp(-dt * 4f));
-            _lookOffset = Vector3.Lerp(_lookOffset, tgt - carPos, 1f - Mathf.Exp(-dt * 8f));
+            pos = Vector3.Lerp(pos, want, CamTuning.Blend(4f, dt));
+            _lookOffset = Vector3.Lerp(_lookOffset, tgt - carPos, CamTuning.Blend(8f, dt));
 
             // Stay above the roofs / ground right under the camera.
             if (Physics.Raycast(pos + Vector3.up * 40f, Vector3.down, out var gh, 160f, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore)
@@ -72,7 +84,7 @@ namespace RocketWorld
 
             var look = (carPos + _lookOffset) - pos;
             if (look.sqrMagnitude < 1e-4f) look = Vector3.down + _heading * 0.1f;
-            transform.SetPositionAndRotation(pos, Quaternion.LookRotation(look, Vector3.up));
+            transform.SetPositionAndRotation(pos, Quaternion.LookRotation(look, Mathf.Abs(Vector3.Dot(look.normalized, camUp)) > 0.999f ? _heading : camUp));
             _fov += (HeliCamPolicy.Fov(speed) - _fov) * Mathf.Min(1f, dt * 2.5f);
             if (_cam != null) _cam.fieldOfView = _fov;
         }

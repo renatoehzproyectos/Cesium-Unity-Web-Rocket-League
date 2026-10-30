@@ -26,7 +26,7 @@ namespace RocketWorld
         public WaterDriver water;
         /// <summary>Plane mode (null = off): while it is Active the body is a JSBSim-driven airplane.</summary>
         public PlaneDriver plane;
-        /// <summary>F-35B / F-15E / helicopter / DeLorean / airliner (null = off); the Cessna is <see cref="plane"/>.</summary>
+        /// <summary>F-35B / F-15E / helicopter / DeLorean (null = off); the Cessna is <see cref="plane"/>.</summary>
         public VehicleDriver vehicle;
         public bool infiniteBoost = true;
         public float spawnHeadingDeg;
@@ -99,7 +99,7 @@ namespace RocketWorld
         float _puppetSink;
         GameObject _puppetPlane; Renderer[] _puppetHidden;
         /// <summary>Puppets: show the box plane instead of the car model while the host's car is in plane mode.</summary>
-        // Puppets: the host's new vehicle kinds (F-35B ... airliner) are shown with their own model.
+        // Puppets: the host's new vehicle kinds (F-35B ... DeLorean) are shown with their own model.
         readonly System.Collections.Generic.Dictionary<int, VehicleVisual> _puppetVeh = new System.Collections.Generic.Dictionary<int, VehicleVisual>();
         int _puppetKind; Renderer[] _puppetVehHidden;
         void SetPuppetVehicle(int kind)
@@ -387,7 +387,7 @@ namespace RocketWorld
                 jump = c.jump, boost = c.boost, handbrake = c.handbrake,
             };
             UpdateHyper(c.hyper);
-            if (vehicle != null && vehicle.Active) { vehicle.PreStep(c, Tick); return; }       // F-35B / F-15E / helicopter / DeLorean / airliner
+            if (vehicle != null && vehicle.Active) { vehicle.PreStep(c, Tick); return; }       // F-35B / F-15E / helicopter / DeLorean
             if (plane != null && plane.Active) { plane.PreStep(c, Tick); return; }       // plane mode: JSBSim forces replace the wheel model
             if (water != null && water.Active) { water.PreStep(c, Tick); return; }     // afloat: boat forces replace the wheel model
             if (infiniteBoost) Vehicle.state.boost = RL.BoostMax;

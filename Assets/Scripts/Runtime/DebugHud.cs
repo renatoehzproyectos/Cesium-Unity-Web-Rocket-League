@@ -16,7 +16,7 @@ namespace RocketWorld
         GUIStyle _small, _center, _attr;
         float _k = 1f;
         bool _vehOpen;
-        Rect _gear, _panel, _report;
+        Rect _gear, _panel, _report, _camBtn;
         // IMGUI allocates every frame it builds strings, so the stats text is rebuilt 4x per second and cached.
         readonly float[] _ring = new float[120]; int _ringN, _ringI;
         readonly float[] _sorted = new float[120];
@@ -49,7 +49,8 @@ namespace RocketWorld
             if (_ctlOpen) UpdateControlsPanel();
             else if (ci != null ? ci.SettingsPressed : OrbitCamera.SettingsKeyPressed())
             {
-                if (ci != null && ci.MenuFromPad && !_open) SetControlsOpen(true);   // gamepad menu button: the pad-navigable screen
+                if (root.camMenu != null && root.camMenu.Open) root.camMenu.Close();
+                else if (ci != null && ci.MenuFromPad && !_open) SetControlsOpen(true);   // gamepad menu button: the pad-navigable screen
                 else SetOpen(!_open);
             }
             if (ci != null) ci.Blocked = _ctlOpen || GameRoot.MenuBlocksInput;
@@ -87,6 +88,7 @@ namespace RocketWorld
             {
                 root.settingsOpen = true;
                 if (_ctlOpen) SetControlsOpen(false);
+                if (root.camMenu != null) root.camMenu.Close();
             }
             _open = open;
         }
@@ -97,7 +99,8 @@ namespace RocketWorld
             if (GameRoot.MenuBlocksInput) return true;
             var p = new Vector2(screenPos.x / _k, (Screen.height - screenPos.y) / _k);
             if (root.carInput != null && root.carInput.TouchControlsActive && CarInput.OverTouchZone(screenPos)) return true;
-            return (root.minimap != null && root.minimap.Rect.Contains(p)) || new Rect(_ctl.x - 86, _ctl.y, 80, _ctl.height).Contains(p) || _gear.Contains(p) || _ctl.Contains(p) || (_ctlOpen && _ctlPanel.Contains(p)) || (_open && _panel.Contains(p)) || (_reportOpen && _report.Contains(p));
+            if (root.camMenu != null && root.camMenu.Over(screenPos)) return true;
+            return _camBtn.Contains(p) || (root.minimap != null && root.minimap.Rect.Contains(p)) || new Rect(_ctl.x - 86, _ctl.y, 80, _ctl.height).Contains(p) || _gear.Contains(p) || _ctl.Contains(p) || (_ctlOpen && _ctlPanel.Contains(p)) || (_open && _panel.Contains(p)) || (_reportOpen && _report.Contains(p));
         }
 
         float _runStart = -1f, _shownSpeed;
@@ -165,7 +168,7 @@ namespace RocketWorld
             }
         }
 
-        /// <summary>Vehicle mode (F-35B, F-15E, helicopter, DeLorean, airliner): speed, altitude, vertical speed, status line, throttle lever.</summary>
+        /// <summary>Vehicle mode (F-35B, F-15E, helicopter, DeLorean): speed, altitude, vertical speed, status line, throttle lever.</summary>
         void DrawVehicleInstruments(RocketCar cc, float W, float H)
         {
             var d = cc.vehicle; if (d == null || !d.Active) return;
@@ -215,6 +218,7 @@ namespace RocketWorld
             var s = root.settings;
             _gear = new Rect(W - 60, 14, 46, 46);
             _ctl = new Rect(W - 166, 14, 100, 46);
+            _camBtn = new Rect(W - 96, 66, 82, 34);            // Camera menu button (right of the vehicle button)
             _panel = new Rect(W - 380, 70, 370, H - 84);
             _ctlPanel = new Rect(Mathf.Max(8, W - 520), 70, Mathf.Min(510, W - 16), H - 84);
 
@@ -272,6 +276,12 @@ namespace RocketWorld
             }
             if (GUI.Button(_ctl, "Controls", _btn)) SetControlsOpen(!_ctlOpen);
             if (GUI.Button(new Rect(W - 252, 14, 80, 46), "Ball", _btn)) root.RequestBall();
+            if (GUI.Button(_camBtn, "Camera", _btn) && root.camMenu != null)
+            {
+                if (_open) SetOpen(false);
+                if (_ctlOpen) SetControlsOpen(false);
+                root.camMenu.Toggle();
+            }
             string curVeh = root.carCtl != null ? Vehicles.NameOf(root.carCtl.CurrentVehicle) : "Car";
             if (GUI.Button(new Rect(W - 252, 66, 154, 34), curVeh + " ▾", _btn)) _vehOpen = !_vehOpen;
             if (_vehOpen)
@@ -322,12 +332,7 @@ namespace RocketWorld
             if (WebBridge.IsLiteBuild()) GUILayout.Label("Low-memory build active");
 
             GUILayout.Space(6);
-            GUILayout.Label("Camera (C key cycles)");
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Chase")) root.ChooseCamera(0);
-            if (GUILayout.Button("Helicopter")) root.ChooseCamera(2);
-            if (GUILayout.Button("Orbit")) root.ChooseCamera(1);
-            GUILayout.EndHorizontal();
+            if (GUILayout.Button("Camera menu (mode, offsets, follow, delay)")) { SetOpen(false); root.camMenu.OpenMenu(); }
 
             GUILayout.Space(6);
             GUILayout.Label("Cinematic effects (0 % = off, 100 % = default look)");
@@ -355,6 +360,7 @@ namespace RocketWorld
         {
             if (open == _ctlOpen) return;
             if (open && _open) SetOpen(false);
+            if (open && root.camMenu != null) root.camMenu.Close();
             _ctlOpen = open;
             _listenAction = -1;
             if (!open && root.carInput != null) root.carInput.bindings.Save();

@@ -56,13 +56,6 @@ namespace RocketWorld
         {
             Collective, Rudder, new TouchWidget("hyper", "HYPER ×6", L, 0.80f, 0.06f, 0.11f, 0.18f), new TouchWidget("brake", "BRAKE", H, 0.67f, 0.06f, 0.11f, 0.18f),
         };
-        static readonly TouchWidget[] Airliner =
-        {
-            Throttle, Rudder,
-            new TouchWidget("brake", "BRAKE", H, 0.80f, 0.06f, 0.11f, 0.18f), new TouchWidget("boost", "REVERSE", H, 0.67f, 0.06f, 0.11f, 0.18f),
-            new TouchWidget("gear", "GEAR", T, 0.80f, 0.27f, 0.11f, 0.18f), new TouchWidget("flaps", "FLAPS", T, 0.67f, 0.27f, 0.11f, 0.18f),
-            new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.48f, 0.24f, 0.14f),
-        };
         static readonly TouchWidget[] DeLorean =
         {
             new TouchWidget("up", "UP ▲", H, 0.80f, 0.46f, 0.11f, 0.16f), new TouchWidget("down", "DOWN ▼", H, 0.80f, 0.27f, 0.11f, 0.16f),
@@ -78,7 +71,6 @@ namespace RocketWorld
                 case TouchProfile.Jet: return Jet;
                 case TouchProfile.Vtol: return Vtol;
                 case TouchProfile.Helicopter: return Heli;
-                case TouchProfile.Airliner: return Airliner;
                 case TouchProfile.DeLorean: return DeLorean;
                 default: return Car;
             }

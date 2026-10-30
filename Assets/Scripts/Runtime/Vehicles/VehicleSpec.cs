@@ -3,12 +3,12 @@ using UnityEngine;
 namespace RocketWorld
 {
     /// <summary>Every drivable thing. Car and Cessna are the originals (RocketSim / JSBSim); the rest are driven by <see cref="VehicleDriver"/>.</summary>
-    public enum VehicleKind { Car = 0, Cessna = 1, F35B = 2, F15E = 3, Helicopter = 4, DeLorean = 5, Airliner = 6 }
+    public enum VehicleKind { Car = 0, Cessna = 1, F35B = 2, F15E = 3, Helicopter = 4, DeLorean = 5 }
 
     /// <summary>Which on-screen touch layout a vehicle uses (see <see cref="TouchLayout"/>).</summary>
-    public enum TouchProfile { Car, Cessna, Jet, Vtol, Helicopter, Airliner, DeLorean }
+    public enum TouchProfile { Car, Cessna, Jet, Vtol, Helicopter, DeLorean }
 
-    public enum AeroClass { None, Jet, Airliner }
+    public enum AeroClass { None, Jet }
 
     public struct BoxDef
     {
@@ -35,7 +35,7 @@ namespace RocketWorld
         public AeroClass aero;
         public bool hasGear, vtol, afterburner, reverse, flaps, hoverCar, rotors;
 
-        // aerodynamics (jets / airliner)
+        // aerodynamics (jets)
         public float wingArea, cd0, kInd, clAlpha, alphaStall, cyBeta, gearCd, flapCl, flapCd;
         public float thrustMil, thrustAb;                          // N at sea level
         public float pitchRate, rollRate, yawRate;                 // rad/s at full stick
@@ -50,8 +50,8 @@ namespace RocketWorld
     public static class Vehicles
     {
         public const float G = 9.80665f;
-        public static readonly VehicleKind[] Order = { VehicleKind.Car, VehicleKind.Cessna, VehicleKind.F35B, VehicleKind.F15E, VehicleKind.Helicopter, VehicleKind.DeLorean, VehicleKind.Airliner };
-        static VehicleSpec _f35, _f15, _heli, _dmc, _a320;
+        public static readonly VehicleKind[] Order = { VehicleKind.Car, VehicleKind.Cessna, VehicleKind.F35B, VehicleKind.F15E, VehicleKind.Helicopter, VehicleKind.DeLorean };
+        static VehicleSpec _f35, _f15, _heli, _dmc;
 
         public static string NameOf(VehicleKind k)
         {
@@ -63,7 +63,7 @@ namespace RocketWorld
                 case VehicleKind.F15E: return "F-15E";
                 case VehicleKind.Helicopter: return "Helicopter";
                 case VehicleKind.DeLorean: return "DeLorean";
-                default: return "Airliner";
+                default: return "Vehicle";
             }
         }
 
@@ -76,7 +76,6 @@ namespace RocketWorld
                 case VehicleKind.F15E: return TouchProfile.Jet;
                 case VehicleKind.Helicopter: return TouchProfile.Helicopter;
                 case VehicleKind.DeLorean: return TouchProfile.DeLorean;
-                case VehicleKind.Airliner: return TouchProfile.Airliner;
                 default: return TouchProfile.Car;
             }
         }
@@ -90,7 +89,6 @@ namespace RocketWorld
                 case VehicleKind.F15E: return _f15 ?? (_f15 = JsbVehicleCfg.Align(MakeF15()));
                 case VehicleKind.Helicopter: return _heli ?? (_heli = MakeHeli());
                 case VehicleKind.DeLorean: return _dmc ?? (_dmc = JsbVehicleCfg.Align(MakeDeLorean()));
-                case VehicleKind.Airliner: return _a320 ?? (_a320 = JsbVehicleCfg.Align(MakeA320()));
                 default: return null;
             }
         }
@@ -134,17 +132,6 @@ namespace RocketWorld
             wheels = new[] { new WheelDef(0.69f, -0.382f, 1.2f, 0.30f, steer: true), new WheelDef(-0.69f, -0.382f, 1.2f, 0.30f, steer: true),
                              new WheelDef(0.696f, -0.348f, -1.162f, 0.33f, drive: true, rear: true), new WheelDef(-0.696f, -0.348f, -1.162f, 0.33f, drive: true, rear: true) },
             vMax = 55f, camBack = 8.5f, camUp = 3.0f, camLook = 5f, profile = TouchProfile.DeLorean, hoverCar = true,
-        };
-
-        static VehicleSpec MakeA320() => new VehicleSpec
-        {
-            kind = VehicleKind.Airliner, name = "Airliner", model = "Models/Vehicles/A320", mass = 64000f, inertia = new Vector3(3200000f, 4500000f, 2000000f),
-            boxes = new[] { new BoxDef(0, -2.3f, 0, 4.0f, 4.1f, 36.0f), new BoxDef(0, -3.6f, 0.5f, 34.5f, 0.5f, 6.0f), new BoxDef(0, -0.5f, -16f, 12.5f, 0.4f, 3.5f),
-                            new BoxDef(0, 2.5f, -15.5f, 0.5f, 5.5f, 5.0f), new BoxDef(6.9f, -4.4f, 4.1f, 2.4f, 2.4f, 4.4f), new BoxDef(-6.9f, -4.4f, 4.1f, 2.4f, 2.4f, 4.4f) },
-            wheels = new[] { new WheelDef(3.9f, -5.4f, 1.5f, 0.7f, rear: true), new WheelDef(-3.9f, -5.4f, 1.5f, 0.7f, rear: true), new WheelDef(0, -5.4f, 13.85f, 0.6f, steer: true) },
-            vMax = 289f, camBack = 62f, camUp = 14f, camLook = 40f, profile = TouchProfile.Airliner, aero = AeroClass.Airliner, hasGear = true, reverse = true, flaps = true,
-            wingArea = 122.6f, cd0 = 0.026f, kInd = 0.045f, clAlpha = 5.0f, alphaStall = 0.28f, cyBeta = 0.9f, gearCd = 0.02f, flapCl = 0.8f, flapCd = 0.045f,
-            thrustMil = 300000f, thrustAb = 300000f, pitchRate = 0.22f, rollRate = 0.55f, yawRate = 0.16f, pitchAccel = 0.5f, rollAccel = 0.9f, yawAccel = 0.35f, gLimit = 2.5f, ctrlQ = 5000f, kBeta = 1.2f,
         };
     }
 

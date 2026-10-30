@@ -11,7 +11,7 @@ on Unity PhysX**, so collision against buildings and terrain is exact (real mesh
 > Unity compile of the rest, PhysX contact feel, the WebGL build, Vercel, Google tiles. Expect a first-build fix iteration and send me the log.
 
 ## Controls
-WASD/arrows drive · Space jump (twice = flip, with direction = dodge) · Shift boost (infinite) · Ctrl/X drift · Q/E air-roll · C camera (chase → helicopter → orbit; also in settings; `?cam=heli`) · cinematic effect sliders in settings (`?dof=`, `?mblur=`) · Anti crash toggle in settings (on by default; `?anticrash=0` turns it off; also loads the low-memory `/lite/` build on iPhone/iPad, `?lite=1|0` forces a build) · R rescue ·
+WASD/arrows drive · Space jump (twice = flip, with direction = dodge) · Shift boost (infinite) · Ctrl/X drift · Q/E air-roll · C camera (chase → helicopter → orbit; the **Camera** button opens the camera menu: mode, offsets, follow-roll toggle, follow delay, save; `?cam=heli`; see [docs/CAMERA.md](docs/CAMERA.md)) · cinematic effect sliders in settings (`?dof=`, `?mblur=`) · Anti crash toggle in settings (on by default; `?anticrash=0` turns it off; also loads the low-memory `/lite/` build on iPhone/iPad, `?lite=1|0` forces a build) · R rescue ·
 Esc / gear = settings · link button copies a URL for this place (never includes your API key). Mobile: on-screen pads. Full gamepad support (any controller the browser exposes; right stick orbits the camera). The **Controls** button next to the gear opens a rebinding screen: click a slot (key, alt key, gamepad) and press the new input; Backspace clears, Esc cancels. Gamepad users press Menu/Start to open it and navigate with the D-pad (A bind, X clear, Y reset, B close). Bindings are stored in this browser. Analog sticks/triggers need the Input System package as the active input handler (set automatically by `ProjectSetup`).
 URL params: `?viewcull=0` (load a radius round the car instead of only the view) `?water=0` (no water system) `?key= ?ion= ?lat= ?lon= ?h= ?hdg= ?t= ?car= ?sse= ?scale= ?bench=1`.
 
@@ -80,4 +80,4 @@ View-driven streaming with a large adaptive cache, no holes (coarse tiles outsid
 
 ## Vehicles
 
-Car, Cessna, F-35B (VTOL), F-15E, helicopter, DeLorean (hover) and an A320 airliner, each with its own touch layout, plus a Hyper Boost (+500 % speed) button on every vehicle. See [docs/VEHICLES.md](docs/VEHICLES.md). The vehicle physics is currently a placeholder (`VehiclePhysicsFactory`), ready for the JSBSim models.
+Car, Cessna, F-35B (VTOL), F-15E, helicopter, DeLorean (hover), each with its own touch layout, plus a Hyper Boost (+500 % speed) button on every vehicle. See [docs/VEHICLES.md](docs/VEHICLES.md). The vehicle physics is currently a placeholder (`VehiclePhysicsFactory`), ready for the JSBSim models.
