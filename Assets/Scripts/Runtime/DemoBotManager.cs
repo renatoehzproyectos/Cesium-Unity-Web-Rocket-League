@@ -364,7 +364,7 @@ namespace RocketWorld
             m.startLifetime = 0.9f; m.startSpeed = 0f;
             m.startSize = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
                 new Keyframe(0f, 1f, 0f, 30f), new Keyframe(1f, 30f, 0f, 0f)));
-            m.startColor  = new ParticleSystem.MinMaxCurve(new Color(1f, 0.8f, 0.4f, 0.9f),
+            m.startColor  = new ParticleSystem.MinMaxGradient(new Color(1f, 0.8f, 0.4f, 0.9f),
                                                              new Color(1f, 1f,   0.7f, 0.7f));
             m.gravityModifier = 0f;
             m.maxParticles    = 4;
