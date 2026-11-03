@@ -52,6 +52,8 @@ namespace RocketWorld
 
         // ---- clearance rays ----------------------------------------------------------------------------
         const float RayLen = DemoBotBrain.ClearRange;
+        const float SpawnHeight     = 12f;   // metres above the player where a bot appears
+        const float SpawnHeightStep = 6f;    // extra height per bot slot so stacked bots do not collide
         const float RayY   = 0.35f;          // height above the car origin for horizontal obstacle rays
         static readonly Vector3[] RayDirs = {
             Quaternion.Euler(0f, -30f, 0f) * Vector3.forward,
@@ -283,23 +285,13 @@ namespace RocketWorld
         {
             if (b.car == null || _player == null) return;
 
-            // Spawn ~70 m from the player; every placement uses a new angle so bots come from different sides.
-            float yaw    = _spawnYawDeg * Mathf.Deg2Rad;
-            float radius = 70f + (b.number % 3) * 12f;
-            Vector3 offset = new Vector3(Mathf.Sin(yaw) * radius, 0f, Mathf.Cos(yaw) * radius);
+            // Spawn directly above the player and drop in. Each bot gets its own height so several never overlap.
             Vector3 playerPos = _player.Body != null ? _player.Body.position : _player.transform.position;
-            Vector3 pPos = playerPos + offset;
+            float height = SpawnHeight + (b.number % 4) * SpawnHeightStep;
+            Vector3 pPos = playerPos + Vector3.up * height;
 
-            // Find the ground below.
-            Vector3 origin = pPos + Vector3.up * 2500f;
-            if (Physics.Raycast(origin, Vector3.down, out var hit, 5000f, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore))
-                pPos = hit.point + Vector3.up * 0.4f;
-
-            // Face the player.
-            Vector3 toPlayer = playerPos - pPos;
-            Quaternion rot = toPlayer.sqrMagnitude > 0.1f
-                ? Quaternion.LookRotation(new Vector3(toPlayer.x, 0f, toPlayer.z).normalized, Vector3.up)
-                : Quaternion.identity;
+            // Random heading, level with the ground.
+            Quaternion rot = Quaternion.Euler(0f, _spawnYawDeg, 0f);
 
             b.car.PlaceDirect(pPos, rot);
             b.car.infiniteBoost = true;
