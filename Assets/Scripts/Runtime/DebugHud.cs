@@ -100,7 +100,7 @@ namespace RocketWorld
             var p = new Vector2(screenPos.x / _k, (Screen.height - screenPos.y) / _k);
             if (root.carInput != null && root.carInput.TouchControlsActive && CarInput.OverTouchZone(screenPos)) return true;
             if (root.camMenu != null && root.camMenu.Over(screenPos)) return true;
-            return _camBtn.Contains(p) || (root.minimap != null && root.minimap.Rect.Contains(p)) || new Rect(_ctl.x - 86, _ctl.y, 80, _ctl.height).Contains(p) || _gear.Contains(p) || _ctl.Contains(p) || (_ctlOpen && _ctlPanel.Contains(p)) || (_open && _panel.Contains(p)) || (_reportOpen && _report.Contains(p));
+            return _camBtn.Contains(p) || _botRect.Contains(p) || (root.minimap != null && root.minimap.Rect.Contains(p)) || new Rect(_ctl.x - 86, _ctl.y, 80, _ctl.height).Contains(p) || _gear.Contains(p) || _ctl.Contains(p) || (_ctlOpen && _ctlPanel.Contains(p)) || (_open && _panel.Contains(p)) || (_reportOpen && _report.Contains(p));
         }
 
         float _runStart = -1f, _shownSpeed;
@@ -113,6 +113,31 @@ namespace RocketWorld
             GUI.Label(new Rect(r.x + 2, r.y + 2, r.width, r.height), text, st);
             GUI.color = old;
             GUI.Label(r, text, st);
+        }
+
+        Rect _botRect;
+
+        /// <summary>Demolition bots: a Bot button (spawn one / remove all) and -, count, + to add or remove them one at a time.</summary>
+        void DrawBotControls(float W)
+        {
+            float x = W - 166f;
+            _botRect = new Rect(x, 106, 152, 76);
+            if (_open || _ctlOpen) { _botRect = default; return; }       // hidden behind the settings / controls panels
+            int n = root.BotCount;
+            bool can = root.CanUseBots;
+            var prev = GUI.enabled;
+            GUI.enabled = prev && (can || n > 0);
+            var botStyle = n > 0 ? (UiTheme.Toast ?? _btn) : _btn;
+            if (GUI.Button(new Rect(x, 106, 152, 34), n > 0 ? "\u25a0 Bot" : "Bot", botStyle)) root.ToggleBot();
+
+            GUI.enabled = prev && n > 0;
+            if (GUI.Button(new Rect(x, 144, 44, 38), "-", _btn)) root.RemoveBot();
+            GUI.enabled = prev;
+            if (Event.current.type == EventType.Repaint)
+                GUI.Box(new Rect(x + 48, 144, 56, 38), n + " / " + root.BotMax, _btn);
+            GUI.enabled = prev && can && n < root.BotMax;
+            if (GUI.Button(new Rect(x + 108, 144, 44, 38), "+", _btn)) root.AddBot();
+            GUI.enabled = prev;
         }
 
         /// <summary>Plane mode: airspeed (kt), altitude (ft), vertical speed, throttle lever, stall warning.</summary>
@@ -276,6 +301,7 @@ namespace RocketWorld
             }
             if (GUI.Button(_ctl, "Controls", _btn)) SetControlsOpen(!_ctlOpen);
             if (GUI.Button(new Rect(W - 252, 14, 80, 46), "Ball", _btn)) root.RequestBall();
+            DrawBotControls(W);
             if (GUI.Button(_camBtn, "Camera", _btn) && root.camMenu != null)
             {
                 if (_open) SetOpen(false);

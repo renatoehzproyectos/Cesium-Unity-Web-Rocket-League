@@ -1,45 +1,54 @@
+using System.Collections.Generic;
 using RocketWorld.Sim;
 using UnityEngine;
 
 namespace RocketWorld
 {
     /// <summary>
-    /// Manages one AI-driven demolition bot car. The only objective of the bot is to ram the player at supersonic
-    /// speed — no ball, no goals. A second call to <see cref="Spawn"/> replaces a running bot in-place.
+    /// Manages any number of AI-driven demolition bot cars. Each bot's only objective is to ram the player at
+    /// supersonic speed — no ball, no goals. <see cref="AddBot"/> / <see cref="RemoveBot"/> add and remove one bot at a time,
+    /// <see cref="RemoveAll"/> clears them, <see cref="Spawn"/> replaces everything with a single bot.
     ///
-    /// Attach this to a persistent GameObject (GameRoot is fine). Call <see cref="Spawn"/> to start the bot and
-    /// <see cref="Remove"/> to destroy it.
+    /// Attach this to a persistent GameObject (GameRoot does it). Every bot has its own brain and respawn timer.
     ///
-    /// Tick order: DemoBotManager.Update fills <see cref="RocketCar.netControls"/> each frame based on the bot brain,
-    /// then <see cref="CarSimLoop"/> consumes them as usual (the bot car has <c>useNetControls = true</c>, exactly
-    /// like a remote multiplayer car controlled by the host).
+    /// Tick order: DemoBotManager.Update fills <see cref="RocketCar.netControls"/> of each bot from its brain, then
+    /// <see cref="CarSimLoop"/> consumes them as usual (a bot car has <c>useNetControls = true</c>, exactly like a
+    /// remote multiplayer car controlled by the host).
     /// </summary>
     public class DemoBotManager : MonoBehaviour
     {
         // ---- inspector knobs ---------------------------------------------------------------------------
-        [Tooltip("How close the bot must be before it is considered a demolition hit (metres).")]
+        [Tooltip("How close a bot must be before it is considered a demolition hit (metres).")]
         public float hitRadius = 2.6f;
         [Tooltip("Minimum speed for a demolition hit (m/s). RocketSim supersonic ≈ 44 m/s.")]
         public float hitMinSpeed = 30f;
         [Tooltip("After a hit, seconds before the bot respawns and hunts again.")]
         public float respawnDelay = 3f;
-        [Tooltip("Name shown over the bot car.")]
+        [Tooltip("Name shown over the bot cars (a number is appended).")]
         public string botName = "DEMO-BOT";
-        [Tooltip("Color index into GameSettings.CarColors (0=Orange … 5=Green). Black by default.")]
+        [Tooltip("Color index of the first bot into GameSettings.CarColors; the following bots cycle through the other colors.")]
         public int botColorIndex = 4;
+        [Tooltip("Upper limit of simultaneous bots (each one is a full simulated car + tile streaming).")]
+        public int maxBots = 8;
 
-        // ---- runtime refs, set by Spawn ----------------------------------------------------------------
+        // ---- one bot -----------------------------------------------------------------------------------
+        sealed class Bot
+        {
+            public RocketCar car;
+            public readonly DemoBotBrain brain = new DemoBotBrain();
+            public float respawnAt = -1f;
+            public bool active;               // false while waiting to land after (re)placing
+            public int number;
+        }
+
+        // ---- runtime refs, set by Init / Spawn ---------------------------------------------------------
         GameRoot _root;
-        RocketCar _bot;
         RocketCar _player;
-        DemoBotBrain _brain = new DemoBotBrain();
-
-        // ---- state -------------------------------------------------------------------------------------
-        float _respawnAt = -1f;
-        bool _spawning;
-        bool _active;
+        readonly List<Bot> _bots = new List<Bot>();
         DemoHitEffect _hitFx;
         float _spawnYawDeg;
+        bool _yawInit;
+        int _nextNumber = 1;
 
         // ---- clearance rays ----------------------------------------------------------------------------
         const float RayLen = DemoBotBrain.ClearRange;
@@ -52,96 +61,138 @@ namespace RocketWorld
 
         // ---- public API --------------------------------------------------------------------------------
 
-        /// <summary>
-        /// Start / replace the bot. Requires the game to be in the Running phase.
-        /// <paramref name="root"/> is the GameRoot; <paramref name="player"/> is the car to hunt.
-        /// </summary>
+        public int Count => _bots.Count;
+        public bool HasBot => _bots.Count > 0;
+        public bool CanAdd => _bots.Count < Mathf.Max(1, maxBots);
+        public int MaxBots => Mathf.Max(1, maxBots);
+
+        /// <summary>True when at least one bot is on the ground and hunting.</summary>
+        public bool IsActive { get { foreach (var b in _bots) if (b.active) return true; return false; } }
+
+        /// <summary>Remove everything and start a single bot. Requires the game to be in the Running phase.</summary>
         public void Spawn(GameRoot root, RocketCar player)
         {
+            RemoveAll();
+            AddBot(root, player);
+        }
+
+        /// <summary>Add one more bot that hunts <paramref name="player"/>. Returns false at the bot limit.</summary>
+        public bool AddBot(GameRoot root, RocketCar player)
+        {
+            if (root == null || player == null || !CanAdd) return false;
             _root = root;
             _player = player;
-            _brain.Reset();
-            _respawnAt = -1f;
-            _active = false;
-            _spawning = false;
-
-            // Destroy any previous bot.
-            if (_bot != null) { root.DestroyRemoteCar(_bot); _bot = null; }
-
-            // Spawn offset from the player (behind + to the side, some metres away).
-            _spawnYawDeg = player != null
-                ? (player.Body?.rotation ?? player.transform.rotation).eulerAngles.y + 160f
-                : 0f;
+            if (!_yawInit)
+            {
+                _spawnYawDeg = (player.Body != null ? player.Body.rotation : player.transform.rotation).eulerAngles.y + 160f;
+                _yawInit = true;
+            }
 
             // Build through GameRoot so it gets a CesiumGlobeAnchor, tile streaming, water, plane…
-            _bot = root.BuildRemoteCar(botColorIndex, botName, true /* host-simulated */);
-            root.TrackRemote(_bot.transform);
+            int n = _nextNumber++;
+            int color = (botColorIndex + (n - 1)) % GameSettings.CarColors.Length;
+            var car = root.BuildRemoteCar(color, botName + " " + n, true /* host-simulated */);
+            root.TrackRemote(car.transform);
 
             if (_hitFx == null) _hitFx = gameObject.AddComponent<DemoHitEffect>();
 
-            // Place it near the player.
-            DoSpawnPlace();
+            var bot = new Bot { car = car, number = n };
+            _bots.Add(bot);
+            PlaceNearPlayer(bot);
+            return true;
         }
 
-        /// <summary>Destroy the bot and stop all activity.</summary>
-        public void Remove()
+        /// <summary>Add one more bot using the player / root given earlier.</summary>
+        public bool AddBot() => AddBot(_root, _player);
+
+        /// <summary>Remove the most recently added bot.</summary>
+        public void RemoveBot()
         {
-            if (_bot != null && _root != null) { _root.DestroyRemoteCar(_bot); }
-            _bot = null; _brain.Reset(); _active = false; _spawning = false; _respawnAt = -1f;
+            if (_bots.Count == 0) return;
+            var b = _bots[_bots.Count - 1];
+            _bots.RemoveAt(_bots.Count - 1);
+            Kill(b);
+            if (_bots.Count == 0) ResetCounters();
         }
 
-        public bool IsActive => _active;
-        public bool HasBot   => _bot != null;
+        /// <summary>Destroy every bot and stop all activity.</summary>
+        public void Remove() => RemoveAll();
+
+        public void RemoveAll()
+        {
+            foreach (var b in _bots) Kill(b);
+            _bots.Clear();
+            ResetCounters();
+        }
+
+        void Kill(Bot b)
+        {
+            if (b != null && b.car != null && _root != null) _root.DestroyRemoteCar(b.car);
+            if (b != null) b.car = null;
+        }
+
+        void ResetCounters() { _nextNumber = 1; _yawInit = false; }
 
         // ---- Unity loop ---------------------------------------------------------------------------------
 
         void Update()
         {
-            if (_bot == null || _root == null || _player == null) return;
+            if (_bots.Count == 0 || _root == null || _player == null) return;
+            bool playerRunning = _player.CurrentPhase == RocketCar.Phase.Running;
 
-            // Wait for bot to land on the ground.
-            if (!_active)
+            for (int i = _bots.Count - 1; i >= 0; i--)
             {
-                if (_bot.CurrentPhase == RocketCar.Phase.Running) _active = true;
+                var b = _bots[i];
+                if (b.car == null) { _bots.RemoveAt(i); continue; }   // destroyed from elsewhere
+                Tick(b, playerRunning);
+            }
+            if (_bots.Count == 0) ResetCounters();
+        }
+
+        void Tick(Bot b, bool playerRunning)
+        {
+            // Wait for the bot to land on the ground.
+            if (!b.active)
+            {
+                if (b.car.CurrentPhase == RocketCar.Phase.Running) b.active = true;
                 return;
             }
 
             // Deferred respawn after a hit.
-            if (_respawnAt >= 0f)
+            if (b.respawnAt >= 0f)
             {
-                if (Time.time < _respawnAt) return;
-                _respawnAt = -1f;
-                _brain.Reset();
-                DoSpawnPlace();
-                _active = false;       // wait for ground again
+                if (Time.time < b.respawnAt) return;
+                b.respawnAt = -1f;
+                b.brain.Reset();
+                PlaceNearPlayer(b);          // sets active = false: wait for ground again
                 return;
             }
 
-            // Brain can request a respawn after repeated stuck detection.
-            if (_brain.WantsRespawn && _respawnAt < 0f) { ScheduleRespawn(); return; }
+            // The brain can request a respawn after repeated stuck detection.
+            if (b.brain.WantsRespawn) { ScheduleRespawn(b); return; }
 
-            if (_player.CurrentPhase != RocketCar.Phase.Running) return;
+            if (!playerRunning) return;
 
             // ---- Fill BotSense -----------------------------------------------------------------------
-            var s = BuildSense();
+            var s = BuildSense(b);
 
             // ---- Demolition-hit check ----------------------------------------------------------------
             if (s.onGround || !s.hasJumped)
             {
                 float dist2D = Mathf.Sqrt(s.tx * s.tx + s.tz * s.tz);
-                float botSpeed = _bot.Body?.velocity.magnitude ?? _bot.SpeedMS;
+                float botSpeed = b.car.Body != null ? b.car.Body.linearVelocity.magnitude : b.car.SpeedMS;
                 if (dist2D < hitRadius && botSpeed >= hitMinSpeed)
                 {
-                    OnHit(botSpeed);
+                    OnHit(b, botSpeed);
                     return;
                 }
             }
 
             // ---- Think -------------------------------------------------------------------------------
-            var c = _brain.Think(s);
+            var c = b.brain.Think(s);
 
             // Translate CarControls (Sim) -> CarInput.Controls (Runtime).
-            _bot.netControls = new CarInput.Controls
+            b.car.netControls = new CarInput.Controls
             {
                 throttle = c.throttle,
                 steer    = c.steer,
@@ -156,20 +207,21 @@ namespace RocketWorld
 
         // ---- helpers ------------------------------------------------------------------------------------
 
-        BotSense BuildSense()
+        BotSense BuildSense(Bot b)
         {
-            Transform bt = _bot.transform, pt = _player.transform;
+            var bot = b.car;
+            Transform bt = bot.transform, pt = _player.transform;
 
             // Bot's world rotation and its local-to-world matrix columns.
-            Quaternion bRot = _bot.Body?.rotation ?? bt.rotation;
+            Quaternion bRot = bot.Body != null ? bot.Body.rotation : bt.rotation;
             Vector3 bRight   = bRot * Vector3.right;
             Vector3 bUp      = bRot * Vector3.up;
             Vector3 bForward = bRot * Vector3.forward;
             Vector3 worldUp  = Vector3.up;
 
             // Bot and player world positions.
-            Vector3 bPos = _bot.Body?.position ?? bt.position;
-            Vector3 pPos = _player.Body?.position ?? pt.position;
+            Vector3 bPos = bot.Body != null ? bot.Body.position : bt.position;
+            Vector3 pPos = _player.Body != null ? _player.Body.position : pt.position;
 
             // Target relative position in the bot's local frame.
             Vector3 rel = pPos - bPos;
@@ -178,8 +230,8 @@ namespace RocketWorld
             float tz = Vector3.Dot(rel, bForward);
 
             // Velocities.
-            Vector3 bVel = _bot.Body?.velocity  ?? _bot.UnityVelocity;
-            Vector3 pVel = _player.Body?.velocity ?? _player.UnityVelocity;
+            Vector3 bVel = bot.Body != null ? bot.Body.linearVelocity : bot.UnityVelocity;
+            Vector3 pVel = _player.Body != null ? _player.Body.linearVelocity : _player.UnityVelocity;
             float vx = Vector3.Dot(bVel, bRight);
             float vy = Vector3.Dot(bVel, bUp);
             float vz = Vector3.Dot(bVel, bForward);
@@ -195,44 +247,48 @@ namespace RocketWorld
             // Three clearance rays.
             Vector3 rayOrigin = bPos + Vector3.up * RayY;
             int mask = PhysicsSetup.TerrainMask & ~(1 << PhysicsSetup.CarLayer);
-            float[] clears = new float[3];
-            for (int i = 0; i < 3; i++)
-            {
-                Vector3 dir = bRot * RayDirs[i];
-                dir.y = 0f;
-                if (dir.sqrMagnitude < 0.01f) dir = bForward;
-                dir.Normalize();
-                clears[i] = Physics.Raycast(rayOrigin, dir, out var hit, RayLen, mask, QueryTriggerInteraction.Ignore)
-                    ? hit.distance : RayLen;
-            }
+            float c0, c1, c2;
+            c0 = Clear(rayOrigin, bRot, RayDirs[0], bForward, mask);
+            c1 = Clear(rayOrigin, bRot, RayDirs[1], bForward, mask);
+            c2 = Clear(rayOrigin, bRot, RayDirs[2], bForward, mask);
 
-            var bState = _bot.State;
+            var bState = bot.State;
             return new BotSense
             {
                 tx = tx, ty = ty, tz = tz,
                 tvx = tvx, tvy = tvy, tvz = tvz,
                 vx = vx, vy = vy, vz = vz,
                 ux = ux, uy = uy, uz = uz,
-                onGround       = bState.isOnGround,
-                hasJumped      = bState.hasJumped,
-                hasDoubleJumped= bState.hasDoubleJumped,
-                supersonic     = bState.isSupersonic,
-                clearL = clears[0],
-                clearC = clears[1],
-                clearR = clears[2],
+                onGround        = bState.isOnGround,
+                hasJumped       = bState.hasJumped,
+                hasDoubleJumped = bState.hasDoubleJumped,
+                supersonic      = bState.isSupersonic,
+                clearL = c0,
+                clearC = c1,
+                clearR = c2,
                 dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f),
             };
         }
 
-        void DoSpawnPlace()
+        static float Clear(Vector3 origin, Quaternion rot, Vector3 localDir, Vector3 fallbackForward, int mask)
         {
-            if (_bot == null || _player == null) return;
+            Vector3 dir = rot * localDir;
+            dir.y = 0f;
+            if (dir.sqrMagnitude < 0.01f) dir = fallbackForward;
+            dir.Normalize();
+            return Physics.Raycast(origin, dir, out var hit, RayLen, mask, QueryTriggerInteraction.Ignore) ? hit.distance : RayLen;
+        }
 
-            // Spawn 60–120 m behind and a little beside the player.
+        void PlaceNearPlayer(Bot b)
+        {
+            if (b.car == null || _player == null) return;
+
+            // Spawn ~70 m from the player; every placement uses a new angle so bots come from different sides.
             float yaw    = _spawnYawDeg * Mathf.Deg2Rad;
-            float radius = 70f;
+            float radius = 70f + (b.number % 3) * 12f;
             Vector3 offset = new Vector3(Mathf.Sin(yaw) * radius, 0f, Mathf.Cos(yaw) * radius);
-            Vector3 pPos = (_player.Body?.position ?? _player.transform.position) + offset;
+            Vector3 playerPos = _player.Body != null ? _player.Body.position : _player.transform.position;
+            Vector3 pPos = playerPos + offset;
 
             // Find the ground below.
             Vector3 origin = pPos + Vector3.up * 2500f;
@@ -240,32 +296,32 @@ namespace RocketWorld
                 pPos = hit.point + Vector3.up * 0.4f;
 
             // Face the player.
-            Vector3 playerPos = _player.Body?.position ?? _player.transform.position;
             Vector3 toPlayer = playerPos - pPos;
             Quaternion rot = toPlayer.sqrMagnitude > 0.1f
                 ? Quaternion.LookRotation(new Vector3(toPlayer.x, 0f, toPlayer.z).normalized, Vector3.up)
                 : Quaternion.identity;
 
-            _bot.PlaceDirect(pPos, rot);
-            _bot.infiniteBoost = true;
+            b.car.PlaceDirect(pPos, rot);
+            b.car.infiniteBoost = true;
+            b.active = false;               // wait for the ground
 
-            // Rotate next spawn so the bot does not always come from the same side.
             _spawnYawDeg += 67f;
         }
 
-        void ScheduleRespawn()
+        void ScheduleRespawn(Bot b)
         {
-            _respawnAt = Time.time + respawnDelay;
-            _bot.netControls = new CarInput.Controls();
+            b.respawnAt = Time.time + respawnDelay;
+            b.car.netControls = new CarInput.Controls();
         }
 
-        void OnHit(float speed)
+        void OnHit(Bot b, float speed)
         {
             if (_hitFx != null) _hitFx.Play(_player.transform.position, speed);
-            // Bump the player visually (the physics engine already resolved the collision).
-            ScheduleRespawn();
-            Debug.Log($"[DemoBot] DEMOLITION hit at {speed * 3.6f:0} km/h!");
+            ScheduleRespawn(b);
+            Debug.Log($"[DemoBot] #{b.number} DEMOLITION hit at {speed * 3.6f:0} km/h!");
         }
+
+        void OnDestroy() { RemoveAll(); }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

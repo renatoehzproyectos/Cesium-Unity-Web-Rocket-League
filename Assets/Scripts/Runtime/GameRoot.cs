@@ -27,6 +27,8 @@ namespace RocketWorld
         public CarInput carInput;
         public TileColliderBudget budget;
         public ChaseCamera chase;
+        /// <summary>Demolition-bot controller (null until the first bot is added).</summary>
+        public DemoBotManager demoBot;
         public HeliCamera heli;
         public CameraMenu camMenu;
         public CinematicFx cinematic;
@@ -566,6 +568,33 @@ namespace RocketWorld
         {
             if (net != null && net.IsClientOnly) net.RequestBall();
             else if (ball != null && carCtl != null) ball.Summon(carCtl);
+        }
+
+        // ---- demolition bots -------------------------------------------------------------------------------
+
+        public int BotCount => demoBot != null ? demoBot.Count : 0;
+        public int BotMax => demoBot != null ? demoBot.MaxBots : 8;
+        public bool CanUseBots => carCtl != null && carCtl.CurrentPhase == RocketCar.Phase.Running && !(net != null && net.IsClientOnly);
+
+        /// <summary>Bot button: spawn one bot if there is none, otherwise remove all of them.</summary>
+        public void ToggleBot()
+        {
+            if (BotCount > 0) { demoBot.RemoveAll(); return; }
+            AddBot();
+        }
+
+        /// <summary>"+" button: one more bot that hunts the player.</summary>
+        public void AddBot()
+        {
+            if (!CanUseBots) return;
+            if (demoBot == null) demoBot = gameObject.AddComponent<DemoBotManager>();
+            demoBot.AddBot(this, carCtl);
+        }
+
+        /// <summary>"-" button: remove the most recently added bot.</summary>
+        public void RemoveBot()
+        {
+            if (demoBot != null) demoBot.RemoveBot();
         }
 
         /// <summary>Another player's car. simulated = host (physics runs here), otherwise a puppet fed by snapshots.</summary>
