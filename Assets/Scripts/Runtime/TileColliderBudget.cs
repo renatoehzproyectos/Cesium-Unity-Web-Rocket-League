@@ -68,7 +68,7 @@ namespace RocketWorld
             WithCollider = with;
             if (_candidates.Count == 0) return;
             _candidates.Sort((a, b) => a.d.CompareTo(b.d));
-            int budget = burst ? burstAddsWhileWaiting : maxAddsPerCycle, added = 0;
+            int budget = burst ? burstAddsWhileWaiting : Mathf.Min(maxAddsPerCycle + 2 * (extraFoci != null ? extraFoci.Count : 0), 14), added = 0;   // more foci (bots) -> more colliders per cycle
             for (int c = 0; c < _candidates.Count && added < budget; c++)
             {
                 var e = _candidates[c].e;

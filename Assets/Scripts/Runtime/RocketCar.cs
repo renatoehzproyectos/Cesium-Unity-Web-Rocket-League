@@ -94,6 +94,10 @@ namespace RocketWorld
         // Soft hold: freeze the car in place while Cesium LOD/colliders settle (SSE change). No respawn, no fall.
         bool _softHold;
         float _softHoldUntil;
+        bool _voidHold;                         // soft hold started by the void guard: only released once ground is under the car
+        bool _hasSafe; Vector3 _safePos; Quaternion _safeRot;   // last spot that had solid ground under it
+        float _voidT;
+        public bool SoftHeld => _softHold;
         bool _held;                                  // menu is open: do not start yet
         bool _spawnCol, _spawnRel; Vector3 _spawnPos; float _spawnHeading;
         float _puppetSink;
@@ -348,7 +352,9 @@ namespace RocketWorld
             if (_softHold)
             {
                 // Stay frozen until nearby colliders are back or the timeout elapses.
-                bool collidersReady = colliderBudget != null && colliderBudget.WithCollider > 0;
+                bool groundBelow = Physics.Raycast(transform.position + Vector3.up * 3f, Vector3.down, 12f,
+                    PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore);
+                bool collidersReady = _voidHold ? groundBelow : (colliderBudget != null && colliderBudget.WithCollider > 0);
                 bool timedOut = Time.realtimeSinceStartup >= _softHoldUntil;
                 if (collidersReady || timedOut)
                 {
@@ -365,7 +371,7 @@ namespace RocketWorld
                     _rb.linearVelocity = Vector3.zero;
                     _rb.angularVelocity = Vector3.zero;
                     if (colliderBudget != null) colliderBudget.burst = false;
-                    _softHold = false;
+                    _softHold = false; _voidHold = false;
                     Physics.SyncTransforms();
                 }
                 else
@@ -375,7 +381,50 @@ namespace RocketWorld
                 }
             }
 
+            VoidGuard();
             // The fixed-tick loop (PreStep / PostStep, one shared Physics.Simulate) lives in CarSimLoop.
+        }
+
+        /// <summary>
+        /// Anti-fall net for the wheel car (player and bots). Remembers the last spot with solid ground under it; if the car drops
+        /// below that spot with no terrain collider underneath (tile not baked yet / LOD swap / off-screen terrain), it is put back
+        /// there and frozen until ground exists below it again, instead of falling out of the map.
+        /// </summary>
+        void VoidGuard()
+        {
+            if (_rb == null || _rb.isKinematic || CurrentPhase != Phase.Running || !simulated) return;
+            if ((plane != null && plane.Active) || (vehicle != null && vehicle.Active) || (water != null && water.Active)) return;
+            Vector3 pos = _rb.position;
+            int mask = PhysicsSetup.TerrainMask;
+
+            if (Vehicle.state.isOnGround)
+            {
+                if (Physics.Raycast(pos + Vector3.up * 0.5f, Vector3.down, out var gh, 4f, mask, QueryTriggerInteraction.Ignore) && gh.normal.y > 0.5f)
+                    RememberSafe(gh.point, _rb.rotation);
+                _voidT = 0f;
+                return;
+            }
+
+            if (!_hasSafe) return;
+            bool groundBelow = Physics.Raycast(pos, Vector3.down, 600f, mask, QueryTriggerInteraction.Ignore);
+            if (!groundBelow && pos.y < _safePos.y - 2f) _voidT += Mathf.Min(Time.unscaledDeltaTime, 0.1f);
+            else _voidT = 0f;
+
+            if (_voidT > 0.12f)
+            {
+                _voidT = 0f;
+                PlaceDirect(_safePos, _safeRot);
+                _voidHold = true;
+                SoftHoldForTerrain(30f);
+            }
+        }
+
+        void RememberSafe(Vector3 groundPoint, Quaternion rot)
+        {
+            _safePos = groundPoint + Vector3.up * 0.9f;
+            var fwd = Vector3.ProjectOnPlane(rot * Vector3.forward, Vector3.up);
+            _safeRot = fwd.sqrMagnitude > 1e-3f ? Quaternion.LookRotation(fwd.normalized, Vector3.up) : Quaternion.identity;
+            _hasSafe = true;
         }
 
         /// <summary>First half of a tick (RocketSim PreTick), called by <see cref="CarSimLoop"/> for every steppable car.</summary>
@@ -513,6 +562,8 @@ namespace RocketWorld
             _prevPos = _currPos = pos; _prevRot = _currRot = rot;
             _rescue = false; _spawnCol = false; _resync = false; Status = "";
             CurrentPhase = Phase.Running;
+            if (Physics.Raycast(pos + Vector3.up * 0.5f, Vector3.down, out var sg, 20f, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore) && sg.normal.y > 0.5f)
+                RememberSafe(sg.point, rot);
             ApplyVisual(0f);
         }
     }

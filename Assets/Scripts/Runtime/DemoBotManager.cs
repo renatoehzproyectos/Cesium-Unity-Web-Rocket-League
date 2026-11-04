@@ -53,6 +53,7 @@ namespace RocketWorld
         // ---- clearance rays ----------------------------------------------------------------------------
         const float RayLen = DemoBotBrain.ClearRange;
         const float SpawnHeight     = 12f;   // metres above the player where a bot appears
+        const float NearGroundMax   = 60f;   // player higher than this above the ground: bots spawn on the ground below instead
         const float SpawnHeightStep = 6f;    // extra height per bot slot so stacked bots do not collide
         const float RayY   = 0.35f;          // height above the car origin for horizontal obstacle rays
         static readonly Vector3[] RayDirs = {
@@ -153,6 +154,8 @@ namespace RocketWorld
 
         void Tick(Bot b, bool playerRunning)
         {
+            if (b.car.SoftHeld) return;     // frozen by the anti-fall guard until terrain is back under it
+
             // Wait for the bot to land on the ground.
             if (!b.active)
             {
@@ -285,19 +288,29 @@ namespace RocketWorld
         {
             if (b.car == null || _player == null) return;
 
-            // Spawn directly above the player and drop in. Each bot gets its own height so several never overlap.
             Vector3 playerPos = _player.Body != null ? _player.Body.position : _player.transform.position;
-            float height = SpawnHeight + (b.number % 4) * SpawnHeightStep;
-            Vector3 pPos = playerPos + Vector3.up * height;
-
-            // Random heading, level with the ground.
             Quaternion rot = Quaternion.Euler(0f, _spawnYawDeg, 0f);
+            _spawnYawDeg += 67f;
+            b.active = false;               // wait for the ground
+
+            // Is there terrain collider under the player? Without it a bot placed in the air would fall out of the map.
+            bool haveGround = Physics.Raycast(playerPos + Vector3.up, Vector3.down, out var gh, 5000f,
+                PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore);
+            if (!haveGround)
+            {
+                // Built-in "appear on the ground below the host" logic: the bot waits (frozen, no falling) until terrain exists.
+                b.car.SetSpawnColumn(playerPos, true, rot.eulerAngles.y);
+                return;
+            }
+
+            Vector3 pPos;
+            if (playerPos.y - gh.point.y > NearGroundMax)
+                pPos = gh.point + Vector3.up * 0.4f;                          // player is flying/hovering: bot lands on the ground below
+            else
+                pPos = playerPos + Vector3.up * (SpawnHeight + (b.number % 4) * SpawnHeightStep);   // directly above the player
 
             b.car.PlaceDirect(pPos, rot);
             b.car.infiniteBoost = true;
-            b.active = false;               // wait for the ground
-
-            _spawnYawDeg += 67f;
         }
 
         void ScheduleRespawn(Bot b)
