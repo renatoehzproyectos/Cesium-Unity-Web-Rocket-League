@@ -205,6 +205,7 @@ namespace RocketWorld
         void BeginInitial()
         {
             if (!simulated) return;
+            if (CurrentPhase == Phase.Running) return;                // already placed by PlaceDirect before Start ran (demo bots): don't freeze it again
             if (intro != null && intro.Begin(this)) return;          // opening sequence: start inside the cargo plane
             BeginWaiting();
         }
