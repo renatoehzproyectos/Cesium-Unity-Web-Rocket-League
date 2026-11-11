@@ -16,6 +16,10 @@ namespace RocketWorld.Sim
         public bool onGround, hasJumped, hasDoubleJumped, supersonic;
         public float clearL, clearC, clearR;    // free distance along three horizontal rays (left 30 deg, centre, right 30 deg)
         public float dt;
+        // Optional extras (ignored unless set): two wide rays (60 deg) and the separation from other bots.
+        public bool hasWide;
+        public float clearLL, clearRR;
+        public float sx, sy, sz;                // points away from nearby bots, in the bot's frame, length <= 1
     }
 
     /// <summary>
@@ -149,10 +153,16 @@ namespace RocketWorld.Sim
                 if (aerial)
                 {
                     float cosErr = fl > 1e-3f ? fz : 0f;                       // alignment of the nose with the aim line
-                    c.boost = cosErr > 0.8f;
+                    c.boost = cosErr > 0.8f && s.clearC > 8f;
                     c.throttle = 1f;
                 }
-                else c.boost = false;
+                else
+                {
+                    c.boost = false;
+                    // Drifting toward a wall in the air: yaw to the freer side so the landing is not against it.
+                    float lookA = Clamp(speed * 0.8f + 6f, 6f, ClearRange);
+                    if (s.clearC < lookA && !justDodged) c.yaw = Clamp1(c.yaw + (s.clearR >= s.clearL ? 0.6f : -0.6f) * (1f - s.clearC / lookA));
+                }
                 return c;
             }
 
@@ -178,6 +188,8 @@ namespace RocketWorld.Sim
             }
 
             // ---- steering --------------------------------------------------------------------------------------
+            float openL = s.clearL, openR = s.clearR;
+            if (s.hasWide) { openL = s.clearL + 0.5f * s.clearLL; openR = s.clearR + 0.5f * s.clearRR; }
             float steer = Clamp1(ang * SteerGain);
             float throttle = 1f;
             bool handbrake = false;
@@ -192,7 +204,7 @@ namespace RocketWorld.Sim
             if (s.clearC < look)
             {
                 float danger = 1f - s.clearC / look;
-                float side = s.clearR >= s.clearL ? 1f : -1f;
+                float side = openR >= openL ? 1f : -1f;
                 // when the target is clearly on one side and that side is open, the target steer is already right
                 bool targetSideOpen = (steer > 0.2f && s.clearR > look * 0.8f) || (steer < -0.2f && s.clearL > look * 0.8f);
                 if (!targetSideOpen)
@@ -205,6 +217,17 @@ namespace RocketWorld.Sim
             }
             if (s.clearL < 2.2f && steer < 0.5f) steer += 0.4f;
             if (s.clearR < 2.2f && steer > -0.5f) steer -= 0.4f;
+            if (s.hasWide)
+            {
+                if (s.clearLL < 3f && steer < 0.6f) steer += 0.25f;
+                if (s.clearRR < 3f && steer > -0.6f) steer -= 0.25f;
+            }
+            // Other bots: steer away, ease off when one is right ahead.
+            if (s.sx != 0f || s.sz != 0f)
+            {
+                steer += s.sx * 1.1f;
+                if (s.sz < -0.5f && fwd > 8f) throttle = Math.Min(throttle, 0.4f);
+            }
             steer = Clamp1(steer);
 
             // ---- boost: pointed at it ---------------------------------------------------------------------------
@@ -216,8 +239,8 @@ namespace RocketWorld.Sim
             if (_stuckT > 0.9f)
             {
                 _stuckT = 0f; _recoverCount++;
-                _recoverSide = s.clearR >= s.clearL ? 1f : -1f;
-                if (Math.Abs(s.clearR - s.clearL) < 1f) _recoverSide = (_recoverCount & 1) == 0 ? 1f : -1f;
+                _recoverSide = openR >= openL ? 1f : -1f;
+                if (Math.Abs(openR - openL) < 1f) _recoverSide = (_recoverCount & 1) == 0 ? 1f : -1f;
                 _recoverUntil = _t + 0.9f + 0.2f * Math.Min(_recoverCount, 4);
                 if (_recoverCount >= 3 && !s.hasJumped) { _jumpHoldUntil = _t + 0.2f; c.jump = true; }   // hop over a kerb / lip
                 if (_recoverCount >= 5) WantsRespawn = true;

@@ -573,7 +573,7 @@ namespace RocketWorld
         // ---- demolition bots -------------------------------------------------------------------------------
 
         public int BotCount => demoBot != null ? demoBot.Count : 0;
-        public int BotMax => demoBot != null ? demoBot.MaxBots : 8;
+        public int BotMax => demoBot != null ? demoBot.MaxBots : 50;
         public bool CanUseBots => carCtl != null && carCtl.CurrentPhase == RocketCar.Phase.Running && !(net != null && net.IsClientOnly);
 
         /// <summary>Bot button: spawn one bot if there is none, otherwise remove all of them.</summary>
