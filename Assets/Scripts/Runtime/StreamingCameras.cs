@@ -21,6 +21,7 @@ namespace RocketWorld
     {
         public GameRoot root;
         public Transform follow;
+        public bool renderCameras = false;   // set true if tiles stop streaming around the car (Cesium ignoring disabled cameras)
 
         const float AheadFov = 50f;     // narrower than the main camera (55) at a taller virtual viewport => finer detail than the main view asks for
         Camera[] _cams;
@@ -46,6 +47,7 @@ namespace RocketWorld
             _ahead.farClipPlane = TileCachePolicy.AheadRange(0f);
             _cams[4] = _ahead;
             if (!Register()) { Debug.LogWarning("[RocketWorld] CesiumCameraManager not found: radius loading disabled"); enabled = false; foreach (var c in _cams) c.enabled = false; }
+            else if (!renderCameras) foreach (var c in _cams) c.enabled = false;   // data-only cameras (Cesium reads pose/FOV/viewport height): no URP render pass
         }
 
         Camera NewCam(string name, float fov)

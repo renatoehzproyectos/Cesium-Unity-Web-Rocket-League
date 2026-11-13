@@ -65,6 +65,8 @@ namespace RocketWorld
             if (d != null) { d.renderShadows = false; d.renderPostProcessing = false; d.antialiasing = AntialiasingMode.None; d.requiresColorOption = CameraOverrideOption.Off; d.requiresDepthOption = CameraOverrideOption.Off; }
         }
 
+        Vector3 _lastPos; Quaternion _lastRot = Quaternion.identity; float _lastRange;
+
         void LateUpdate()
         {
             if (root == null || root.car == null || root.carCtl == null) return;
@@ -86,6 +88,11 @@ namespace RocketWorld
 
             // throttle: render only on due frames (the texture keeps its last image otherwise)
             float interval = root.autoQuality != null && root.autoQuality.Level >= 2 ? 0.20f : 0.066f;
+            // idle (car stopped, same heading and zoom): the picture cannot change except for tiles streaming in -> refresh slowly
+            var camT = _cam.transform;
+            bool still = (camT.position - _lastPos).sqrMagnitude < 0.04f && Quaternion.Angle(camT.rotation, _lastRot) < 0.3f && Mathf.Abs(_range - _lastRange) < 0.05f;
+            if (still) interval = Mathf.Max(interval, 0.5f);
+            else { _lastPos = camT.position; _lastRot = camT.rotation; _lastRange = _range; }
             bool due = Time.unscaledTime >= _next;
             if (due) _next = Time.unscaledTime + interval;
             _cam.enabled = due;
