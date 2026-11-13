@@ -3,7 +3,7 @@ name: build-and-deploy
 on:
   push:
     branches: [main]
-    paths-ignore: ['**.md', 'docs/**']      # docs-only commits do not need a 30+ minute Unity build
+    paths-ignore: ['**.md', 'docs/**']      # docs-only commits do not need a Unity build
   pull_request:
     paths-ignore: ['**.md', 'docs/**']
   workflow_dispatch:
@@ -26,31 +26,26 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  UNITY_IMAGE: unityci/editor:ubuntu-6000.0.62f1-webgl-3   # keep in sync with unityVersion + containerRegistryImageVersion below
+
 jobs:
-  license:
-    name: Check Unity license secrets
+  # Main player and low-memory /lite/ player build IN PARALLEL (wall time = the slower one, not the sum).
+  # Pull requests only build the main one, uncompressed, and skip wasm-opt (nothing is deployed from them).
+  #
+  # Where the time goes (measured on 3 runs): the old Unity Brotli pass was 55-85 % of the job and the first build attempt
+  # always failed (ProjectSettings.asset was missing -> activeInputHandler flipped mid-build -> "script class layout is
+  # incompatible") and was repeated. Both are fixed: ProjectSettings is committed, and compression is done by
+  # tools/compress_build.js (parallel, quality 9, cached by content hash).
+  unity-web:
+    name: Unity 6000.0.62f1 WebGL (${{ matrix.variant }})
     runs-on: ubuntu-latest
     outputs:
       ok: ${{ steps.lic.outputs.ok }}
-    steps:
-      - id: lic
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
-        run: |
-          if [ -n "$UNITY_LICENSE" ] || [ -n "$UNITY_SERIAL" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::warning::No UNITY_LICENSE/UNITY_SERIAL secret - skipping the Unity build. See README."; fi
-
-  # The main player and the low-memory /lite/ player build IN PARALLEL (wall time = the slower one, not the sum).
-  # Pull requests only build the main one, and skip Brotli + wasm-opt (nothing is deployed from them).
-  unity-web:
-    name: Unity 6000.0.62f1 WebGL (${{ matrix.variant }})
-    needs: license
-    if: needs.license.outputs.ok == 'true'
-    runs-on: ubuntu-latest
     strategy:
-      fail-fast: true
       matrix:
         variant: ${{ fromJSON(github.event_name == 'pull_request' && '["main"]' || '["main","lite"]') }}
+      fail-fast: true
     env:
       BUILD_NAME: ${{ matrix.variant == 'lite' && 'lite' || 'WebGL' }}
       BUILD_ARGS: >-
@@ -59,24 +54,57 @@ jobs:
         -rwFast ${{ github.event_name == 'pull_request' && '1' || '0' }}
         -rwSpeed ${{ inputs.optimize_speed == true && '1' || '0' }}
     steps:
+      # Folded into this job (a separate license job cost a whole extra runner start on the critical path).
+      - id: lic
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        run: |
+          if [ -n "$UNITY_LICENSE" ] || [ -n "$UNITY_SERIAL" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::warning::No UNITY_LICENSE/UNITY_SERIAL secret - skipping the Unity build. See README."; fi
+
+      # The Unity image is ~3 min to pull/extract: start it in the background NOW so it overlaps checkout + cache restore.
+      - name: Pre-pull Unity image (background)
+        if: steps.lic.outputs.ok == 'true'
+        run: |
+          rm -f /tmp/pull.done
+          RUNNER_TRACKING_ID="" setsid nohup sh -c "docker pull $UNITY_IMAGE > /tmp/pull.log 2>&1; touch /tmp/pull.done" > /dev/null 2>&1 &
+
       - uses: actions/checkout@v4
+        if: steps.lic.outputs.ok == 'true'
         with: { lfs: false }
       - uses: actions/cache@v4
+        if: steps.lic.outputs.ok == 'true'
         with:
           path: Library
           # One cache per variant so the two parallel jobs never fight over a key; the plain prefix lets a first lite run start from the main cache.
-          key: Library-WebGL-v5-${{ matrix.variant }}-${{ hashFiles('Packages/manifest.json', 'Assets/**/*.cs') }}
+          key: Library-WebGL-v6-${{ matrix.variant }}-${{ hashFiles('Packages/manifest.json', 'Assets/**/*.cs') }}
           restore-keys: |
-            Library-WebGL-v5-${{ matrix.variant }}-
-            Library-WebGL-v4-
+            Library-WebGL-v6-${{ matrix.variant }}-
+            Library-WebGL-v6-main-
+      # Brotli results keyed by sha256 of the uncompressed file: .data (the slow one) is usually a hit on code-only commits.
+      - uses: actions/cache@v4
+        if: steps.lic.outputs.ok == 'true' && github.event_name != 'pull_request'
+        with:
+          path: .brotli-cache
+          key: brotli-v1-${{ matrix.variant }}-${{ github.sha }}
+          restore-keys: |
+            brotli-v1-${{ matrix.variant }}-
+            brotli-v1-
       - name: Drop stale Bee / IL2CPP artifacts (manual only)
-        if: inputs.clean_cache == true
+        if: steps.lic.outputs.ok == 'true' && inputs.clean_cache == true
         run: |
           # Partial Library restores leave inconsistent Bee/IL2CPP state; il2cpp then SIGSEGVs (exit 139).
           rm -rf Library/Bee Library/Il2cppBuildCache Library/BuildPlayerData \
                  Library/PlayerDataCache Library/ShaderCache Library/BuildCache
+      - name: Wait for Unity image
+        if: steps.lic.outputs.ok == 'true'
+        run: |
+          for i in $(seq 1 300); do [ -f /tmp/pull.done ] && break; sleep 2; done
+          tail -n 2 /tmp/pull.log || true
+          docker image inspect "$UNITY_IMAGE" > /dev/null 2>&1 || echo "::warning::pre-pull did not finish; game-ci will pull it"
       - name: Unity WebGL build
         id: build
+        if: steps.lic.outputs.ok == 'true'
         continue-on-error: true
         uses: game-ci/unity-builder@v4
         env:
@@ -88,17 +116,19 @@ jobs:
           UNITY_CLOUD_PROJECT_ID: ${{ secrets.UNITY_CLOUD_PROJECT_ID }}
         with:
           unityVersion: 6000.0.62f1
+          containerRegistryImageVersion: 3
           targetPlatform: WebGL
           buildName: ${{ env.BUILD_NAME }}
           buildMethod: RocketWorld.Editor.BuildScript.BuildWebGL
           customParameters: ${{ env.BUILD_ARGS }}
           versioning: None
           allowDirtyBuild: true
+      # Safety net only (no longer expected to run: the first attempt used to fail every time, see header comment).
       - name: Drop Bee / IL2CPP state (only if the cached build failed, e.g. exit 139)
-        if: steps.build.outcome == 'failure'
+        if: steps.lic.outputs.ok == 'true' && steps.build.outcome == 'failure'
         run: sudo rm -rf Library/Bee Library/Il2cppBuildCache Library/BuildPlayerData Library/PlayerDataCache Library/ShaderCache Library/BuildCache
       - name: Unity WebGL build (clean retry)
-        if: steps.build.outcome == 'failure'
+        if: steps.lic.outputs.ok == 'true' && steps.build.outcome == 'failure'
         uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -109,6 +139,7 @@ jobs:
           UNITY_CLOUD_PROJECT_ID: ${{ secrets.UNITY_CLOUD_PROJECT_ID }}
         with:
           unityVersion: 6000.0.62f1
+          containerRegistryImageVersion: 3
           targetPlatform: WebGL
           buildName: ${{ env.BUILD_NAME }}
           buildMethod: RocketWorld.Editor.BuildScript.BuildWebGL
@@ -116,6 +147,7 @@ jobs:
           versioning: None
           allowDirtyBuild: true
       - name: Bake ION_TOKEN + patch workers
+        if: steps.lic.outputs.ok == 'true'
         env:
           ION_TOKEN: ${{ secrets.ION_TOKEN }}
         run: |
@@ -124,9 +156,19 @@ jobs:
           D="build/WebGL/$BUILD_NAME"
           if [ -n "$ION_TOKEN" ]; then python3 tools/bake_ion_token.py "$D/index.html"; else echo "::warning::ION_TOKEN secret is empty — Cesium tiles will not load until a token is provided"; fi
           # Unity Transport WebSockets run inside the pthread workers: patch their shared-memory TextDecoder/send calls.
+          # (Files are still uncompressed here, so this is a plain text patch; compression comes right after.)
           node tools/patch_worker.js "$D/Build"
-          ls -la "$D" "$D/Build"
+      # Deployed builds only: pull requests keep the uncompressed player (nothing is served from them).
+      - name: Brotli (parallel, cached)
+        if: steps.lic.outputs.ok == 'true' && github.event_name != 'pull_request'
+        env:
+          UV_THREADPOOL_SIZE: 8
+        run: node tools/compress_build.js "build/WebGL/$BUILD_NAME" .brotli-cache
+      - name: List player
+        if: steps.lic.outputs.ok == 'true'
+        run: ls -la "build/WebGL/$BUILD_NAME" "build/WebGL/$BUILD_NAME/Build"
       - uses: actions/upload-artifact@v4
+        if: steps.lic.outputs.ok == 'true'
         with:
           name: rocketworld-${{ matrix.variant }}
           path: build/WebGL/${{ env.BUILD_NAME }}
@@ -138,8 +180,8 @@ jobs:
   deploy-op-test:
     name: Deploy WebGL → op-test
     runs-on: ubuntu-latest
-    needs: [license, unity-web]
-    if: needs.license.outputs.ok == 'true' && github.event_name != 'pull_request'
+    needs: [unity-web]
+    if: needs.unity-web.outputs.ok == 'true' && github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -154,6 +196,7 @@ jobs:
           cp deploy/vercel.json webgl/vercel.json
           cp deploy/cesiumjs-compare.html webgl/cesiumjs-compare.html   # CesiumJS reference page: /cesiumjs-compare.html
           test -f webgl/index.html && test -d webgl/Build && test -f webgl/lite/index.html && test -d webgl/lite/Build
+          ls webgl/Build | grep -q '\.br$' && ls webgl/lite/Build | grep -q '\.br$'   # both players must be Brotli-compressed
           du -sh webgl webgl/lite
       - name: Push to renatoehzproyectos/op-test
         uses: peaceiris/actions-gh-pages@v4

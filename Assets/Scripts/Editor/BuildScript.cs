@@ -121,9 +121,12 @@ namespace RocketWorld.Editor
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.WebGL, false);
 
             PlayerSettings.WebGL.template = "PROJECT:RocketWorld";   // Assets/WebGLTemplates/RocketWorld
-            // `-rwFast 1` (CI pull requests / throw-away builds): no Brotli pass (the slowest post-step), nothing is deployed from these.
+            // `-rwFast 1` (CI pull requests / throw-away builds): skips wasm-opt/LTO (see TryFastCodeOptimization).
             bool fast = Arg("-rwFast") == "1";
-            PlayerSettings.WebGL.compressionFormat = fast ? WebGLCompressionFormat.Disabled : WebGLCompressionFormat.Brotli;
+            // Compression is ALWAYS disabled here: Unity's Brotli pass is single-threaded at max quality (9-14 min per build).
+            // CI compresses afterwards with tools/compress_build.js (parallel + cached, ~1 min) and rewrites index.html to the .br names.
+            // Local builds are therefore uncompressed, which is exactly what a local static server wants.
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
             if (fast) TryFastCodeOptimization();
             PlayerSettings.WebGL.decompressionFallback = false;     // vercel.json sends Content-Encoding: br
             PlayerSettings.WebGL.dataCaching = true;

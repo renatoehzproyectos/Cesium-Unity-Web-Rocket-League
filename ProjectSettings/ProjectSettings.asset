@@ -1,0 +1,7 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!129 &1
+PlayerSettings:
+  m_ObjectHideFlags: 0
+  productGUID: 6f1c0a8e2b7d4e5f9a3c1d2e4b5a6c70
+  activeInputHandler: 1

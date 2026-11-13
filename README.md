@@ -81,3 +81,10 @@ View-driven streaming with a large adaptive cache, no holes (coarse tiles outsid
 ## Vehicles
 
 Car, Cessna, F-35B (VTOL), F-15E, helicopter, DeLorean (hover), each with its own touch layout, plus a Hyper Boost (+500 % speed) button on every vehicle. See [docs/VEHICLES.md](docs/VEHICLES.md). The vehicle physics is currently a placeholder (`VehiclePhysicsFactory`), ready for the JSBSim models.
+
+## CI build time
+
+The workflow is tuned for speed (~6-8 min instead of ~20): `ProjectSettings/ProjectSettings.asset` is committed (Input System active, so the
+first build no longer fails and retries), Unity's single-threaded Brotli pass is disabled and replaced by `tools/compress_build.js`
+(parallel, quality 9, cached by content hash), the Unity Docker image is pre-pulled in the background, and the separate license job is folded in.
+Local builds are uncompressed. If you have a real `ProjectSettings.asset` from the Editor, commit it instead of the minimal one.
