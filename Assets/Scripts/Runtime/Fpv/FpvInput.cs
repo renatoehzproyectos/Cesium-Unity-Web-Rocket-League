@@ -15,6 +15,7 @@ namespace RocketWorld
     public sealed class FpvInput
     {
         public const double TiltStick = 0.6, YawStick = 0.5, ThrUpSec = 0.5, ThrDownSec = 1.0 / 3.0;
+        public const double TouchThrUpSec = 0.8, TouchThrDownSec = 0.6;     // full left-stick deflection; the throttle stays where the thumb leaves it
         public readonly double[] ch = { 0, 0, -1, 0, -1, 1, 0, 0 };
         public bool armSwitch;
         public bool padActive;
@@ -22,12 +23,14 @@ namespace RocketWorld
         bool _prevSpace, _prevPadArm, _prevPadLow = true;
         public FlightMode mode = FlightMode.Angle;
 
+        public double Throttle01 => (ch[2] + 1) * 0.5;
+
         public void Reset() { armSwitch = false; _kbThrottle = 0; _prevPadLow = true; _prevSpace = true; ch[2] = -1; ch[4] = -1; }
 
         static float Key(string k) => InputDevices.KeyValue(k);
 
         /// <summary>Read the devices once per frame; <paramref name="dt"/> is the unscaled frame time.</summary>
-        public void Update(float dt, bool blocked)
+        public void Update(float dt, bool blocked, CarInput ci = null)
         {
             if (blocked) { ch[0] = ch[1] = ch[3] = 0; return; }
             dt = Mathf.Min(dt, 0.2f);
@@ -42,7 +45,22 @@ namespace RocketWorld
             if (space && !_prevSpace) armSwitch = !armSwitch;
             _prevSpace = space;
 
+            // ---- touch (drone layout): left stick up/down = throttle that stays, left/right = yaw; right stick = pitch / roll; ARM button ----
+            bool touch = ci != null && ci.TouchControlsActive && CarInput.Profile == TouchProfile.Drone;
+            Vector2 tl = touch ? ci.TouchLeft : Vector2.zero, tr = touch ? ci.TouchRight : Vector2.zero;
+            if (touch)
+            {
+                if (tl.y > 0f) _kbThrottle = System.Math.Min(1, _kbThrottle + tl.y * dt / TouchThrUpSec);
+                else if (tl.y < 0f) _kbThrottle = System.Math.Max(0, _kbThrottle + tl.y * dt / TouchThrDownSec);
+                if (ci.ArmPressed) armSwitch = !armSwitch;
+            }
+
             double roll = kRoll * TiltStick, pitch = kPitch * TiltStick, yaw = kYaw * YawStick, thr = _kbThrottle * 2 - 1;
+            if (touch)
+            {
+                if (tl.x != 0f) yaw = tl.x;
+                if (tr.sqrMagnitude > 0f) { roll = tr.x; pitch = tr.y; }
+            }
 
             // ---- gamepad (wins while a stick is off centre) ----
             if (InputDevices.HasGamepad)

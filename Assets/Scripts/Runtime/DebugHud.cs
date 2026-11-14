@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Globalization;
+using RocketWorld.Sim.Fpv;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -164,6 +165,12 @@ namespace RocketWorld
                 var w = ws[i];
                 var r = new Rect(w.zone.x * W, (1f - w.zone.y - w.zone.height) * H, w.zone.width * W, w.zone.height * H);
                 bool on = root.carInput.WidgetOn(i);
+                string label = w.label;
+                if (cc != null && cc.InFpv && cc.fpv != null)       // drone buttons show the live state
+                {
+                    if (w.id == "arm") { on = cc.fpv.Armed; label = on ? "DISARM" : cc.fpv.Crashed ? "CRASHED" : "ARM"; }
+                    else if (w.id == "mode") label = "MODE\n" + FpvModes.Name(cc.fpv.Mode);
+                }
                 switch (w.kind)
                 {
                     case WidgetKind.SliderSticky:
@@ -186,7 +193,7 @@ namespace RocketWorld
                     }
                     default:
                         if (on) GUI.color = new Color(0.45f, 0.9f, 1f, 1f);
-                        GUI.Box(r, w.label, UiTheme.Touch);
+                        GUI.Box(r, label, UiTheme.Touch);
                         GUI.color = oc;
                         break;
                 }
@@ -265,7 +272,7 @@ namespace RocketWorld
 
             if (!string.IsNullOrEmpty(root.carCtl.Status))
                 GUI.Box(new Rect(W * 0.5f - 200, H * 0.40f, 400, 44), root.carCtl.Status, UiTheme.Toast);
-            if (running) DrawSpeed(W, H);
+            if (running && !root.carCtl.InFpv) DrawSpeed(W, H);       // the drone has its own telemetry line, and its buttons use that spot
 
             if (touch)
             {
@@ -277,6 +284,26 @@ namespace RocketWorld
                 float ks = box.width * 0.30f;
                 var kc = box.center + new Vector2(v.x * box.width * 0.5f, -v.y * box.height * 0.5f);
                 GUI.Box(new Rect(kc.x - ks * 0.5f, kc.y - ks * 0.5f, ks, ks), "", UiTheme.Touch);
+                if (CarInput.Profile == TouchProfile.Drone)
+                {
+                    // right stick (pitch / roll) and the throttle bar beside the left stick (the throttle stays where the thumb left it)
+                    var rr = CarInput.RightStickRect;
+                    var rbox = new Rect(rr.x / _k, (Screen.height - rr.yMax) / _k, rr.width / _k, rr.height / _k);
+                    GUI.Box(rbox, "", UiTheme.Touch);
+                    var rv = root.carInput.RightStickValue;
+                    var rkc = rbox.center + new Vector2(rv.x * rbox.width * 0.5f, -rv.y * rbox.height * 0.5f);
+                    GUI.Box(new Rect(rkc.x - ks * 0.5f, rkc.y - ks * 0.5f, ks, ks), "", UiTheme.Touch);
+                    GUI.Label(new Rect(box.x, box.y - 18, box.width, 18), "THROTTLE ↕   YAW ↔", UiTheme.Unit);
+                    GUI.Label(new Rect(rbox.x, rbox.y - 18, rbox.width, 18), "PITCH ↕   ROLL ↔", UiTheme.Unit);
+                    if (Event.current.type == EventType.Repaint && root.carCtl.fpv != null)
+                    {
+                        var oc2 = GUI.color; float t = root.carCtl.fpv.Throttle01;
+                        var bar = new Rect(box.xMax + 6, box.y, 8, box.height);
+                        GUI.color = new Color(1, 1, 1, 0.16f); GUI.DrawTexture(bar, Texture2D.whiteTexture);
+                        GUI.color = new Color(0.4f, 0.85f, 1f, 0.8f); GUI.DrawTexture(new Rect(bar.x, bar.yMax - bar.height * t, bar.width, Mathf.Max(2f, bar.height * t)), Texture2D.whiteTexture);
+                        GUI.color = oc2;
+                    }
+                }
             }
             else if (running && W > 1100f)
             {
@@ -308,15 +335,17 @@ namespace RocketWorld
                 if (_ctlOpen) SetControlsOpen(false);
                 root.camMenu.Toggle();
             }
-            string curVeh = root.carCtl != null ? Vehicles.NameOf(root.carCtl.CurrentVehicle) : "Car";
+            bool inFpv = root.carCtl != null && root.carCtl.InFpv;
+            string curVeh = inFpv ? "FPV Drone" : root.carCtl != null ? Vehicles.NameOf(root.carCtl.CurrentVehicle) : "Car";
             if (GUI.Button(new Rect(W - 252, 66, 154, 34), curVeh + " ▾", _btn)) _vehOpen = !_vehOpen;
             if (_vehOpen)
             {
                 for (int i = 0; i < Vehicles.Order.Length; i++)
                 {
-                    var k = Vehicles.Order[i]; bool cur = root.carCtl != null && root.carCtl.CurrentVehicle == k;
+                    var k = Vehicles.Order[i]; bool cur = root.carCtl != null && !inFpv && root.carCtl.CurrentVehicle == k;
                     if (GUI.Button(new Rect(W - 332, 104 + i * 36, 160, 32), (cur ? "● " : "   ") + Vehicles.NameOf(k), _btn)) { root.RequestVehicle(k); _vehOpen = false; }
                 }
+                if (GUI.Button(new Rect(W - 332, 104 + Vehicles.Order.Length * 36, 160, 32), (inFpv ? "● " : "   ") + "FPV Drone", _btn)) { root.ToggleFpv(); _vehOpen = false; }
             }
             if (Time.unscaledTime < _toast) GUI.Box(new Rect(W * 0.5f - 160, 134, 320, 38), _toastText, UiTheme.Toast);
             if (_reportOpen && root.benchmark != null) DrawReport(H);

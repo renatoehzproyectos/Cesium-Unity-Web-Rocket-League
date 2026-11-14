@@ -160,7 +160,7 @@ namespace RocketWorld
                 if (carCtl != null) CarInput.Profile = carCtl.TouchProfile;
                 if (carInput.PlanePressed) RequestPlane();
                 if (carInput.VehiclePressed) CycleVehicle();
-                if (carInput.FpvPressed && carCtl != null && carCtl.simulated && fpv != null) fpv.Toggle();
+                if (carInput.FpvPressed) ToggleFpv();
                 if (carCtl != null && carCtl.vehicle != null && carCtl.vehicle.Active)
                 {
                     if (carInput.ModePressed) carCtl.vehicle.Toggle(VehicleToggle.Mode);
@@ -582,6 +582,12 @@ namespace RocketWorld
         public void RequestVehicle(VehicleKind k)
         {
             if (carCtl != null && carCtl.simulated && carCtl.vehicle != null) carCtl.vehicle.Select(k);
+        }
+
+        /// <summary>FPV drone mode on / off (K key, the touch EXIT button and the vehicle menu entry).</summary>
+        public void ToggleFpv()
+        {
+            if (carCtl != null && carCtl.simulated && fpv != null) fpv.Toggle();
         }
 
         public void CycleVehicle()

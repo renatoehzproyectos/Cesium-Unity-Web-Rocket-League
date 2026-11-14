@@ -35,6 +35,15 @@ namespace RocketWorld
         public bool GearPressed { get; private set; }
         public bool FlapsPressed { get; private set; }
         public bool FpvPressed { get; private set; }
+        /// <summary>Drone touch layout taps (arm switch, camera tilt up / down).</summary>
+        public bool ArmPressed { get; private set; }
+        public bool TiltUpPressed { get; private set; }
+        public bool TiltDownPressed { get; private set; }
+        /// <summary>Drone touch sticks after the dead zone, -1..1 (x right+, y up+): left = yaw / throttle, right = roll / pitch. Zero off the drone layout.</summary>
+        public Vector2 TouchLeft { get; private set; }
+        public Vector2 TouchRight { get; private set; }
+        /// <summary>Raw right stick deflection for drawing its knob.</summary>
+        public Vector2 RightStickValue { get; private set; }
         public bool SettingsPressed { get; private set; }
         /// <summary>True when the settings/menu press came from the gamepad (then the HUD opens the gamepad-navigable controls screen).</summary>
         public bool MenuFromPad { get; private set; }
@@ -54,6 +63,22 @@ namespace RocketWorld
 
         /// <summary>Analog stick area in pixels (origin bottom-left): a square at the lower left.</summary>
         public static Rect StickRect { get { float sz = Screen.height * 0.46f, m = Screen.height * 0.04f; return new Rect(m, m, sz, sz); } }
+        /// <summary>Second stick of the drone layout (pitch / roll): the same square, mirrored at the lower right.</summary>
+        public static Rect RightStickRect { get { float sz = Screen.height * 0.46f, m = Screen.height * 0.04f; return new Rect(Screen.width - m - sz, m, sz, sz); } }
+
+        static Vector2 StickAt(Rect sr, List<Vector2> touches)
+        {
+            Vector2 best = Vector2.zero;
+            foreach (var p in touches)
+            {
+                if (!sr.Contains(p)) continue;
+                var d = new Vector2((p.x - sr.center.x) / (sr.width * 0.5f), (p.y - sr.center.y) / (sr.height * 0.5f));
+                if (d.sqrMagnitude > best.sqrMagnitude) best = d;
+            }
+            if (best.sqrMagnitude > 1f) best.Normalize();
+            return best;
+        }
+        static float Dead(float v) { const float dead = 0.12f; return Mathf.Abs(v) < dead ? 0f : Mathf.Sign(v) * (Mathf.Abs(v) - dead) / (1f - dead); }
         /// <summary>Current stick deflection (x: right+, y: up+), -1..1, for drawing the knob.</summary>
         public Vector2 StickValue { get; private set; }
         readonly List<Vector2> _touches = new List<Vector2>(10);
@@ -74,7 +99,7 @@ namespace RocketWorld
 
         void Update()
         {
-            CameraTogglePressed = ResetPressed = SettingsPressed = BallPressed = PlanePressed = VehiclePressed = ModePressed = GearPressed = FlapsPressed = FpvPressed = false;
+            CameraTogglePressed = ResetPressed = SettingsPressed = BallPressed = PlanePressed = VehiclePressed = ModePressed = GearPressed = FlapsPressed = FpvPressed = ArmPressed = TiltUpPressed = TiltDownPressed = false;
             // Edges are tracked even while blocked so a held button does not "fire" the moment a menu closes.
             bool cam = _eCam.Update(Axis(CarAction.CameraToggle) > 0.5f);
             bool reset = _eReset.Update(Axis(CarAction.Reset) > 0.5f);
@@ -104,7 +129,7 @@ namespace RocketWorld
             }
             if (Blocked)
             {
-                StickValue = Vector2.zero;
+                StickValue = RightStickValue = TouchLeft = TouchRight = Vector2.zero;
                 controls = default;
                 for (int i = 0; i < _held.Length; i++) { _held[i] = false; _touched[i] = false; }
                 return;
@@ -120,7 +145,7 @@ namespace RocketWorld
             float lever = 0f, vert = 0f;
             // Left stick up/down also pitches the car in the air (up = nose down, like Rocket League); it does nothing on the ground.
             float stickPitch = InputDevices.LeftStick().y;
-            StickValue = Vector2.zero;
+            StickValue = RightStickValue = TouchLeft = TouchRight = Vector2.zero;
             if (TouchControlsActive)
             {
                 // One analog stick: up = throttle / nose down, down = brake / nose up, left/right = steer (ground) and yaw / roll (air).
@@ -137,6 +162,13 @@ namespace RocketWorld
                 float sy = Mathf.Abs(best.y) < dead ? 0f : Mathf.Sign(best.y) * (Mathf.Abs(best.y) - dead) / (1f - dead);
                 StickValue = best;
                 st += sx; th += sy;
+                if (Profile == TouchProfile.Drone)
+                {
+                    var rb = StickAt(RightStickRect, _touches);
+                    RightStickValue = rb;
+                    TouchLeft = new Vector2(sx, sy);
+                    TouchRight = new Vector2(Dead(rb.x), Dead(rb.y));
+                }
 
                 for (int i = 0; i < ws.Length && i < 16; i++)
                 {
@@ -181,13 +213,19 @@ namespace RocketWorld
 
         void FireTap(string id)
         {
-            switch (id) { case "gear": GearPressed = true; break; case "mode": ModePressed = true; break; case "flaps": FlapsPressed = true; break; }
+            switch (id)
+            {
+                case "gear": GearPressed = true; break; case "mode": ModePressed = true; break; case "flaps": FlapsPressed = true; break;
+                case "arm": ArmPressed = true; break; case "tiltUp": TiltUpPressed = true; break; case "tiltDown": TiltDownPressed = true; break;
+                case "cam": CameraTogglePressed = true; break; case "reset": ResetPressed = true; break; case "exit": FpvPressed = true; break;
+            }
         }
 
         public static bool OverTouchZone(Vector2 screenPos)
         {
             var n = new Vector2(screenPos.x / Screen.width, screenPos.y / Screen.height);
             foreach (var w in Widgets) if (w.zone.Contains(n)) return true;
+            if (Profile == TouchProfile.Drone && RightStickRect.Contains(screenPos)) return true;
             return StickRect.Contains(screenPos);
         }
     }

@@ -56,7 +56,7 @@ namespace RocketWorld
         public VehicleKind CurrentVehicle => InVehicle ? vehicle.Kind : InPlane ? VehicleKind.Cessna : VehicleKind.Car;
         /// <summary>Throttle lever (0..1) of the current aircraft, for the touch slider.</summary>
         public float LeverDisplay => InVehicle ? vehicle.Lever : InPlane ? plane.ThrottleLever : 0f;
-        public TouchProfile TouchProfile => InVehicle ? vehicle.Spec.profile : InPlane ? TouchProfile.Cessna : TouchProfile.Car;
+        public TouchProfile TouchProfile => InFpv ? TouchProfile.Drone : InVehicle ? vehicle.Spec.profile : InPlane ? TouchProfile.Cessna : TouchProfile.Car;
 
         // Hyper Boost: +500 % speed on every vehicle. _hyperT eases 0..1 (0.6 s in, 1.8 s out) so nothing jerks; the drivers read HyperMul.
         float _hyperT; bool _hyperBurst;

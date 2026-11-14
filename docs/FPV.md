@@ -58,3 +58,13 @@ and `RwFpv` replays them on the C# port: every state slot, every 10-25 ticks, an
 
 **Not verified (no Unity in the sandbox where this was written):** the Unity compile of `Assets/Scripts/Runtime/Fpv/*` and of the edits to `RocketCar`, `GameRoot`, `CarInput`, `InputBindings`,
 PhysX behaviour of `FpvWorld` against real tile colliders, and the feel at WebGL frame rates. `FpvWorld`'s logic was exercised against a stubbed floor.
+
+## Mobile / touch controls
+
+On touch devices the drone gets its own on-screen layout (`TouchProfile.Drone`, built in `TouchLayout.cs`, read by `CarInput.cs`, drawn by `DebugHud.cs`):
+
+* **Enter / leave:** vehicle menu (top right) -> **FPV Drone**; the **EXIT** button leaves the mode.
+* **Left stick:** up / down = throttle (it *stays* where the thumb leaves it, like W / S; the bar next to the stick shows the level), left / right = yaw.
+* **Right stick:** pitch / roll (full analog, Mode 2).
+* **Buttons:** **ARM / DISARM** (lower the throttle first, same arm rule as the keyboard), **MODE** (acro / horizon / angle, shows the current one), **DRONE** (next preset), **CAM** (FPV / chase / heli / orbit), **RESET** (respawn after a crash or back to launch), **TILT ▲ / ▼** (camera uptilt +/- 5 degrees).
+* The layout adapts to the screen shape (the sticks are square in pixels and the buttons fill the band between them); the big speedometer is hidden in drone mode and a compact telemetry line sits under the top bar.

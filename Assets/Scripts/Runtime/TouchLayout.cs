@@ -63,10 +63,33 @@ namespace RocketWorld
             new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.27f, 0.11f, 0.16f), new TouchWidget("brake", "BRAKE", H, 0.67f, 0.08f, 0.11f, 0.16f),
         };
 
+        // ---- FPV drone: two sticks (left = throttle + yaw, right = pitch + roll, both drawn by DebugHud / read by CarInput) and a band of buttons between them.
+        // The layout depends on the screen shape (the sticks are square in pixels), so it is rebuilt when the screen size changes.
+        static TouchWidget[] _drone; static int _droneW, _droneH;
+        static TouchWidget[] Drone()
+        {
+            int w = Mathf.Max(1, Screen.width), h = Mathf.Max(1, Screen.height);
+            if (_drone != null && w == _droneW && h == _droneH) return _drone;
+            _droneW = w; _droneH = h;
+            float sz = h * 0.46f, m = h * 0.04f;
+            float x0 = (m + sz) / w + 0.012f, x1 = 1f - x0;                       // free band between the two sticks
+            float gap = 0.010f, cw = Mathf.Clamp((x1 - x0 - 2f * gap) / 3f, 0.06f, 0.14f);
+            float cx = 0.5f - (cw * 3f + gap * 2f) * 0.5f, c1 = cx + cw + gap, c2 = c1 + cw + gap;
+            const float r0 = 0.05f, r1 = 0.24f, r2 = 0.43f, bh = 0.17f, th = 0.12f;
+            _drone = new[]
+            {
+                new TouchWidget("arm", "ARM", T, cx, r0, cw, bh), new TouchWidget("mode", "MODE", T, c1, r0, cw, bh), new TouchWidget("reset", "RESET", T, c2, r0, cw, bh),
+                new TouchWidget("cam", "CAM", T, cx, r1, cw, bh), new TouchWidget("gear", "DRONE", T, c1, r1, cw, bh), new TouchWidget("exit", "EXIT", T, c2, r1, cw, bh),
+                new TouchWidget("tiltUp", "TILT ▲", T, cx, r2, cw, th), new TouchWidget("tiltDown", "TILT ▼", T, c1, r2, cw, th),
+            };
+            return _drone;
+        }
+
         public static TouchWidget[] For(TouchProfile p)
         {
             switch (p)
             {
+                case TouchProfile.Drone: return Drone();
                 case TouchProfile.Cessna: return Cessna;
                 case TouchProfile.Jet: return Jet;
                 case TouchProfile.Vtol: return Vtol;

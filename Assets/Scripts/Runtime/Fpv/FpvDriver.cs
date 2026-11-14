@@ -20,6 +20,9 @@ namespace RocketWorld
         public bool Active { get; private set; }
 
         public FpvSim Model => _sim;
+        public bool Armed => _sim != null && _sim.Armed;
+        public bool Crashed => _sim != null && _sim.Crashed;
+        public float Throttle01 => (float)_input.Throttle01;
         public FpvParams Params => _prm;
         public FpvPreset Preset => FpvPresets.All[_presetIdx];
         public FlightMode Mode => _input.mode;
@@ -83,7 +86,7 @@ namespace RocketWorld
             Active = true;
             PlaceAt(pos, yaw, true);
             _input.Reset(); _uptiltAdd = 0f; _hasSafe = false;
-            SetStatus("FPV  —  lower the throttle, then arm (Space / A)", 8f);
+            SetStatus(car.input != null && car.input.TouchControlsActive ? "FPV  —  throttle down, then tap ARM" : "FPV  —  lower the throttle, then arm (Space / A)", 8f);
             Debug.Log("[RocketWorld] FPV drone ON (" + Preset.name + ")");
         }
 
@@ -153,15 +156,16 @@ namespace RocketWorld
             if (!Active || _sim == null) return;
             var ci = car.input;
             bool blocked = ci != null && ci.Blocked;
-            _input.Update(Time.unscaledDeltaTime, blocked);
+            _input.Update(Time.unscaledDeltaTime, blocked, ci);
             if (ci != null && !blocked)
             {
                 if (ci.ModePressed) { _input.CycleMode(); SetStatus(FpvModes.Name(_input.mode), 1.5f); }
                 if (ci.GearPressed) NextPreset();
             }
             bool eq = InputDevices.KeyValue("Equals") > 0, mn = InputDevices.KeyValue("Minus") > 0;
-            if (eq && !_prevEq) { _uptiltAdd += 5f; SetStatus($"camera tilt {UptiltDeg:0}°", 1.5f); }
-            if (mn && !_prevMinus) { _uptiltAdd -= 5f; SetStatus($"camera tilt {UptiltDeg:0}°", 1.5f); }
+            bool tUp = ci != null && !blocked && ci.TiltUpPressed, tDn = ci != null && !blocked && ci.TiltDownPressed;
+            if ((eq && !_prevEq) || tUp) { _uptiltAdd += 5f; SetStatus($"camera tilt {UptiltDeg:0}°", 1.5f); }
+            if ((mn && !_prevMinus) || tDn) { _uptiltAdd -= 5f; SetStatus($"camera tilt {UptiltDeg:0}°", 1.5f); }
             _prevEq = eq; _prevMinus = mn;
 
             if (_vis != null)
@@ -242,7 +246,7 @@ namespace RocketWorld
         }
 
         // ------------------------------------------------------------------------------------------------ OSD
-        GUIStyle _osd, _big;
+        GUIStyle _osd, _osdS, _big;
         void OnGUI()
         {
             if (!Active || _sim == null) return;
@@ -261,10 +265,19 @@ namespace RocketWorld
             string arm = _sim.Armed ? "ARMED" : _sim.Crashed ? "CRASHED" : "DISARMED";
             Color cc = cell < 3.3 ? Color.red : cell < 3.5 ? new Color(1f, 0.7f, 0.1f) : Color.white;
             string line = $"{FpvModes.Name(Mode)}   {arm}   {SpeedMs * 3.6f:0} km/h   AGL {(HeightAgl >= 0 ? HeightAgl.ToString("0.0") + " m" : "--")}   {volts:0.0} V ({cell:0.00}/cell)   BAT {s[FpvS.soc] * 100:0}%";
-            Outline(new Rect(W * 0.5f - 420, H - 54, 840, 28), line, _osd, cc);
+            bool touch = car.input != null && car.input.TouchControlsActive;
+            if (touch)      // phones: the bottom is taken by the sticks and buttons, so a short telemetry line goes under the top bar
+            {
+                _osdS ??= new GUIStyle(_osd) { fontSize = 14 };
+                string shortLine = $"{FpvModes.Name(Mode)} · {arm} · {SpeedMs * 3.6f:0} km/h · AGL {(HeightAgl >= 0 ? HeightAgl.ToString("0") + " m" : "--")} · BAT {s[FpvS.soc] * 100:0}%";
+                Outline(new Rect(W * 0.5f - 190, 68, 380, 24), shortLine, _osdS, cc);
+            }
+            else Outline(new Rect(W * 0.5f - 420, H - 54, 840, 28), line, _osd, cc);
             if (_sim.washNow > 0.25) Outline(new Rect(W * 0.5f - 200, H * 0.30f, 400, 32), "PROP WASH", _big, new Color(1f, 0.6f, 0.15f));
             if (!string.IsNullOrEmpty(Status)) Outline(new Rect(W * 0.5f - 400, H * 0.40f, 800, 40), Status, _big, Color.white);
-            if (!_sim.Armed && !_sim.Crashed)
+            if (!_sim.Armed && !_sim.Crashed && touch)
+                Outline(new Rect(W * 0.5f - 300, H * 0.28f, 600, 24), "Left stick: ↕ throttle (stays) · ↔ yaw   |   Right stick: pitch / roll   |   tap ARM", _osdS, new Color(1, 1, 1, 0.8f));
+            else if (!_sim.Armed && !_sim.Crashed)
                 Outline(new Rect(W * 0.5f - 460, H - 90, 920, 24), "W/S throttle · A/D yaw · arrows pitch/roll · Space arm · M mode · G drone · -/= cam tilt · C camera · R reset · K exit   |   pad: sticks (Mode 2), A arm", _osd, new Color(1, 1, 1, 0.75f));
             GUI.matrix = oldMatrix;
         }

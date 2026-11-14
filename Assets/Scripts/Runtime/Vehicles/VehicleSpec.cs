@@ -6,7 +6,7 @@ namespace RocketWorld
     public enum VehicleKind { Car = 0, Cessna = 1, F35B = 2, F15E = 3, Helicopter = 4, DeLorean = 5 }
 
     /// <summary>Which on-screen touch layout a vehicle uses (see <see cref="TouchLayout"/>).</summary>
-    public enum TouchProfile { Car, Cessna, Jet, Vtol, Helicopter, DeLorean }
+    public enum TouchProfile { Car, Cessna, Jet, Vtol, Helicopter, DeLorean, Drone }
 
     public enum AeroClass { None, Jet }
 
