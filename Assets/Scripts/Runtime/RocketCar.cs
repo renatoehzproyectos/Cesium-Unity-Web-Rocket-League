@@ -28,6 +28,8 @@ namespace RocketWorld
         public PlaneDriver plane;
         /// <summary>F-35B / F-15E / helicopter / DeLorean (null = off); the Cessna is <see cref="plane"/>.</summary>
         public VehicleDriver vehicle;
+        /// <summary>FPV drone mode (null = off): ShramkoGSFPV's flight model at 1 kHz, see <see cref="FpvDriver"/>.</summary>
+        public FpvDriver fpv;
         public bool infiniteBoost = true;
         public float spawnHeadingDeg;
 
@@ -49,6 +51,7 @@ namespace RocketWorld
         public bool InBoat => water != null && water.Active;
         public bool InPlane => plane != null && plane.Active;
         public bool InVehicle => vehicle != null && vehicle.Active;
+        public bool InFpv => fpv != null && fpv.Active;
         /// <summary>The vehicle being driven, across the car, the Cessna and the VehicleDriver ones.</summary>
         public VehicleKind CurrentVehicle => InVehicle ? vehicle.Kind : InPlane ? VehicleKind.Cessna : VehicleKind.Car;
         /// <summary>Throttle lever (0..1) of the current aircraft, for the touch slider.</summary>
@@ -236,6 +239,7 @@ namespace RocketWorld
                 if (water != null) water.ForceExit();
                 if (plane != null) plane.ForceExit();
                 if (vehicle != null) vehicle.ForceExit();
+                if (fpv != null) fpv.ForceExit();
                 if (_rb != null) { _rb.isKinematic = true; }
                 CurrentPhase = Phase.WaitingForGround; Status = "";
             }
@@ -337,6 +341,7 @@ namespace RocketWorld
             if (water != null) water.ForceExit();
             if (plane != null) plane.ForceExit();
                 if (vehicle != null) vehicle.ForceExit();
+                if (fpv != null) fpv.ForceExit();
             if (colliderBudget != null) colliderBudget.burst = true;
             CurrentPhase = Phase.WaitingForGround; _waitStart = Time.realtimeSinceStartup; _stableSince = -1f;
             if (_rb != null) { _rb.linearVelocity = Vector3.zero; _rb.angularVelocity = Vector3.zero; _rb.isKinematic = true; }
@@ -345,7 +350,8 @@ namespace RocketWorld
         void Update()
         {
             if (!simulated || _held) return;                  // puppet: PlayerNet moves it; held: waiting for the start menu
-            if (input != null && input.ResetPressed && CurrentPhase == Phase.Running && !(intro != null && intro.TryResetInBay())) { _rescue = true; BeginWaiting(); }
+            if (input != null && input.ResetPressed && CurrentPhase == Phase.Running && InFpv) fpv.OnReset();   // the drone respawns itself (a rescue would drop the mode)
+            else if (input != null && input.ResetPressed && CurrentPhase == Phase.Running && !(intro != null && intro.TryResetInBay())) { _rescue = true; BeginWaiting(); }
             if (CurrentPhase == Phase.WaitingForGround) { TrySpawn(); return; }
             if (_resync) ApplyOriginShift();
 
@@ -393,7 +399,7 @@ namespace RocketWorld
         void VoidGuard()
         {
             if (_rb == null || _rb.isKinematic || CurrentPhase != Phase.Running || !simulated) return;
-            if ((plane != null && plane.Active) || (vehicle != null && vehicle.Active) || (water != null && water.Active)) return;
+            if ((plane != null && plane.Active) || (vehicle != null && vehicle.Active) || (water != null && water.Active) || InFpv) return;
             Vector3 pos = _rb.position;
             int mask = PhysicsSetup.TerrainMask;
 
@@ -437,6 +443,7 @@ namespace RocketWorld
                 jump = c.jump, boost = c.boost, handbrake = c.handbrake,
             };
             UpdateHyper(c.hyper);
+            if (fpv != null && fpv.Active) { fpv.PreStep(c, Tick); return; }                  // FPV drone: ShramkoGSFPV's model
             if (vehicle != null && vehicle.Active) { vehicle.PreStep(c, Tick); return; }       // F-35B / F-15E / helicopter / DeLorean
             if (plane != null && plane.Active) { plane.PreStep(c, Tick); return; }       // plane mode: JSBSim forces replace the wheel model
             if (water != null && water.Active) { water.PreStep(c, Tick); return; }     // afloat: boat forces replace the wheel model
@@ -465,6 +472,13 @@ namespace RocketWorld
         /// <summary>Second half of a tick, after the shared Physics.Simulate.</summary>
         public void PostStep()
         {
+            if (fpv != null && fpv.Active)
+            {
+                fpv.PostStep();
+                _prevPos = _currPos; _prevRot = _currRot;
+                _currPos = _rb.position; _currRot = _rb.rotation;
+                return;
+            }
             if (vehicle != null && vehicle.Active)
             {
                 _prevPos = _currPos; _prevRot = _currRot;
@@ -495,6 +509,9 @@ namespace RocketWorld
             _prevPos = _currPos; _prevRot = _currRot;
             _currPos = _rb.position; _currRot = _rb.rotation;
         }
+
+        /// <summary>Visual and interpolation state jump to the body's pose (a teleport: no streak between the old and the new place).</summary>
+        public void SnapVisual() { if (_rb == null) return; _prevPos = _currPos = _rb.position; _prevRot = _currRot = _rb.rotation; if (visual != null) visual.SetPositionAndRotation(_currPos, _currRot); }
 
         public void ApplyVisual(float alpha)
         {
@@ -552,6 +569,7 @@ namespace RocketWorld
             if (water != null) water.ForceExit();
             if (plane != null) plane.ForceExit();
                 if (vehicle != null) vehicle.ForceExit();
+                if (fpv != null) fpv.ForceExit();
             _rb.isKinematic = false;
             transform.SetPositionAndRotation(pos, rot);
             _rb.position = pos; _rb.rotation = rot;

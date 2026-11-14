@@ -74,6 +74,7 @@ namespace RocketWorld
             if (!car.CanTeleport || Active) return;
             if (car.water != null) car.water.ForceExit();
             if (car.vehicle != null) car.vehicle.ForceExit();
+            if (car.fpv != null) car.fpv.ForceExit();
             BuildOnce();
             var rb = car.Body; var a = Model;
             _carMass = rb.mass; _carInertia = rb.inertiaTensor; _carInertiaRot = rb.inertiaTensorRotation; _carGravity = rb.useGravity;

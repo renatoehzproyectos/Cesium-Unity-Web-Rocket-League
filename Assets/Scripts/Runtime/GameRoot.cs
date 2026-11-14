@@ -30,6 +30,9 @@ namespace RocketWorld
         /// <summary>Demolition-bot controller (null until the first bot is added).</summary>
         public DemoBotManager demoBot;
         public HeliCamera heli;
+        public FpvCamera fpvCam;
+        public FpvDriver fpv;
+        bool _fpvWas; int _camBeforeFpv;
         public CameraMenu camMenu;
         public CinematicFx cinematic;
         public int cameraMode;                                // 0 chase, 1 orbit, 2 helicopter
@@ -121,6 +124,7 @@ namespace RocketWorld
             BuildWater();
             AttachPlane(carCtl);
             BuildCamera();
+            AttachFpv(carCtl);
             CreateWorldContent();
             ApplyLive();
             gameObject.AddComponent<CarSimLoop>().ball = ball;
@@ -156,6 +160,7 @@ namespace RocketWorld
                 if (carCtl != null) CarInput.Profile = carCtl.TouchProfile;
                 if (carInput.PlanePressed) RequestPlane();
                 if (carInput.VehiclePressed) CycleVehicle();
+                if (carInput.FpvPressed && carCtl != null && carCtl.simulated && fpv != null) fpv.Toggle();
                 if (carCtl != null && carCtl.vehicle != null && carCtl.vehicle.Active)
                 {
                     if (carInput.ModePressed) carCtl.vehicle.Toggle(VehicleToggle.Mode);
@@ -186,7 +191,18 @@ namespace RocketWorld
                     CommitSse(EffectiveSse, protectCar: false);
                 }
             }
-            if (carInput != null && carInput.CameraTogglePressed) ChooseCamera(NextCameraMode(cameraMode));
+            if (fpv != null && fpv.Active != _fpvWas)                                  // entering the drone puts you behind its camera; leaving restores the view
+            {
+                _fpvWas = fpv.Active;
+                if (_fpvWas) { _camBeforeFpv = cameraMode; SetCameraMode(3); }
+                else SetCameraMode(_camBeforeFpv == 3 ? settings.camMode : _camBeforeFpv);
+            }
+            if (carInput != null && carInput.CameraTogglePressed)
+            {
+                int nx = NextCameraMode(cameraMode);
+                if (fpv != null && fpv.Active) nx = cameraMode == 3 ? 0 : (nx == 0 ? 3 : nx);   // drone: fpv -> chase -> heli -> orbit -> fpv
+                ChooseCamera(nx);
+            }
             // ?bench=1: start once the first tiles are in (or after 25 s on a slow link / no key)
             if (settings.bench && !_benchStarted && (tileset == null || tileset.ComputeLoadProgress() >= 99f || Time.realtimeSinceStartup > 25f))
             { _benchStarted = true; benchmark.Begin(); }
@@ -497,6 +513,14 @@ namespace RocketWorld
             v.car = c; c.vehicle = v;
         }
 
+        void AttachFpv(RocketCar c)
+        {
+            if (c == null || c.fpv != null) return;
+            var d = c.gameObject.AddComponent<FpvDriver>();
+            d.car = c; d.fpvCam = fpvCam; c.fpv = d; fpv = d;
+            if (fpvCam != null) fpvCam.drone = d;
+        }
+
         void AttachWater(RocketCar c)
         {
             if (waterMap == null || c == null || c.water != null) return;
@@ -524,6 +548,7 @@ namespace RocketWorld
             go.AddComponent<CamRigBegin>().end = rigEnd;
             chase = go.AddComponent<ChaseCamera>();
             chase.car = carCtl;
+            fpvCam = go.AddComponent<FpvCamera>(); fpvCam.car = carCtl; fpvCam.enabled = false;
             heli = go.AddComponent<HeliCamera>();
             heli.car = carCtl;
             var streamGo = new GameObject("StreamingCameras");
@@ -645,6 +670,7 @@ namespace RocketWorld
             if (chase != null) chase.enabled = mode == 0;
             if (orbit != null) orbit.enabled = mode == 1;
             if (heli != null) heli.enabled = mode == 2;
+            if (fpvCam != null) fpvCam.enabled = mode == 3 && fpv != null && fpv.Active;
         }
 
         /// <summary>C key / pad button cycles chase -> helicopter -> orbit -> chase.</summary>
@@ -653,6 +679,7 @@ namespace RocketWorld
         /// <summary>Switch the camera and remember it (it is the one used the next time you start driving).</summary>
         public void ChooseCamera(int mode)
         {
+            if (mode == 3) { SetCameraMode(3); return; }                  // the FPV view is never the remembered driving camera
             settings.camMode = Mathf.Clamp(mode, 0, 2);
             SetCameraMode(settings.camMode);
             SaveSettings();

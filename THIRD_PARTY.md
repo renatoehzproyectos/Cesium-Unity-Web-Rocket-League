@@ -25,3 +25,5 @@
 F-35B, F-15E, helicopter and DeLorean are optimised derivatives of GLB files supplied for this project (`f-35b_lightning_ii.glb`,
 `f-15e_strike_eagle_-_fighter_jet_-_free.glb`, `helicopter.glb`, `delorean_highpoly.glb`). Their original authors and licences
 were not included with the files: TODO fill in author, source URL and licence for each before publishing.
+
+- **ShramkoGSFPV** (https://github.com/AndriiShramko/ShramkoGSFPV, MIT, (c) 2026 Andrii Shramko): `Assets/Scripts/Sim/Fpv/*` is a C# port of its flight model (`packages/sim-core`: motors, battery, mixer, Betaflight-style rate PID, rate curves, self-level, prop wash, contact / crash rules), and `FpvPresets.cs` is generated from its drone presets (`packages/sim-core/presets/*.json`, each number with its source there). The FPV camera (rigid mount, uptilt, horizontal FOV) and the Mode 2 stick layout follow its behaviour. The MIT notice is in `Assets/Scripts/Sim/Fpv/LICENSE-ShramkoGSFPV.txt`. The original formulas come from Betaflight 4.5.1 (GPL-3.0) and were re-implemented there, not copied; see its `docs/PROVENANCE.md`.

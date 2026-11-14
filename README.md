@@ -15,6 +15,8 @@ WASD/arrows drive · Space jump (twice = flip, with direction = dodge) · Shift 
 Esc / gear = settings · link button copies a URL for this place (never includes your API key). Mobile: on-screen pads. Full gamepad support (any controller the browser exposes; right stick orbits the camera). The **Controls** button next to the gear opens a rebinding screen: click a slot (key, alt key, gamepad) and press the new input; Backspace clears, Esc cancels. Gamepad users press Menu/Start to open it and navigate with the D-pad (A bind, X clear, Y reset, B close). Bindings are stored in this browser. Analog sticks/triggers need the Input System package as the active input handler (set automatically by `ProjectSetup`).
 URL params: `?viewcull=0` (load a radius round the car instead of only the view) `?water=0` (no water system) `?key= ?ion= ?lat= ?lon= ?h= ?hdg= ?t= ?car= ?sse= ?scale= ?bench=1`.
 
+**FPV drone mode (K):** a first-person quadcopter with the physics, controls and camera of ShramkoGSFPV; see [docs/FPV.md](docs/FPV.md).
+
 ## Deploy: GitHub -> Vercel
 1. Push this folder to `main` of a new GitHub repo.
 2. **Unity license for CI** (Settings -> Secrets -> Actions). Personal: follow https://game.ci/docs/github/activation and add `UNITY_LICENSE`, `UNITY_EMAIL`,
