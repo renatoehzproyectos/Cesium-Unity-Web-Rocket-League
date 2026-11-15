@@ -36,7 +36,7 @@ namespace RocketWorld
         {
             // Large virtual viewport => same pixels-per-degree as the main camera, so SSE picks the same (sharp) detail level.
             _cams = new Camera[5];
-            _rt = MakeRt(root.settings.distantQuality);
+            _rt = MakeRt(root.EffectiveDistantQuality);
             for (int i = 0; i < 4; i++)
             {
                 var c = NewCam("StreamCam" + i, 90f);
@@ -103,7 +103,7 @@ namespace RocketWorld
         {
             if (_cams == null || follow == null || root == null) return;
             transform.position = follow.position + Vector3.up * 2f;
-            float dq = root.settings.distantQuality;
+            float dq = root.EffectiveDistantQuality;
             if (Mathf.Abs(dq - _appliedMult) > 0.04f && Time.unscaledTime - _rtChanged > 0.6f)   // live, but not on every slider tick
             {
                 var old = _rt; _rt = MakeRt(dq);

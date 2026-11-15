@@ -14,6 +14,15 @@ namespace RocketWorld
         [Serializable] class Store { public List<Zone> zones = new List<Zone>(); }
         const string Key = "rw2.zones";
         public const int MaxZones = 24;
+        public const float MinRadius = 300f, MaxRadius = 4000f;
+        const string RadiusKey = "rw2.zoneRadius";
+        static float _defR = -1f;
+        /// <summary>Radius used by "save zone here" (F9 or the touch button); the settings slider edits it. Persisted.</summary>
+        public static float DefaultRadius
+        {
+            get { if (_defR < 0f) _defR = Mathf.Clamp(PlayerPrefs.GetFloat(RadiusKey, 1500f), MinRadius, MaxRadius); return _defR; }
+            set { value = Mathf.Clamp(Mathf.Round(value / 50f) * 50f, MinRadius, MaxRadius); if (Mathf.Approximately(value, _defR)) return; _defR = value; PlayerPrefs.SetFloat(RadiusKey, value); }
+        }
         static Store _s;
         public static event Action Changed;
         public static IReadOnlyList<Zone> All { get { Load(); return _s.zones; } }
@@ -28,7 +37,7 @@ namespace RocketWorld
         public static Zone Add(string name, double lat, double lon, float radiusM = 1500f)
         {
             Load(); if (_s.zones.Count >= MaxZones) _s.zones.RemoveAt(0);
-            var z = new Zone { name = string.IsNullOrWhiteSpace(name) ? $"Zone {_s.zones.Count + 1}" : name.Trim(), lat = lat, lon = lon, radiusM = Mathf.Clamp(radiusM, 300f, 4000f) };
+            var z = new Zone { name = string.IsNullOrWhiteSpace(name) ? $"Zone {_s.zones.Count + 1}" : name.Trim(), lat = lat, lon = lon, radiusM = Mathf.Clamp(radiusM, MinRadius, MaxRadius) };
             _s.zones.Add(z); Save(); return z;
         }
         public static void Remove(Zone z) { Load(); if (_s.zones.Remove(z)) Save(); }

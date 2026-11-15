@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using CesiumForUnity;
+using RocketWorld.Sim;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -63,9 +64,18 @@ namespace RocketWorld
         // overrides from AntiCrash (-1 = not active); they never exceed the user's own sliders
         public float antiScale = -1f, antiDof = -1f, antiMotion = -1f;
         public AntiCrash antiCrash;
-        public float EffectiveDof => antiDof >= 0f ? antiDof : settings.fxDof;
-        public float EffectiveMotion => antiMotion >= 0f ? antiMotion : settings.fxMotion;
-        public float EffectiveSse => Mathf.Max(settings.sse + autoSseAdd, _turbo ? _turboCur : 0f);
+        // Priorities (fast load / tile quality / fps / realism): multipliers on top of the user's sliders. "User*" = the slider value after them,
+        // which is also the ceiling AntiCrash works under.
+        PriorityMods _pm = PriorityMods.Identity; Priority _pmFor = (Priority)(-1);
+        public PriorityMods Mods { get { if (settings != null && _pmFor != settings.priorities) { _pmFor = settings.priorities; _pm = PriorityLogic.Compute(_pmFor, DeviceProfile.IsMobile); } return _pm; } }
+        public float UserSse => PriorityLogic.Sse(settings.sse, Mods, DeviceProfile.IsMobile);
+        public float UserScale => Mathf.Min(PriorityLogic.Scale(settings.renderScale, Mods), DeviceProfile.MaxRenderScale);
+        public float UserDof => PriorityLogic.Fx(settings.fxDof, Mods, false);
+        public float UserMotion => PriorityLogic.Fx(settings.fxMotion, Mods, false);
+        public float EffectiveDistantQuality => PriorityLogic.DistantQ(settings.distantQuality, Mods);
+        public float EffectiveDof => antiDof >= 0f ? antiDof : UserDof;
+        public float EffectiveMotion => antiMotion >= 0f ? antiMotion : UserMotion;
+        public float EffectiveSse => Mathf.Max(UserSse + autoSseAdd, _turbo ? _turboCur : 0f);
 
         // "Turbo load": until the first view is fully loaded (or 20 s), ask for coarser tiles so the whole picture arrives fast,
         // then drop to the user's SSE and let Cesium refine in place (ancestors are already cached, so refining is cheap).
@@ -73,20 +83,20 @@ namespace RocketWorld
         /// <summary>SSE for tiles outside the view (coarse but present, so there are no holes). Lower = sharper behind/beside you, more bandwidth.</summary>
         public const float CulledSse = 128f;
         bool _turbo; float _turboStart, _turboStep, _turboCur = TurboSse;
-        public float EffectiveScale => Mathf.Clamp((antiScale >= 0f ? antiScale : settings.renderScale * autoScaleMul) * memScaleMul, 0.3f, DeviceProfile.MaxRenderScale);
+        public float EffectiveScale => Mathf.Clamp((antiScale >= 0f ? antiScale : UserScale * autoScaleMul) * memScaleMul, 0.3f, DeviceProfile.MaxRenderScale);
         // MemoryGuard: 0 = fine, 3 = heap close to what the browser will give us (see MemoryGuardLogic for what each level does)
         public float memScaleMul = 1f;
         public int memLevel;
         public MemoryGuard memGuard;
         /// <summary>Radius loaded at full detail round a car. With view-driven streaming only the physics ring: the rest follows the camera.</summary>
-        public float EffectiveRadius => settings.viewCull && viewPolicy != null ? Mathf.Min(settings.loadRadius, viewPolicy.Ring) : settings.loadRadius * autoFarMul * RadiusMul;
+        public float EffectiveRadius => settings.viewCull && viewPolicy != null ? Mathf.Min(PriorityLogic.Radius(settings.loadRadius, Mods), viewPolicy.Ring) : PriorityLogic.Radius(settings.loadRadius, Mods) * autoFarMul * RadiusMul;
         public TileViewPolicy viewPolicy;
         // Adaptive radius: if the demanded tiles do not fit the cache, loading stalls (tiles evicted as fast as they arrive).
         // The slider is the MAXIMUM; the radius shrinks while progress stagnates and grows back once everything is loaded.
         public float RadiusMul { get; private set; } = 1f;
         float _radChkT, _radChkProg;
-        public float EffectiveFar => settings.viewDistance * autoFarMul;
-        bool _benchStarted;
+        public float EffectiveFar => PriorityLogic.Far(settings.viewDistance, Mods) * autoFarMul;
+        bool _benchStarted; float _appliedCulled = float.NaN; Priority _prioSeen;
 
         Light _sun;
         Transform _ground;
@@ -195,7 +205,7 @@ namespace RocketWorld
                 {
                     _turboStep = now;
                     _turboCur -= 16f;
-                    if (_turboCur <= settings.sse + autoSseAdd) _turbo = false;
+                    if (_turboCur <= UserSse + autoSseAdd) _turbo = false;
                     CommitSse(EffectiveSse, protectCar: false);
                 }
             }
@@ -260,13 +270,13 @@ namespace RocketWorld
                 // Beauty pass: no holes. Tiles outside every camera are still loaded, but only down to a coarse level (culledScreenSpaceError),
                 // so turning the camera never shows empty ground and the finer levels only stream in where you look / are heading.
                 tileset.enforceCulledScreenSpaceError = true;
-                tileset.culledScreenSpaceError = CulledSse;
-                tileset.maximumSimultaneousTileLoads = DeviceProfile.SimultaneousLoads;
+                tileset.culledScreenSpaceError = PriorityLogic.CulledSse(Mods); _appliedCulled = tileset.culledScreenSpaceError;
+                tileset.maximumSimultaneousTileLoads = (uint)Mathf.Max(1, Mathf.RoundToInt(DeviceProfile.SimultaneousLoads * Mods.loads));
                 tileset.loadingDescendantLimit = DeviceProfile.DescendantLimit;       // let visible tiles refine in parallel (far fewer on phones: each one in flight holds decoded images)
                 // Optional tuning: set by reflection so a property that differs in this Cesium version cannot break the build.
                 TrySetTileset("preloadSiblings", false);    // siblings are mostly outside the view
                 TrySetTileset("enableFoveatedRendering", false);   // foveation blurs everything off-centre: terrain should be sharp edge to edge
-                _turbo = true; _turboStart = _turboStep = Time.unscaledTime; _turboCur = TurboSse;
+                _turbo = true; _turboStart = _turboStep = Time.unscaledTime; _turboCur = Mods.turboSse;
                 tileset.maximumCachedBytes = (long)(DeviceProfile.TileCacheBytes * MemoryGuardLogic.CacheMul(memLevel));   // WebGL heap is limited: sized from the device
                 tileset.maximumScreenSpaceError = EffectiveSse;
                 _appliedSse = EffectiveSse;
@@ -363,6 +373,18 @@ namespace RocketWorld
             // AutoQuality (panel closed) and FlushSse (on panel close) still push SSE.
             if (!settingsOpen)
                 CommitSse(EffectiveSse, protectCar: false);
+
+            if (tileset != null && !settingsOpen)
+            {
+                float cs = PriorityLogic.CulledSse(Mods);
+                if (!Mathf.Approximately(cs, _appliedCulled)) { _appliedCulled = cs; TrySetTileset("culledScreenSpaceError", cs); }
+            }
+            if (_prioSeen != s.priorities)
+            {
+                bool fastOn = (s.priorities & Priority.FastLoad) != 0 && (_prioSeen & Priority.FastLoad) == 0;
+                _prioSeen = s.priorities;
+                if (fastOn && tileset != null) { _turbo = true; _turboStart = _turboStep = Time.unscaledTime; _turboCur = Mods.turboSse; }   // coarse-first load again
+            }
 
             if (orbit != null) orbit.autoRotate = s.autoRotate;
 

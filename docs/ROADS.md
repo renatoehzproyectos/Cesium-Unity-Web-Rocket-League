@@ -25,7 +25,7 @@ drives on (`?roads=debug` draws them). Photogrammetry still provides buildings, 
    overpasses stay; partly covered triangles are pressed down to the road height so no bump pokes through; tunnels never carve. When a road collider appears, changes or is removed,
    the affected tile colliders are re-cut in place (never destroyed first). Road colliders live on `PhysicsSetup.RoadLayer` (27) with the same RocketSim world friction/restitution.
 6. **Integration:** `RocketCar.Road` (class, surface, width, bridge/tunnel under the car, 4 Hz), `RocketCar.roads` / `Boost()` while waiting for ground, `GameRoot` (created with the tileset,
-   `ApplyMemoryLevel` shrinks radii), `DebugHud` line, **F9 saves a zone** (`SavedZones`, PlayerPrefs) which is prefetched and pinned.
+   `ApplyMemoryLevel` shrinks radii), `DebugHud` line, **F9 or the "Save zone here" button in Settings saves a zone** (`SavedZones`, PlayerPrefs; the "Zone radius" slider, 0.3-4 km, sets its size) which is prefetched and pinned.
 
 ## Parameters
 `?roads=0` off, `?roads=debug` draw colliders, `?roads=https://cdn/roads/` other host. No manifest reachable = system off, game unchanged.

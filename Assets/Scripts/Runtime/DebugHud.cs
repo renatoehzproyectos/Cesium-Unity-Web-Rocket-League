@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using RocketWorld.Sim.Fpv;
+using RocketWorld.Sim;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -457,6 +458,17 @@ namespace RocketWorld
             }
             GUILayout.Label(string.IsNullOrEmpty(_searchStatus) ? "Type a city, address or landmark." : _searchStatus, UiTheme.Muted);
 
+            UiKit.Section("Priorities");
+            {
+                var pr = s.priorities; var np = pr;
+                np = PrioToggle(np, Priority.FastLoad, "Fast tile loading", "Coarse tiles first, more downloads at once, a tighter full-detail ring.");
+                np = PrioToggle(np, Priority.TileQuality, "Tile quality", "Sharper tiles, near and far.");
+                np = PrioToggle(np, Priority.Fps, "Frame rate", "Lower resolution, view distance and effects.");
+                np = PrioToggle(np, Priority.Realism, "Realism", "Best of everything the device allows, effects at full strength.");
+                if (np != pr) { s.priorities = np; changed = true; }
+                GUILayout.Label(np == Priority.None ? "Off: only your sliders below apply." : "Applied on top of your sliders. Opposites (quality vs frame rate) partly cancel. Now: SSE " + root.UserSse.ToString("0") + ", scale " + root.UserScale.ToString("0.00") + "x, view " + (PriorityLogic.Far(s.viewDistance, root.Mods) / 1000f).ToString("0.#") + " km.", UiTheme.Muted);
+            }
+
             UiKit.Section("Graphics");
             s.sse = UiKit.Slider("Tile detail", "SSE " + s.sse.ToString("0"), s.sse, 4f, 64f);
             GUILayout.Label("Lower is sharper but needs more data.", UiTheme.Muted);
@@ -486,13 +498,33 @@ namespace RocketWorld
             GUILayout.Label("Settings are saved in this browser.", UiTheme.Muted);
             GUILayout.Label("Aircraft model: \"YC-130\" by KOG_THORNS, CC BY 4.0.", UiTheme.Muted);
             GUILayout.Label(DeviceProfile.Describe() + (root.memGuard != null && root.memGuard.HeapMB > 0 ? " · heap " + root.memGuard.HeapMB + " MB" + (root.memLevel > 0 ? " (reducing detail, level " + root.memLevel + ")" : "") : ""), UiTheme.Muted);
-            if (root.roads != null && root.roads.Enabled) GUILayout.Label(root.roads.Info + (SavedZones.All.Count > 0 ? "\nzones: " + root.roads.ZoneProgress() : "") + "   [F9 = save zone here]", UiTheme.Muted);
+            if (root.roads != null && root.roads.Enabled)
+            {
+                UiKit.Section("Saved zones");
+                float zr = SavedZones.DefaultRadius;
+                int tiles = root.roads.EstimateZoneTiles(zr);
+                zr = UiKit.Slider("Zone radius", (zr / 1000f).ToString("0.0#") + " km" + (tiles > 0 ? " · " + tiles + " tiles" : ""), zr, SavedZones.MinRadius, SavedZones.MaxRadius);
+                SavedZones.DefaultRadius = zr;
+                GUILayout.Label("Roads inside the zone are downloaded and kept for offline use.", UiTheme.Muted);
+                UiKit.Gap(4);
+                GUI.enabled = root.roads.CanSaveZone && SavedZones.All.Count < SavedZones.MaxZones;
+                if (UiKit.PrimaryButton("Save zone here")) root.roads.SaveZoneHere(null);
+                GUI.enabled = true;
+                if (SavedZones.All.Count > 0) GUILayout.Label(SavedZones.All.Count + " saved - " + root.roads.ZoneProgress(), UiTheme.Muted);
+                GUILayout.Label(root.roads.Info + "   (keyboard: F9)", UiTheme.Muted);
+            }
             GUILayout.Space(8);
             GUILayout.EndScrollView();
             GUILayout.EndArea();
             UiKit.TouchScroll(_panel, ref _scroll);
 
             if (GUI.changed || changed) root.ApplyLive();
+        }
+
+        static Priority PrioToggle(Priority cur, Priority flag, string label, string hint)
+        {
+            bool on = UiKit.Toggle((cur & flag) != 0, label, hint);
+            return on ? cur | flag : cur & ~flag;
         }
 
         /// <summary>Round colour chips; the current one gets an accent ring. True when the choice changed.</summary>

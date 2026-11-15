@@ -108,13 +108,27 @@ namespace RocketWorld
         }
 
         /// <summary>Save the current place as a zone and start downloading its roads for offline use.</summary>
-        public SavedZones.Zone SaveZoneHere(string name, float radiusM = 1500f)
+        public SavedZones.Zone SaveZoneHere(string name, float radiusM = 0f)
         {
             if (_fociLL.Count == 0) return null;
+            if (radiusM <= 0f) radiusM = SavedZones.DefaultRadius;
             var z = SavedZones.Add(name, _fociLL[0].lat, _fociLL[0].lon, radiusM);
             if (root != null && root.hud != null) root.hud.ShowToast("Zone saved: " + z.name + (Enabled ? " (roads downloading)" : ""));
             return z;
         }
+
+        /// <summary>True once there is a position to save a zone at.</summary>
+        public bool CanSaveZone => Enabled && _fociLL.Count > 0;
+
+        /// <summary>How many road tiles a zone of this radius would download here (for the radius slider).</summary>
+        public int EstimateZoneTiles(float radiusM)
+        {
+            if (_fociLL.Count == 0) return 0;
+            if (Mathf.Approximately(radiusM, _estR) && Time.unscaledTime < _estUntil) return _estN;     // OnGUI runs several times per frame
+            _estR = radiusM; _estUntil = Time.unscaledTime + 0.5f;
+            return _estN = RoadCachePolicy.TilesAround(_fociLL[0].lon, _fociLL[0].lat, radiusM, _tileZoom).Count;
+        }
+        float _estR = -1f, _estUntil; int _estN;
 
         /// <summary>"name: loaded/total tiles" per saved zone (offline download progress).</summary>
         public string ZoneProgress()

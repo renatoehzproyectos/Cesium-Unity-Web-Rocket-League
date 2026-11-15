@@ -31,7 +31,7 @@ namespace RocketWorld
             if (root.tileset != null && root.tileset.ComputeLoadProgress() < 99f) logic.Feed(16f);   // initial load hitches don't count
             else logic.Feed(Time.unscaledDeltaTime * 1000f);
 
-            AntiCrashLogic.Resolve(logic.Level, s.renderScale, s.fxDof, s.fxMotion, out float scale, out float dof, out float motion);
+            AntiCrashLogic.Resolve(logic.Level, root.UserScale, root.UserDof, root.UserMotion, out float scale, out float dof, out float motion);
             bool scaleChanged = !Mathf.Approximately(root.antiScale, scale);
             root.antiScale = scale; root.antiDof = dof; root.antiMotion = motion;
             if (scaleChanged) root.ApplyLive();
