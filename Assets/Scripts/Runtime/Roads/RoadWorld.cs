@@ -81,12 +81,55 @@ namespace RocketWorld
             {
                 var cb = _store.Read(cacheName); if (cb != null) { try { m = JsonUtility.FromJson<Manifest>(System.Text.Encoding.UTF8.GetString(cb)); } catch (Exception) { } }
             }
-            if (m == null || string.IsNullOrEmpty(m.release) || m.schema != 1) { Status = "roads: no road data source (" + _base + ")"; Debug.Log("[RocketWorld] " + Status); yield break; }
+            if (m == null || string.IsNullOrEmpty(m.release) || m.schema != 1)
+            {
+                // No tiles of our own published: build them on the fly from OpenStreetMap (OpenFreeMap vector tiles, free, no key), nothing to generate or upload.
+                yield return LoadOfm();
+                if (!Enabled) { Status = "roads: no road data source"; Debug.Log("[RocketWorld] " + Status); }
+                else OnZones();
+                yield break;
+            }
             _release = m.release; _tileZoom = m.tileZoom > 0 ? m.tileZoom : RoadTiles.Zoom;
             _tilesTemplate = string.IsNullOrEmpty(m.tiles) ? "tiles/{release}/{z}/{x}/{y}.rwr" : m.tiles;
             if (_tileZoom != RoadTiles.Zoom) { Status = "roads: unsupported tile zoom " + _tileZoom; yield break; }
             Enabled = true; Debug.Log("[RocketWorld] roads release " + _release + (string.IsNullOrEmpty(m.attribution) ? "" : " - " + m.attribution));
             OnZones();
+        }
+
+        // ---------------------------------------------------------------------------------------------- automatic source (OpenStreetMap through OpenFreeMap)
+
+        const string OfmTileJson = "https://tiles.openfreemap.org/planet", OfmFallback = "https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf";
+        bool _ofm; string _ofmTemplate;
+        /// <summary>Credit for the data in use (shown in Settings): OSM is ODbL, the tile schema is OpenMapTiles.</summary>
+        public string Attribution => _ofm ? "Roads: (c) OpenStreetMap contributors (ODbL), OpenMapTiles, via OpenFreeMap" : "";
+
+        IEnumerator LoadOfm()
+        {
+            const string cacheName = "ofm_tilejson.bin"; string template = null;
+            using (var req = UnityWebRequest.Get(OfmTileJson))
+            {
+                req.timeout = 10; yield return req.SendWebRequest();
+                if (req.result == UnityWebRequest.Result.Success) { template = OfmTemplate(req.downloadHandler.text); if (template != null) _store.Write(cacheName, req.downloadHandler.data); }
+            }
+            if (template == null) { var cb = _store.Read(cacheName); if (cb != null) template = OfmTemplate(System.Text.Encoding.UTF8.GetString(cb)); }   // offline: last URL we saw
+            if (template == null) template = OfmFallback;                                                                                                      // unversioned URL still serves the latest planet
+            _ofmTemplate = template; _ofm = true; _tileZoom = RoadTiles.Zoom;
+            _release = RoadMvt.ReleasePrefix + DateTime.UtcNow.ToString("yyyy-MM");                  // monthly refresh: road networks change slowly, and one name keeps the cache small
+            Enabled = true; Debug.Log("[RocketWorld] roads: OpenStreetMap via OpenFreeMap, release " + _release + " (" + template + ")");
+        }
+
+        static string OfmTemplate(string json)
+        {
+            try { var tj = JsonUtility.FromJson<OfmTileJsonData>(json); if (tj != null && tj.tiles != null && tj.tiles.Length > 0 && tj.tiles[0].Contains("{z}")) return tj.tiles[0]; } catch (Exception) { }
+            return null;
+        }
+        [Serializable] class OfmTileJsonData { public string[] tiles; }
+
+        static byte[] Inflate(byte[] d)          // browsers inflate gzip themselves; native players may hand over the raw bytes
+        {
+            if (d == null || d.Length < 2 || d[0] != 0x1f || d[1] != 0x8b) return d;
+            using (var src = new System.IO.MemoryStream(d)) using (var gz = new System.IO.Compression.GZipStream(src, System.IO.Compression.CompressionMode.Decompress)) using (var dst = new System.IO.MemoryStream())
+            { gz.CopyTo(dst); return dst.ToArray(); }
         }
 
         // ---------------------------------------------------------------------------------------------- zones
@@ -248,16 +291,18 @@ namespace RocketWorld
             string name = RoadStore.Name("raw", _release, _tileZoom, x, y); RoadTileData data = null;
             var cached = _store.Read(name); if (cached != null) data = RoadTileFormat.Read(cached);
             if (data != null && RoadCachePolicy.IsCurrent(data.release, _release)) { Done(st, data, key); yield break; }
-            string url = _base + _tilesTemplate.Replace("{release}", _release).Replace("{z}", _tileZoom.ToString()).Replace("{x}", x.ToString()).Replace("{y}", y.ToString());
+            string url = (_ofm ? _ofmTemplate : _base + _tilesTemplate.Replace("{release}", _release)).Replace("{z}", _tileZoom.ToString()).Replace("{x}", x.ToString()).Replace("{y}", y.ToString());
             using (var req = UnityWebRequest.Get(url))
             {
                 req.timeout = 20; yield return req.SendWebRequest();
                 if (req.result == UnityWebRequest.Result.Success)
                 {
-                    var d = RoadTileFormat.Read(req.downloadHandler.data);
-                    if (d != null) { _store.Write(name, req.downloadHandler.data); Done(st, d, key); yield break; }
+                    RoadTileData d; byte[] file = req.downloadHandler.data;
+                    if (_ofm) { d = RoadMvt.Convert(Inflate(file), _tileZoom, x, y, _release); file = d != null ? RoadTileFormat.Write(d) : null; }
+                    else d = RoadTileFormat.Read(file);
+                    if (d != null) { _store.Write(name, file); Done(st, d, key); yield break; }
                 }
-                else if (req.responseCode == 404)       // no roads in this tile (sea, desert): remember it so it is never asked again
+                else if (req.responseCode == 404 || req.responseCode == 204)       // no roads in this tile (sea, desert): remember it so it is never asked again
                 {
                     var empty = new RoadTileData { z = _tileZoom, x = x, y = y, release = _release }; _store.Write(name, RoadTileFormat.Write(empty)); Done(st, empty, key); yield break;
                 }

@@ -512,6 +512,7 @@ namespace RocketWorld
                 GUI.enabled = true;
                 if (SavedZones.All.Count > 0) GUILayout.Label(SavedZones.All.Count + " saved - " + root.roads.ZoneProgress(), UiTheme.Muted);
                 GUILayout.Label(root.roads.Info + "   (keyboard: F9)", UiTheme.Muted);
+                if (!string.IsNullOrEmpty(root.roads.Attribution)) GUILayout.Label(root.roads.Attribution, UiTheme.Muted);
             }
             GUILayout.Space(8);
             GUILayout.EndScrollView();

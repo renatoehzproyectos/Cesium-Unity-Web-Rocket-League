@@ -3,7 +3,15 @@
 Independent, smooth road colliders under the Google Photorealistic 3D Tiles. The tiles stay the only visuals; roads are invisible pavement that the car
 drives on (`?roads=debug` draws them). Photogrammetry still provides buildings, walls, kerbs, overpasses and relief.
 
-## Flow
+## Automatic by default (nothing to generate or upload)
+With no `/roads/manifest.json` on the host the game builds road tiles itself, at runtime, from **OpenStreetMap through OpenFreeMap vector tiles** (the same free,
+key-less service the water system uses): `Sim/Roads/RoadMvt.cs` turns the z14 `transportation` layer into the same tile model (class, surface, bridge / tunnel / ramp, layer),
+clips the MVT buffer so nothing is doubled at tile borders, splits main roads at side-street junctions and gives every segment end a position-hashed node id, so heights
+stay continuous across segments and tiles. Result is cached like any other tile (monthly release name `ofm-YYYY-MM`), saved zones pin it, offline uses the cache.
+Differences from the Overture path below: OSM tiles carry no widths or lane counts (class defaults are used) and have no stable feature ids. The attribution is shown in Settings.
+`?roads=0` turns the system off; `?roads=https://host/roads/` forces your own tiles.
+
+## Flow (optional higher-quality path with your own tiles)
 1. **Data (offline, once per Overture release):** `tools/roads/build_tiles.py` reads Overture `transportation/segment` GeoParquet (DuckDB), keeps `subtype=road`,
    maps class / surface / `road_flags` (bridge, tunnel, link) / `width_rules` / `level_rules`, hashes GERS ids (segments and connectors), and writes **RWR1 tiles at z14**
    plus `manifest.json` (`release`, attribution). Upload `roads-out/` to the static host as `/roads/` (Vercel config included: immutable tiles, revalidated manifest).

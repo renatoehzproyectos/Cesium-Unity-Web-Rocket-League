@@ -13,7 +13,7 @@ static class T
     static int Main(string[] args)
     {
         if (args.Length > 0) return Interop(args[0]);
-        Format(); Center(); Profile(); Mesh(); Carve(); Chunk(); Cache();
+        Format(); Center(); Profile(); Mesh(); Carve(); Chunk(); Cache(); Mvt();
         Console.WriteLine($"{checks - fails}/{checks} checks passed"); return fails == 0 ? 0 : 1;
     }
 
@@ -182,5 +182,62 @@ static class T
         var ev = l.Evict(250); Ok(ev.Count == 1 && ev[0] == "c" && l.Total == 200, "LRU skips pinned, evicts oldest: " + string.Join(",", ev));
         Ok(RoadCachePolicy.IsCurrent("2026-10-15.0", "2026-10-15.0") && !RoadCachePolicy.IsCurrent("2026-09-17.0", "2026-10-15.0") && !RoadCachePolicy.IsCurrent("x", ""), "version check");
         Ok(RoadCachePolicy.FetchRadius(0, 3, true) < RoadCachePolicy.FetchRadius(60, 0, false), "radius shrinks on phones / low memory");
+    }
+
+    // ---- OpenMapTiles vector tile -> RoadTileData (the automatic road source) ----
+    static void PB(List<byte> o, ulong v) { while (v >= 0x80) { o.Add((byte)(v | 0x80)); v >>= 7; } o.Add((byte)v); }
+    static void PBytes(List<byte> o, int field, byte[] b) { PB(o, (ulong)(field << 3 | 2)); PB(o, (ulong)b.Length); o.AddRange(b); }
+    static uint ZZ(int v) => (uint)((v << 1) ^ (v >> 31));
+    /// <summary>One line feature: tags as (key index, value index) pairs; the geometry is MoveTo + LineTo.</summary>
+    static byte[] Feat(int[] tags, params int[] xy)
+    {
+        var f = new List<byte>(); var t = new List<byte>(); foreach (var k in tags) PB(t, (ulong)k); PBytes(f, 2, t.ToArray());
+        PB(f, 3 << 3); PB(f, 2);
+        var g = new List<byte>(); PB(g, 1 | 1 << 3); PB(g, ZZ(xy[0])); PB(g, ZZ(xy[1]));
+        PB(g, 2 | (ulong)((xy.Length / 2 - 1) << 3)); for (int i = 2; i < xy.Length; i += 2) { PB(g, ZZ(xy[i] - xy[i - 2])); PB(g, ZZ(xy[i + 1] - xy[i - 1])); }
+        PBytes(f, 4, g.ToArray()); return f.ToArray();
+    }
+    static byte[] Tile(string[] keys, object[] vals, params byte[][] feats)
+    {
+        var l = new List<byte>(); PBytes(l, 1, System.Text.Encoding.UTF8.GetBytes("transportation"));
+        foreach (var f in feats) PBytes(l, 2, f);
+        foreach (var k in keys) PBytes(l, 3, System.Text.Encoding.UTF8.GetBytes(k));
+        foreach (var v in vals) { var b = new List<byte>(); if (v is string sv) PBytes(b, 1, System.Text.Encoding.UTF8.GetBytes(sv)); else { PB(b, 4 << 3); PB(b, (ulong)(int)v); } PBytes(l, 4, b.ToArray()); }
+        PB(l, 5 << 3); PB(l, 4096);
+        var t = new List<byte>(); PBytes(t, 3, l.ToArray()); return t.ToArray();
+    }
+
+    static void Mvt()
+    {
+        // keys: 0 class, 1 brunnel, 2 ramp, 3 subclass. values: 0 primary, 1 minor, 2 bridge, 3 path, 4 footway, 5 rail, 6 int 1
+        var keys = new[] { "class", "brunnel", "ramp", "subclass" };
+        var vals = new object[] { "primary", "minor", "bridge", "path", "footway", "rail", 1 };
+        var main = Feat(new[] { 0, 0 }, -100, 2048, 2048, 2048, 4200, 2048);          // crosses the whole tile, with a vertex in the middle
+        var side = Feat(new[] { 0, 1 }, 2048, 2048, 2048, 3000);                        // minor road that starts on that vertex
+        var foot = Feat(new[] { 0, 3, 3, 4 }, 100, 100, 300, 100);
+        var rail = Feat(new[] { 0, 5 }, 100, 500, 300, 500);
+        var ramp = Feat(new[] { 0, 0, 1, 2, 2, 6 }, 500, 3500, 900, 3500);
+        var d = RoadMvt.Convert(Tile(keys, vals, main, side, foot, rail, ramp), 14, 8000, 5000, "ofm-test");
+        Ok(d != null && d.x == 8000 && d.release == "ofm-test", "mvt: converted");
+        Ok(d.segments.Count(s => s.cls == RoadClass.Primary && !s.IsBridge) == 2, "mvt: main road split at the junction vertex into 2 -> " + d.segments.Count(s => s.cls == RoadClass.Primary));
+        Ok(d.segments.Count(s => s.cls == RoadClass.Footway) == 1 && d.segments.All(s => s.cls != RoadClass.Unknown), "mvt: footway kept (filtered later), rail dropped");
+        Ok(d.segments.Any(s => s.IsBridge && (s.flags & RoadFlags.Link) != 0), "mvt: bridge + ramp flags (int tag value)");
+        RoadTiles.TileBounds(14, 8000, 5000, out double w, out double so, out double e, out double n);
+        var ms = d.segments.Where(s => s.cls == RoadClass.Primary && !s.IsBridge).ToList();
+        double minLon = ms.Min(s => s.lon.Min()), maxLon = ms.Max(s => s.lon.Max());
+        Ok(Math.Abs(minLon - w) < 1e-9 && Math.Abs(maxLon - e) < 1e-9, "mvt: buffer clipped exactly to the tile edges");
+        var sd = d.segments.First(s => s.cls == RoadClass.Residential);
+        var a = ms.FirstOrDefault(s => s.connectors[1].id == sd.connectors[0].id); var b = ms.FirstOrDefault(s => s.connectors[0].id == sd.connectors[0].id);
+        Ok(a != null && b != null, "mvt: side street and both halves of the main road share one node id");
+        Ok(d.segments.Select(s => s.id).Distinct().Count() == d.segments.Count, "mvt: segment ids unique");
+        // the same road seen from the east neighbour: its west end node equals this tile's east end node
+        var east = RoadMvt.Convert(Tile(keys, vals, Feat(new[] { 0, 0 }, -4196, 2048, 104, 2048)), 14, 8001, 5000, "ofm-test");
+        var main2 = ms.OrderBy(s => s.lon.Max()).Last();
+        Ok(east.segments.Count == 1 && east.segments[0].connectors[0].id == main2.connectors[1].id, "mvt: node ids agree across the tile border");
+        var back = RoadTileFormat.Read(RoadTileFormat.Write(d)); Ok(back != null && back.segments.Count == d.segments.Count, "mvt: survives the .rwr cache format");
+        Ok(RoadMvt.Convert(new byte[] { 0x1a, 0x7f, 1, 2 }, 14, 1, 1, "x") == null, "mvt: garbage -> null");
+        Ok(RoadMvt.Convert(new byte[0], 14, 1, 1, "x").segments.Count == 0, "mvt: empty tile -> no segments");
+        var cl = RoadMvt.Clip(new double[] { 100, 100, 5000, 100, 5000, 200, 100, 200 }, 4096);
+        Ok(cl.Count == 2, "mvt: a line that leaves and re-enters becomes two pieces -> " + cl.Count);
     }
 }
