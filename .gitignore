@@ -28,3 +28,7 @@ Assets/Plugins/x86_64/*
 
 # parity tool outputs
 tools/parity/out/
+
+node_modules/
+**/bin/
+**/obj/

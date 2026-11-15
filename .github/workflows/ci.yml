@@ -37,6 +37,20 @@ jobs:
   # always failed (ProjectSettings.asset was missing -> activeInputHandler flipped mid-build -> "script class layout is
   # incompatible") and was repeated. Both are fixed: ProjectSettings is committed, and compression is done by
   # tools/compress_build.js (parallel, quality 9, cached by content hash).
+  # Saved-zones tile store (service worker + IndexedDB) and its C# maths: no Unity needed, runs in seconds.
+  geocache-tests:
+    name: Saved zones checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: cd tools/geocache && npm install && npm test
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 8.0.x }
+      - run: dotnet run --project tools/geozone/RwGeoZone.csproj
+
   unity-web:
     name: Unity 6000.0.62f1 WebGL (${{ matrix.variant }})
     runs-on: ubuntu-latest

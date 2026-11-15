@@ -38,6 +38,7 @@ namespace RocketWorld
         string _searchQuery = "";
         string _searchStatus = "";
         bool _searching;
+        Rect _zonesBtn;
 
         void Update()
         {
@@ -90,6 +91,7 @@ namespace RocketWorld
                 root.settingsOpen = true;
                 if (_ctlOpen) SetControlsOpen(false);
                 if (root.camMenu != null) root.camMenu.Close();
+                if (root.zones != null) root.zones.Close();
             }
             _open = open;
         }
@@ -101,6 +103,7 @@ namespace RocketWorld
             var p = new Vector2(screenPos.x / _k, (Screen.height - screenPos.y) / _k);
             if (root.carInput != null && root.carInput.TouchControlsActive && CarInput.OverTouchZone(screenPos)) return true;
             if (root.camMenu != null && root.camMenu.Over(screenPos)) return true;
+            if (root.zones != null && (root.zones.Over(screenPos) || _zonesBtn.Contains(p))) return true;
             return _camBtn.Contains(p) || _botRect.Contains(p) || (root.minimap != null && root.minimap.Rect.Contains(p)) || new Rect(_ctl.x - 86, _ctl.y, 80, _ctl.height).Contains(p) || _gear.Contains(p) || _ctl.Contains(p) || (_ctlOpen && _ctlPanel.Contains(p)) || (_open && _panel.Contains(p)) || (_reportOpen && _report.Contains(p));
         }
 
@@ -250,6 +253,7 @@ namespace RocketWorld
             var s = root.settings;
             _gear = new Rect(W - 60, 14, 46, 46);
             _ctl = new Rect(W - 166, 14, 100, 46);
+            _zonesBtn = new Rect(W - 338, 14, 80, 46);         // left of the Ball button
             _camBtn = new Rect(W - 96, 66, 82, 34);            // Camera menu button (right of the vehicle button)
             _panel = new Rect(W - 380, 70, 370, H - 84);
             _ctlPanel = new Rect(Mathf.Max(8, W - 520), 70, Mathf.Min(510, W - 16), H - 84);
@@ -328,6 +332,13 @@ namespace RocketWorld
             }
             if (GUI.Button(_ctl, "Controls", _btn)) SetControlsOpen(!_ctlOpen);
             if (GUI.Button(new Rect(W - 252, 14, 80, 46), "Ball", _btn)) root.RequestBall();
+            if (GUI.Button(_zonesBtn, "Zones", _btn) && root.zones != null)
+            {
+                if (_open) SetOpen(false);
+                if (_ctlOpen) SetControlsOpen(false);
+                if (root.camMenu != null) root.camMenu.Close();
+                root.zones.Toggle();
+            }
             DrawBotControls(W);
             if (GUI.Button(_camBtn, "Camera", _btn) && root.camMenu != null)
             {
@@ -580,18 +591,7 @@ namespace RocketWorld
 
                 float gh = root.settings.groundHeight;
                 _searchStatus = "Looking up elevation…";
-                string elevUrl = string.Format(CultureInfo.InvariantCulture,
-                    "https://api.open-meteo.com/v1/elevation?latitude={0:0.#####}&longitude={1:0.#####}", lat, lon);
-                using (var elevReq = UnityWebRequest.Get(elevUrl))
-                {
-                    yield return elevReq.SendWebRequest();
-                    if (elevReq.result == UnityWebRequest.Result.Success)
-                    {
-                        var elev = JsonUtility.FromJson<ElevationResponse>(elevReq.downloadHandler.text);
-                        if (elev != null && elev.elevation != null && elev.elevation.Length > 0)
-                            gh = elev.elevation[0];
-                    }
-                }
+                yield return ElevationLookup.Get(lat, lon, gh, v => gh = v);
 
                 string name = string.IsNullOrEmpty(hit.display_name) ? query : hit.display_name;
                 if (name.Length > 60) name = name.Substring(0, 57) + "…";
@@ -605,7 +605,6 @@ namespace RocketWorld
 
         [System.Serializable] class NominatimList { public NominatimItem[] items; }
         [System.Serializable] class NominatimItem { public string lat; public string lon; public string display_name; }
-        [System.Serializable] class ElevationResponse { public float[] elevation; }
 
         void DrawReport(float H)
         {

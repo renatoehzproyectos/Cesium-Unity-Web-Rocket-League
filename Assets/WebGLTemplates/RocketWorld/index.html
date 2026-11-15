@@ -29,6 +29,15 @@
     })();
   </script>
   <script src="TemplateData/peerjs.min.js"></script>
+  <script src="TemplateData/rw-geocache.js"></script>
+  <script>
+    // Saved zones: the service worker stores the tiles of saved zones in IndexedDB and answers later requests for them locally
+    // (see TemplateData/rw-geocache.js). Registered with the scope of this build (/ for the main player, /lite/ for the low-memory one).
+    // Skipped while redirecting between builds. If it cannot start, the game works exactly as before.
+    if (!window.rwRedirecting && window.RWGeo) {
+      RWGeo.Client.init('TemplateData/rw-geocache-sw.js', new URL('./', location.href).pathname);
+    }
+  </script>
   <script>
     // Unity WebGL with threads: HEAPU8.buffer is a SharedArrayBuffer, and browsers refuse to send one over a WebSocket
     // ("parameter 1 is not of type 'ArrayBuffer'"). Netcode / Relay over wss goes through that call, so copy the bytes first.

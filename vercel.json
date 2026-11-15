@@ -22,6 +22,32 @@
       ]
     },
     {
+      "source": "/TemplateData/rw-geocache(.*)\\.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/"
+        }
+      ]
+    },
+    {
+      "source": "/lite/TemplateData/rw-geocache(.*)\\.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/lite/"
+        }
+      ]
+    },
+    {
       "source": "/Build/(.*)",
       "headers": [
         {

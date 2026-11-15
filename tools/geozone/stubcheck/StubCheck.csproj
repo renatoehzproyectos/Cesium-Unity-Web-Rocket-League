@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0649;CS0169;CS0414;CS8981</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Stubs.cs" />
+    <Compile Include="../../../Assets/Scripts/Runtime/GeoCache.cs" />
+    <Compile Include="../../../Assets/Scripts/Runtime/ZoneTool.cs" />
+    <Compile Include="../../../Assets/Scripts/Runtime/ElevationLookup.cs" />
+    <Compile Include="../../../Assets/Scripts/Sim/GeoZoneMath.cs" />
+    <Compile Include="../../../Assets/Scripts/Sim/Water/Geo.cs" />
+  </ItemGroup>
+</Project>
