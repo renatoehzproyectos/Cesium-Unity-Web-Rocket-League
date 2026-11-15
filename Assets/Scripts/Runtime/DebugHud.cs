@@ -486,6 +486,7 @@ namespace RocketWorld
             GUILayout.Label("Settings are saved in this browser.", UiTheme.Muted);
             GUILayout.Label("Aircraft model: \"YC-130\" by KOG_THORNS, CC BY 4.0.", UiTheme.Muted);
             GUILayout.Label(DeviceProfile.Describe() + (root.memGuard != null && root.memGuard.HeapMB > 0 ? " · heap " + root.memGuard.HeapMB + " MB" + (root.memLevel > 0 ? " (reducing detail, level " + root.memLevel + ")" : "") : ""), UiTheme.Muted);
+            if (root.roads != null && root.roads.Enabled) GUILayout.Label(root.roads.Info + (SavedZones.All.Count > 0 ? "\nzones: " + root.roads.ZoneProgress() : "") + "   [F9 = save zone here]", UiTheme.Muted);
             GUILayout.Space(8);
             GUILayout.EndScrollView();
             GUILayout.EndArea();

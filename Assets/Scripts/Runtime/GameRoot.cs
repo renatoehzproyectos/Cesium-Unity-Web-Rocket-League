@@ -26,6 +26,7 @@ namespace RocketWorld
         public RocketCar carCtl;
         public CarInput carInput;
         public TileColliderBudget budget;
+        public RoadWorld roads;                                // independent road colliders (Overture-derived); null when there are no tiles or ?roads=0
         public ChaseCamera chase;
         /// <summary>Demolition-bot controller (null until the first bot is added).</summary>
         public DemoBotManager demoBot;
@@ -230,6 +231,7 @@ namespace RocketWorld
         {
             if (tileset != null) Destroy(tileset.gameObject);
             tileset = null; budget = null;
+            if (roads != null) { Destroy(roads); roads = null; }
             _appliedSse = float.NaN;   // force SSE to be written onto the new tileset in the next ApplyLive
             bool online = settings.HasCredentials;
             if (online)
@@ -276,6 +278,9 @@ namespace RocketWorld
                 budget.extraFoci = extraFoci;
                 budget.addRadius = DeviceProfile.ColliderAddRadius; budget.removeRadius = DeviceProfile.ColliderRemoveRadius; budget.burstAddsWhileWaiting = DeviceProfile.ColliderBurst;
                 budget.radiusMul = MemoryGuardLogic.ColliderMul(memLevel);
+                roads = gameObject.AddComponent<RoadWorld>();          // reads its manifest on Start; with no road data source it stays off and nothing changes
+                roads.root = this; roads.georeference = georeference; roads.budget = budget; roads.focus = car; roads.extraFoci = extraFoci; roads.memLevel = memLevel;
+                budget.roads = roads;
                 go.SetActive(true);
             }
             if (_ground != null) { Destroy(_ground.gameObject); _ground = null; }
@@ -290,7 +295,7 @@ namespace RocketWorld
                 if (gm != null) plane.GetComponent<Renderer>().sharedMaterial = gm;
                 _ground = plane.transform;
             }
-            if (carCtl != null) { carCtl.tileset = tileset; carCtl.colliderBudget = budget; carCtl.Respawn(false); }
+            if (carCtl != null) { carCtl.tileset = tileset; carCtl.colliderBudget = budget; carCtl.roads = roads; carCtl.Respawn(false); }
         }
 
         void TrySetTileset(string name, object value)
@@ -434,6 +439,7 @@ namespace RocketWorld
             memScaleMul = MemoryGuardLogic.ScaleMul(level);
             if (tileset != null) tileset.maximumCachedBytes = (long)(DeviceProfile.TileCacheBytes * MemoryGuardLogic.CacheMul(level));
             if (budget != null) budget.radiusMul = MemoryGuardLogic.ColliderMul(level);
+            if (roads != null) roads.memLevel = level;
             if (hud != null && level >= 2) hud.ShowToast("Low memory: reducing detail to keep the game running");
             ApplyLive();
         }

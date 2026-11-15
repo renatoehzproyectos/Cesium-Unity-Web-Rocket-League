@@ -18,6 +18,10 @@ namespace RocketWorld
         public CesiumGeoreference georeference;
         public Cesium3DTileset tileset;
         public TileColliderBudget colliderBudget;
+        /// <summary>Road system (null = off). <see cref="Road"/> is refreshed 4x per second while driving: road class / surface / width under the car, for HUD and bots.</summary>
+        public RoadWorld roads;
+        public RoadWorld.RoadInfo Road { get; private set; }
+        float _roadQ;
         public CarInput input;
         public Transform visual;
         public PlaneIntro intro;
@@ -343,6 +347,7 @@ namespace RocketWorld
                 if (vehicle != null) vehicle.ForceExit();
                 if (fpv != null) fpv.ForceExit();
             if (colliderBudget != null) colliderBudget.burst = true;
+            if (roads != null) roads.Boost();
             CurrentPhase = Phase.WaitingForGround; _waitStart = Time.realtimeSinceStartup; _stableSince = -1f;
             if (_rb != null) { _rb.linearVelocity = Vector3.zero; _rb.angularVelocity = Vector3.zero; _rb.isKinematic = true; }
         }
@@ -354,6 +359,7 @@ namespace RocketWorld
             else if (input != null && input.ResetPressed && CurrentPhase == Phase.Running && !(intro != null && intro.TryResetInBay())) { _rescue = true; BeginWaiting(); }
             if (CurrentPhase == Phase.WaitingForGround) { TrySpawn(); return; }
             if (_resync) ApplyOriginShift();
+            if (roads != null && roads.Enabled && Time.unscaledTime >= _roadQ) { _roadQ = Time.unscaledTime + 0.25f; Road = roads.Query(transform.position); }
 
             if (_softHold)
             {

@@ -40,6 +40,7 @@ mergeInto(LibraryManager.library, {
     return v;
   },
   RW_SetAntiCrash: function (on) { try { localStorage.setItem('rw_anticrash', on ? '1' : '0'); } catch (e) {} },
+  RW_FlushFS: function () { try { if (typeof FS !== 'undefined' && FS.syncfs) FS.syncfs(false, function (err) { if (err) console.warn('[RocketWorld] syncfs', err); }); } catch (e) {} },
   RW_IsLiteBuild: function () { return window.rwLite ? 1 : 0; },
   // Size in MB of the wasm heap right now (it only grows). Used by MemoryGuard to back off before the browser refuses to grow it
   // (an allocation that fails shows up as "RuntimeError: memory access out of bounds").

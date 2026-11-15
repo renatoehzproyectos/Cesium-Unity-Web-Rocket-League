@@ -14,6 +14,9 @@ namespace RocketWorld
         public const int CarLayer = 30;                        // wheel rays and the chase camera ignore it
         public const int BallLayer = 28;                       // the ball: wheel rays and the camera ignore it
         public const int PlaneLayer = 29;                      // the intro cargo plane (hidden from the minimap, ignored by ground-finding rays)
+        public const int RoadLayer = 27;                       // independent road colliders (RoadWorld). Wheel rays and the car hit them like any terrain.
+        /// <summary>Only the original Cesium tile colliders: what the road builder samples the ground from (never its own road meshes).</summary>
+        public static int TileOnlyMask => ~((1 << CarLayer) | (1 << BallLayer) | (1 << PlaneLayer) | (1 << RoadLayer));
         public static int WorldMask => ~((1 << CarLayer) | (1 << BallLayer));
         /// <summary>Terrain only: spawn / camera-floor rays must not land on the plane.</summary>
         public static int TerrainMask => ~((1 << CarLayer) | (1 << PlaneLayer) | (1 << BallLayer));
@@ -30,6 +33,10 @@ namespace RocketWorld
             dynamicFriction = RL.CarWorldFriction, staticFriction = RL.CarWorldFriction, bounciness = RL.CarWorldRestitution,
             frictionCombine = PhysicsMaterialCombine.Average, bounceCombine = PhysicsMaterialCombine.Average,
         };
+
+        static PhysicsMaterial _road;
+        /// <summary>Road surface: same RocketSim car-world friction / restitution as the tiles, so driving feel is unchanged; only the geometry is smoother.</summary>
+        public static PhysicsMaterial RoadMaterial => _road != null ? _road : _road = Make("rw-road");
 
         static PhysicsMaterial _ball;
         /// <summary>

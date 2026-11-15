@@ -22,6 +22,9 @@ namespace RocketWorld
         public float maxMsPerCycle = 6f;                      // time slice for despiking, so WebGL does not hitch
         public bool burst;                                    // RocketCar sets this while waiting for the first ground
         public float radiusMul = 1f;                          // MemoryGuard: < 1 under memory pressure
+        public RoadWorld roads;                               // independent road colliders: their corridors are cut out of the tile colliders (null = off)
+        public int Added { get; private set; }                // number of tile colliders created so far (RoadWorld retries unsolved segments when it grows)
+        int _roadEpoch; readonly List<Bounds> _chg = new List<Bounds>(8); readonly List<(Entry e, int i)> _recarve = new List<(Entry, int)>(32);
         public int Registered => _tiles.Count;
         public int WithCollider { get; private set; }
 
@@ -48,8 +51,44 @@ namespace RocketWorld
             _tiles.Add(new Entry { go = go, filters = filters, renderers = rs, colliders = new MeshCollider[filters.Length], cleaned = new Mesh[filters.Length] });
         }
 
+        /// <summary>The road footprint changed under some tiles: re-cut those colliders in place (never destroyed first, so there is no frame without ground).</summary>
+        void Recarve()
+        {
+            if (roads != null && roads.Enabled && roads.Epoch != _roadEpoch)
+            {
+                _roadEpoch = roads.Epoch;
+                if (roads.ChangedSince(_roadEpochSeen, _chg))
+                {
+                    foreach (var e in _tiles) for (int i = 0; i < e.filters.Length; i++)
+                    {
+                        if (e.colliders[i] == null || e.renderers[i] == null) continue;
+                        var b = e.renderers[i].bounds; foreach (var c in _chg) if (c.Intersects(b)) { _recarve.Add((e, i)); break; }
+                    }
+                }
+                _roadEpochSeen = _roadEpoch;
+            }
+            if (_recarve.Count == 0) return;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (_recarve.Count > 0 && sw.Elapsed.TotalMilliseconds < maxMsPerCycle)
+            {
+                var (e, i) = _recarve[_recarve.Count - 1]; _recarve.RemoveAt(_recarve.Count - 1);
+                if (e.go == null || e.colliders[i] == null || e.filters[i] == null || e.filters[i].sharedMesh == null) continue;
+                var mc = e.colliders[i]; var src = e.filters[i].sharedMesh;
+                Mesh clean = despike ? MeshDespike.Build(src, e.filters[i].transform.InverseTransformDirection(Vector3.up)) : null;
+                Mesh carved = roads.TryCarve(e.filters[i].transform, clean != null ? clean : src, e.renderers[i].bounds);
+                if (carved != null && clean != null) Destroy(clean);
+                Mesh final = carved != null ? carved : clean;
+                mc.sharedMesh = final != null ? final : src;
+                if (e.cleaned[i] != null) Destroy(e.cleaned[i]);
+                e.cleaned[i] = final;
+            }
+            Physics.SyncTransforms();
+        }
+        int _roadEpochSeen;
+
         void Update()
         {
+            Recarve();
             if (focus == null || Time.unscaledTime < _next) return;
             _next = Time.unscaledTime + (burst ? 0.02f : cycleSeconds);
             _pts.Clear(); _pts.Add(focus.position);
@@ -91,10 +130,15 @@ namespace RocketWorld
                     var mc = e.filters[i].gameObject.AddComponent<MeshCollider>();       // shares the MeshFilter's mesh
                     var src = e.filters[i].sharedMesh;
                     Mesh clean = despike ? MeshDespike.Build(src, e.filters[i].transform.InverseTransformDirection(Vector3.up)) : null;
+                    if (roads != null && roads.Enabled)                                    // cut the road corridor out: the road collider replaces it
+                    {
+                        Mesh carved = roads.TryCarve(e.filters[i].transform, clean != null ? clean : src, e.renderers[i].bounds);
+                        if (carved != null) { if (clean != null) Destroy(clean); clean = carved; }
+                    }
                     e.cleaned[i] = clean;                                                  // null = unreadable/nothing to fix -> original mesh
                     mc.sharedMesh = clean != null ? clean : src;
                     mc.sharedMaterial = PhysicsSetup.WorldMaterial;
-                    e.colliders[i] = mc; added++;
+                    e.colliders[i] = mc; added++; Added++;
                 }
             }
             if (added > 0) Physics.SyncTransforms();
