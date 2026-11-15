@@ -21,6 +21,7 @@ namespace RocketWorld
         public bool despike = true;                           // collider uses a spike-free, lightly smoothed copy of the tile mesh (visuals untouched)
         public float maxMsPerCycle = 6f;                      // time slice for despiking, so WebGL does not hitch
         public bool burst;                                    // RocketCar sets this while waiting for the first ground
+        public float radiusMul = 1f;                          // MemoryGuard: < 1 under memory pressure
         public int Registered => _tiles.Count;
         public int WithCollider { get; private set; }
 
@@ -58,7 +59,7 @@ namespace RocketWorld
             for (int i = 0; !moved && i < _pts.Count; i++) moved = (_pts[i] - _prevPts[i]).sqrMagnitude > 9f;   // > 3 m
             if (!moved && !_dirty && !burst && Time.unscaledTime - _lastScan < 0.6f) return;                    // idle: rescan only every 0.6 s
             _prevPts.Clear(); _prevPts.AddRange(_pts); _lastScan = Time.unscaledTime;
-            float on2 = addRadius * addRadius, off2 = removeRadius * removeRadius;
+            float on2 = addRadius * radiusMul * addRadius * radiusMul, off2 = removeRadius * radiusMul * removeRadius * radiusMul;
             _candidates.Clear(); int with = 0;
             for (int t = _tiles.Count - 1; t >= 0; t--)
             {

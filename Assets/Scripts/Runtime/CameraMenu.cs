@@ -85,7 +85,7 @@ namespace RocketWorld
             _value ??= new GUIStyle(_label) { fontSize = 15, normal = { textColor = new Color(0.75f, 0.88f, 1f, 1f) } };
             _title ??= new GUIStyle(_label) { fontSize = 24, alignment = TextAnchor.MiddleLeft };
             _plus ??= new GUIStyle(GUI.skin.label) { font = font, fontSize = 38, alignment = TextAnchor.MiddleCenter, normal = { background = null, textColor = Color.white } };
-            _btn ??= new GUIStyle(GUI.skin.label) { font = font, fontSize = 20, alignment = TextAnchor.MiddleCenter, normal = { textColor = new Color(0.15f, 0.15f, 0.18f) } };
+            _btn ??= new GUIStyle(GUI.skin.label) { font = font, fontSize = 20, alignment = TextAnchor.MiddleCenter, normal = { textColor = UiTheme.Ink } };
             _toggle ??= new GUIStyle(GUI.skin.toggle) { font = font, fontSize = 17, wordWrap = true, normal = { textColor = Color.white }, onNormal = { textColor = Color.white }, hover = { textColor = Color.white }, onHover = { textColor = Color.white } };
         }
 
@@ -103,19 +103,19 @@ namespace RocketWorld
 
             if (e.type == EventType.Repaint)
             {
-                GUI.DrawTexture(new Rect(-6, -6, PW + 12, PH + 12), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(0f, 0f, 0f, 0.55f), 0f, 10f);
-                GUI.DrawTexture(panel, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(0.04f, 0.06f, 0.62f, 0.80f), 0f, 6f);
+                GUI.DrawTexture(new Rect(-6, -6, PW + 12, PH + 12), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(0f, 0f, 0f, 0.45f), 0f, 18f);
+                GUI.DrawTexture(panel, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(0.047f, 0.075f, 0.130f, 0.93f), 0f, 14f);
             }
 
             GUI.Label(new Rect(24, 8, 300, 34), "Camera", _title);
-            if (RoundBtn(new Rect(PW - 52, 8, 38, 34), "X", new Color(0.93f, 0.22f, 0.22f))) Close();
+            if (RoundBtn(new Rect(PW - 52, 8, 38, 34), "X", UiTheme.Danger)) Close();
 
             // camera mode
             string[] names = { "Chase", "Helicopter", "Orbit" }; int[] modes = { 0, 2, 1 };
             for (int i = 0; i < 3; i++)
             {
                 bool cur = root.cameraMode == modes[i];
-                if (RoundBtn(new Rect(30 + i * 185, 46, 170, 34), names[i], cur ? UiTheme.Accent : Color.white)) root.ChooseCamera(modes[i]);
+                if (RoundBtn(new Rect(30 + i * 185, 46, 170, 34), names[i], cur ? UiTheme.Accent : new Color(0.78f, 0.84f, 0.92f))) root.ChooseCamera(modes[i]);
             }
 
             // six offsets: 3 columns x 2 rows, like the reference layout
@@ -136,8 +136,8 @@ namespace RocketWorld
             CamTuning.delay = CamTunePolicy.ClampDelay(GUI.HorizontalSlider(new Rect(40, 382, 520, 20), CamTuning.delay, 0f, CamTunePolicy.MaxDelay));
 
             // bottom buttons
-            var white = Color.white;
-            if (RoundBtn(new Rect(24, 416, 124, 40), "OK", white)) Close();
+            var white = new Color(0.78f, 0.84f, 0.92f);
+            if (RoundBtn(new Rect(24, 416, 124, 40), "OK", UiTheme.Accent)) Close();
             if (RoundBtn(new Rect(160, 416, 124, 40), "Save", white)) { CamTuning.Save(); Msg("Saved"); }
             if (RoundBtn(new Rect(296, 416, 140, 40), "Last Save", white)) { CamTuning.LoadSaved(); Msg(CamTuning.HasSaved ? "Last save loaded" : "Nothing saved yet - defaults"); }
             if (RoundBtn(new Rect(448, 416, 130, 40), "Reset Defaults", white)) { CamTuning.ResetDefaults(); Msg("Defaults"); }
@@ -196,7 +196,7 @@ namespace RocketWorld
                 case EventType.Repaint:
                     bool down = GUIUtility.hotControl == id;
                     var col = down ? tint * 0.82f : tint; col.a = 1f;
-                    GUI.DrawTexture(r, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, col, 0f, 8f);
+                    GUI.DrawTexture(r, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, col, 0f, 11f);
                     GUI.Label(r, text, _btn);
                     break;
             }

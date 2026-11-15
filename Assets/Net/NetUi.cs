@@ -18,6 +18,8 @@ namespace RocketWorld.Net
         string _code = "";
         float _toast; string _toastText = "";
         GUIStyle _tag, _err;
+        bool _registered;
+        GameRoot Root() { return _ns.Root; }
 
         void Awake()
         {
@@ -40,47 +42,47 @@ namespace RocketWorld.Net
             if (_ns == null || _ns.Root == null) return;
             GUI.depth = -1000;
             GUI.skin = UiTheme.Skin;
-            float k = Mathf.Clamp(Screen.height / 720f, 1f, 2.5f);
-            GUIUtility.ScaleAroundPivot(new Vector2(k, k), Vector2.zero);
-            float W = Screen.width / k, H = Screen.height / k;
+            UiLayout.Begin();
+            float k = UiLayout.K, W = UiLayout.W, H = UiLayout.H;
             _tag ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 15, wordWrap = false };
             _err ??= new GUIStyle(GUI.skin.label) { fontSize = 14, wordWrap = true };
 
+            if (!_registered) { _registered = true; DebugHud.Extra.Add(new DebugHud.ToolItem { label = "Online", onClick = () => { _menu = true; _scr = Scr.Main; }, visible = () => !_menu && _ns != null && _ns.State == NetState.Offline }); }
             bool inGame = _ns.State == NetState.Host || _ns.State == NetState.Client;
-            if (inGame) { DrawTags(k); DrawBanner(W); DrawScores(); }
-            else if (!_menu && _ns.State == NetState.Offline)
-            {
-                if (GUI.Button(new Rect(W - 338, 14, 80, 46), "Online")) { _menu = true; _scr = Scr.Main; }
-            }
-            if (!_menu && _ns.State != NetState.Connecting) DrawTeleport(W);
-            if (Time.unscaledTime < _toast) GUI.Box(new Rect(W * 0.5f - 130, 134, 260, 36), _toastText, UiTheme.Toast);
+            bool sheet = UiLayout.Compact && Root().settingsOpen;
+            float y = UiLayout.TopBlockBottom;
+            UiLayout.ExtraTop = 0f;
+            if (inGame) { DrawTags(k); if (!sheet) { DrawBanner(W, y); UiLayout.ExtraTop += 56f; DrawScores(); } }
+            if (!_menu && !sheet && _ns.State != NetState.Connecting) { DrawTeleport(W, y + UiLayout.ExtraTop); UiLayout.ExtraTop += 42f; }
+            if (Time.unscaledTime < _toast) { float tw = UiLayout.BannerWidth(280f); GUI.Box(new Rect((W - tw) * 0.5f, y + UiLayout.ExtraTop, tw, 38), _toastText, UiTheme.Toast); UiLayout.ExtraTop += 44f; }
 
             if (_menu || _ns.State == NetState.Connecting) DrawMenu(W, H);
         }
 
         // ------------------------------------------------------------------------------------------------ in game
 
-        void DrawBanner(float W)
+        void DrawBanner(float W, float y)
         {
             string code = string.IsNullOrEmpty(_ns.Code) ? "—" : _ns.Code;
             var me = LocalPlayer();
             string lag = _ns.State == NetState.Client && me != null ? $"   ·   {me.InputLagMs:0} ms" : "";
             string role = _ns.State == NetState.Host ? "ANFITRIÓN" : "JUGADOR";
-            GUI.Box(new Rect(W * 0.5f - 190, 8, 380, 48), $"{role}   CÓDIGO  <b>{code}</b>   ·   {_ns.PlayerCount}/{NetSession.MaxPlayers}{lag}\n<size=11>Red: {(string.IsNullOrEmpty(_ns.NetInfo) ? "?" : _ns.NetInfo)}</size>", UiTheme.Pill);
-            if (GUI.Button(new Rect(W * 0.5f - 272, 8, 76, 38), "Salir")) _ns.Leave();
+            float bw = UiLayout.BannerWidth(460f), x = (W - bw) * 0.5f;
+            GUI.Box(new Rect(x + 78f, y, bw - 78f, 50), $"{role}   CÓDIGO  <b>{code}</b>   ·   {_ns.PlayerCount}/{NetSession.MaxPlayers}{lag}\n<size=11>Red: {(string.IsNullOrEmpty(_ns.NetInfo) ? "?" : _ns.NetInfo)}</size>", UiTheme.Pill);
+            if (GUI.Button(new Rect(x, y, 72, 50), "Salir", UiTheme.DangerBtn)) _ns.Leave();
         }
 
         int _tpIdx = -1;
 
-        void DrawTeleport(float W)
+        void DrawTeleport(float W, float y)
         {
             var car = _ns.Root.carCtl;
             if (car == null) return;
             bool net = _ns.State == NetState.Host || _ns.State == NetState.Client;
             var me = net ? LocalPlayer() : null;
             GUI.enabled = car.CurrentPhase == RocketCar.Phase.Running;
-            float x = net ? W * 0.5f - 102f : W * 0.5f - 48f;
-            if (GUI.Button(new Rect(x, 62, 96, 34), "Subir 100 m"))
+            float x = net ? W * 0.5f - 126f : W * 0.5f - 60f;
+            if (GUI.Button(new Rect(x, y, 120, 36), "Subir 100 m"))
             {
                 if (me != null) me.TeleportAbove(); else car.TeleportAbove(PlayerNet.TeleportMeters);
             }
@@ -90,12 +92,12 @@ namespace RocketWorld.Net
                 foreach (var p in PlayerNet.All) if (!p.IsOwner) others.Add(p);
                 others.Sort((a, b) => a.Slot.Value.CompareTo(b.Slot.Value));
                 GUI.enabled = GUI.enabled && others.Count > 0 && me != null;
-                if (GUI.Button(new Rect(W * 0.5f + 6, 62, 96, 34), "Ir a jugador"))
+                if (GUI.Button(new Rect(W * 0.5f + 6, y, 120, 36), "Ir a jugador"))
                 {
                     _tpIdx = (_tpIdx + 1) % others.Count;
                     var t = others[_tpIdx];
                     me.TeleportTo(t);
-                    _toast = Time.unscaledTime + 1.6f; _toastText = "→ " + t.DisplayName;
+                    _toast = Time.unscaledTime + 1.6f; _toastText = "Ir a " + t.DisplayName;
                 }
             }
             GUI.enabled = true;
@@ -107,17 +109,17 @@ namespace RocketWorld.Net
         {
             int n = PlayerNet.All.Count;
             if (n == 0) return;
-            float y = Minimap.Margin + Minimap.Size + 10f;
-            GUI.Box(new Rect(16, y, 230, 34 + n * 24), "");
-            GUI.Label(new Rect(26, y + 4, 210, 24), "Jugadores", UiTheme.Hint);
+            float y = Mathf.Max(UiLayout.Top, 0f) + Minimap.Size + 14f;
+            GUI.Box(new Rect(UiLayout.Left, y, 230, 38 + n * 24), "");
+            GUI.Label(new Rect(UiLayout.Left + 10, y + 6, 210, 24), "Jugadores", UiTheme.Hint);
             var list = new System.Collections.Generic.List<PlayerNet>(PlayerNet.All);
             list.Sort((a, b) => a.Slot.Value.CompareTo(b.Slot.Value));
             for (int i = 0; i < list.Count; i++)
             {
                 var p = list[i];
                 string me = p.IsOwner ? " (tú)" : "";
-                string state = p.Alive.Value ? "<color=#7CFC9A>●</color>" : "<color=#9aa7b5>○</color>";
-                GUI.Label(new Rect(26, y + 30 + i * 24, 214, 24), $"<color=#{Hex(p.ColorIdx.Value)}>■</color> {p.DisplayName}{me}   <b>{p.Score.Value}</b> {state}");
+                string state = p.Alive.Value ? "<color=#4DDE85>live</color>" : "<color=#9fb3cc>out</color>";
+                GUI.Label(new Rect(UiLayout.Left + 10, y + 34 + i * 24, 214, 24), $"<color=#{Hex(p.ColorIdx.Value)}><b>|</b></color> {p.DisplayName}{me}   <b>{p.Score.Value}</b> {state}");
             }
         }
 
@@ -144,7 +146,8 @@ namespace RocketWorld.Net
         void DrawMenu(float W, float H)
         {
             if (Event.current.type == EventType.Repaint) GUI.DrawTexture(new Rect(0, 0, W, H), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(0f, 0.02f, 0.05f, 0.5f), 0f, 0f);
-            var r = new Rect(W * 0.5f - 230, Mathf.Max(10f, H * 0.5f - 250), 460, Mathf.Min(500f, H - 20f));
+            float mw = UiLayout.BannerWidth(460f), mh = Mathf.Min(500f, H - 24f);
+            var r = new Rect((W - mw) * 0.5f, Mathf.Max(12f, (H - mh) * 0.5f), mw, mh);
             GUILayout.BeginArea(r, GUI.skin.box);
             GUILayout.Label("Rocket World", UiTheme.Title);
 

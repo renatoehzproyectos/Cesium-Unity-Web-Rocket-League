@@ -93,3 +93,9 @@ The workflow is tuned for speed (~6-8 min instead of ~20): `ProjectSettings/Proj
 first build no longer fails and retries), Unity's single-threaded Brotli pass is disabled and replaced by `tools/compress_build.js`
 (parallel, quality 9, cached by content hash), the Unity Docker image is pre-pulled in the background, and the separate license job is folded in.
 Local builds are uncompressed. If you have a real `ProjectSettings.asset` from the Editor, commit it instead of the minimal one.
+
+## UI layout and memory guard (v2)
+`UiLayout` (scale, safe area, narrow/"compact" mode), `UiTheme` (midnight + cyan palette, styles) and `UiKit` (header, sliders, switches, drag-to-scroll) are shared by every panel.
+The toolbar wraps instead of overlapping; panels are full-screen sheets on narrow screens. The font has no arrows/triangles/dots: use icons or words, never those characters.
+`MemoryGuard` watches the wasm heap and shrinks tile cache, colliders and render scale before the browser refuses to grow it ("memory access out of bounds").
+After such a crash `index.html` shows a recovery screen and the next load starts in safe mode (`?safe=1`, `?safe=0` turns it off).

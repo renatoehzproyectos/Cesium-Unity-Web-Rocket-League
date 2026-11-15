@@ -15,6 +15,13 @@
       var qs = new URLSearchParams(L.search), qAC = qs.get('anticrash'), qLite = qs.get('lite');
       var ac = qAC !== null ? qAC !== '0' : ls('rw_anticrash') !== '0';
       var ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+      // Safe mode: set after a memory crash (see rwCrash below). It is kept in the URL because the game reads its options from the query string.
+      if (qs.get('safe') === '0') ls('rw_safe', '0');
+      if (qs.get('safe') === null && ls('rw_safe') === '1') {
+        qs.set('safe', '1');
+        try { history.replaceState(null, '', L.pathname + '?' + qs.toString() + L.hash); } catch (e) { }
+        L = { pathname: L.pathname, search: '?' + qs.toString(), hash: L.hash, replace: function (u) { location.replace(u); } };
+      }
       var tries = parseInt(ls('rw_boot') || '0', 10) || 0;          // loads that never reached the first frame (cleared by RW_HideLoading)
       if (!inLite && ac && tries >= 2) ls('rw_lite', '1');
       var want = qLite !== null ? qLite === '1' : (ac && (ios || ls('rw_lite') === '1'));
@@ -93,11 +100,22 @@
       font-family: "Segoe UI", "Helvetica Neue", Roboto, Arial, sans-serif; transition: opacity .6s ease; }
     #rw-loading .art { width: min(78vw, 420px); aspect-ratio: 1 / 1; border-radius: 28px; background: url(TemplateData/splash.jpg) center / cover; box-shadow: 0 24px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.08); }
     #rw-loading h1 { margin: 26px 0 4px; font-size: 34px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
-    #rw-loading h1 span { color: #38b6ff; }
+    #rw-loading h1 span { color: #3dd6f5; }
     #rw-loading .sub { font-size: 13px; opacity: .55; letter-spacing: .06em; margin-bottom: 22px; }
     #rw-bar { width: min(70vw, 340px); height: 6px; border-radius: 6px; background: rgba(255,255,255,.12); overflow: hidden; }
-    #rw-bar > div { height: 100%; width: 4%; border-radius: 6px; background: linear-gradient(90deg, #38b6ff, #7fe0ff); transition: width .25s ease; }
+    #rw-bar > div { height: 100%; width: 4%; border-radius: 6px; background: linear-gradient(90deg, #3dd6f5, #8ceaff); transition: width .25s ease; }
     #rw-msg { margin-top: 12px; font-size: 12px; opacity: .5; min-height: 16px; }
+    #rw-crash { display: none; position: fixed; inset: 0; z-index: 10001; align-items: center; justify-content: center; padding: 20px;
+      background: rgba(5,9,16,.82); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); font-family: "Segoe UI", "Helvetica Neue", Roboto, Arial, sans-serif; touch-action: manipulation; }
+    #rw-crash .card { width: min(92vw, 380px); box-sizing: border-box; padding: 26px 22px 20px; border-radius: 22px; text-align: center; color: #eaf2ff;
+      background: linear-gradient(180deg, #14213a 0%, #0c1424 100%); box-shadow: 0 24px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.09); }
+    #rw-crash .ico { width: 46px; height: 46px; margin: 0 auto 12px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 24px; line-height: 1; color: #1b1100; background: #ffb020; }
+    #rw-crash h2 { margin: 0 0 8px; font-size: 20px; }
+    #rw-crash p { margin: 0 0 18px; font-size: 14px; line-height: 1.45; color: #9fb1cc; }
+    #rw-crash button { display: block; width: 100%; min-height: 48px; margin-top: 8px; border: 0; border-radius: 14px; font-weight: 700; font-size: 16px; font-family: inherit; cursor: pointer; color: #04202a; background: #3dd6f5; }
+    #rw-crash button.ghost { color: #eaf2ff; background: rgba(255,255,255,.08); }
+    #rw-crash button:active { transform: scale(.98); }
+    #rw-crash small { display: block; margin-top: 12px; font-size: 11px; color: #6f819c; word-break: break-word; }
     #rw-error { display: none; position: fixed; left: 50%; top: 22px; transform: translateX(-50%); max-width: min(90vw, 560px); z-index: 10000; padding: 12px 18px; border-radius: 12px;
       background: rgba(20,12,16,.92); border: 1px solid rgba(255,90,90,.5); color: #ffd9d9; font: 14px "Segoe UI", Roboto, Arial, sans-serif; text-align: center; }
   </style>
@@ -115,6 +133,16 @@
     <div id="rw-msg">Starting engine…</div>
   </div>
   <div id="rw-error"></div>
+  <div id="rw-crash" role="alertdialog" aria-labelledby="rw-crash-title">
+    <div class="card">
+      <div class="ico">!</div>
+      <h2 id="rw-crash-title">The game ran out of memory</h2>
+      <p>This device couldn't give the game any more memory, so it stopped. Reloading in <b>safe mode</b> uses smaller tile caches, lower resolution and fewer physics colliders.</p>
+      <button id="rw-crash-go" type="button">Reload in safe mode</button>
+      <button id="rw-crash-plain" type="button" class="ghost">Reload as is</button>
+      <small id="rw-crash-info"></small>
+    </div>
+  </div>
 
   <script>
     var buildUrl = "Build";
@@ -140,7 +168,35 @@
       productName: "Rocket World",
       productVersion: "1.0",
       showBanner: function (msg, type) { if (type === "error") showError(msg); else console.warn(msg); },
+      // Unity calls this for fatal runtime errors before it falls back to a raw alert(). Returning true means "handled".
+      errorHandler: function (message) { return rwCrash(String(message)); },
     };
+
+    // ---- crash handling -------------------------------------------------------------------------------------------------------
+    // "memory access out of bounds" / "out of memory" on a phone means the browser would not grow the wasm heap: every later allocation
+    // fails and the game halts. Show a proper screen and remember it, so the next load starts in safe mode (and in the low-memory build).
+    var rwCrashed = false;
+    function rwIsMemoryError(m) { return /memory access out of bounds|out of memory|cannot enlarge memory|array buffer allocation failed|Aborted\(OOM|RangeError: .*(allocation|buffer)/i.test(m || ""); }
+    function rwCrash(m) {
+      if (!rwIsMemoryError(m)) return false;
+      if (rwCrashed) return true;
+      rwCrashed = true;
+      var heap = ""; try { heap = " · heap " + Math.round(window.rwUnity.Module.HEAPU8.length / 1048576) + " MB"; } catch (e) { }
+      try { localStorage.setItem("rw_safe", "1"); localStorage.setItem("rw_boot", "0"); if (localStorage.getItem("rw_anticrash") !== "0") localStorage.setItem("rw_lite", "1"); } catch (e) { }
+      var info = document.getElementById("rw-crash-info");
+      info.textContent = String(m).split("\n")[0].slice(0, 120) + heap;
+      document.getElementById("rw-crash").style.display = "flex";
+      document.getElementById("rw-crash-go").onclick = function () { location.reload(); };
+      document.getElementById("rw-crash-plain").onclick = function () { try { localStorage.setItem("rw_safe", "0"); } catch (e) { } location.reload(); };
+      console.error("[RocketWorld] memory error: " + m + heap);
+      return true;
+    }
+    // Unity's fallback is window.alert(...): swallow it for memory errors (our screen is already up), pass everything else through.
+    (function () {
+      var oa = window.alert;
+      window.alert = function (t) { if (rwIsMemoryError(String(t))) { rwCrash(String(t)); return; } return oa.apply(window, arguments); };
+    })();
+    window.addEventListener("unhandledrejection", function (e) { rwCrash(String(e.reason && (e.reason.message || e.reason))); });
 
     var fill = document.getElementById("rw-fill"), msg = document.getElementById("rw-msg");
     function showError(text) {
@@ -173,7 +229,7 @@
     }
 
     // If startup stalls or throws, say so instead of sitting on the loader forever.
-    window.addEventListener("error", function (e) { console.error(e.message); });
+    window.addEventListener("error", function (e) { console.error(e.message); rwCrash(e.message); });
     setTimeout(function () {
       if (!window.rwUnity && document.getElementById("rw-loading").style.display !== "none" && !problem)
         msg.textContent = "Taking longer than usual… check your connection, or reload the page.";

@@ -62,9 +62,11 @@ namespace RocketWorld
         public float WidgetValue(int i) => i >= 0 && i < 16 ? _slider[i] : 0f;
 
         /// <summary>Analog stick area in pixels (origin bottom-left): a square at the lower left.</summary>
-        public static Rect StickRect { get { float sz = Screen.height * 0.46f, m = Screen.height * 0.04f; return new Rect(m, m, sz, sz); } }
+        public static Rect StickRect { get { float u = DesignHeight, sz = u * 0.46f, m = u * 0.04f; return new Rect(m, m, sz, sz); } }
+        /// <summary>Height the touch layout is designed for: the screen height, or (on screens narrower than 16:9, e.g. a phone held upright) the height of a 16:9 band as wide as the screen.</summary>
+        public static float DesignHeight => Mathf.Max(1f, Mathf.Min(Screen.height, Screen.width * 9f / 16f));
         /// <summary>Second stick of the drone layout (pitch / roll): the same square, mirrored at the lower right.</summary>
-        public static Rect RightStickRect { get { float sz = Screen.height * 0.46f, m = Screen.height * 0.04f; return new Rect(Screen.width - m - sz, m, sz, sz); } }
+        public static Rect RightStickRect { get { float u = DesignHeight, sz = u * 0.46f, m = u * 0.04f; return new Rect(Screen.width - m - sz, m, sz, sz); } }
 
         static Vector2 StickAt(Rect sr, List<Vector2> touches)
         {

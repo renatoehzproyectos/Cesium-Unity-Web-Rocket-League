@@ -14,9 +14,11 @@ namespace RocketWorld
     public class Minimap : MonoBehaviour
     {
         public GameRoot root;
-        public const float Size = 176f;                 // GUI units (the HUD is laid out on a 720 px high canvas)
-        public const float Margin = 16f;
-        public Rect Rect => new Rect(Margin, Margin, Size, Size);
+        /// <summary>Diameter in UI points (smaller on narrow screens, where the toolbar wraps next to it).</summary>
+        public static float Size => UiLayout.Compact ? 128f : 176f;
+        /// <summary>Distance from the top / left edge (notch aware).</summary>
+        public static float Margin => Mathf.Max(UiLayout.Left, UiLayout.Top);
+        public Rect Rect { get { UiLayout.Refresh(); return new Rect(UiLayout.Left + 3f, UiLayout.Top + 3f, Size, Size); } }
 
         const string RotKey = "rw_minimap_rotate";
         const float Height = 600f;                      // camera height above the car; far plane covers terrain below it
@@ -115,7 +117,7 @@ namespace RocketWorld
 
         // ------------------------------------------------------------------------------------------------ IMGUI
 
-        /// <summary>Called from DebugHud.OnGUI (GUI.matrix already scaled to the 720 px canvas).</summary>
+        /// <summary>Called from DebugHud.OnGUI (GUI.matrix already scaled by UiLayout).</summary>
         public void Draw(GUIStyle letter)
         {
             if (_rt == null || !_hasHeading) return;
@@ -132,7 +134,7 @@ namespace RocketWorld
             // drop shadow, map, rim
             GUI.DrawTexture(new Rect(r.x - 5, r.y - 3, Size + 10, Size + 10), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(0, 0, 0, 0.35f), 0f, rad + 5f);
             GUI.DrawTexture(r, _rt, ScaleMode.StretchToFill, false, 0f, Color.white, 0f, rad);
-            GUI.DrawTexture(new Rect(r.x - 2, r.y - 2, Size + 4, Size + 4), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(0.93f, 0.96f, 1f, 0.85f), 3f, rad + 2f);
+            GUI.DrawTexture(new Rect(r.x - 2, r.y - 2, Size + 4, Size + 4), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(UiTheme.Text.r, UiTheme.Text.g, UiTheme.Text.b, 0.80f), 3f, rad + 2f);
 
             // car arrow (always the centre; points up when the map rotates, otherwise follows the heading)
             var m = GUI.matrix;
@@ -148,7 +150,7 @@ namespace RocketWorld
             // north marker on the rim
             float a = (_rotate ? -_heading : 0f) * Mathf.Deg2Rad;
             var n = new Vector2(c.x + Mathf.Sin(a) * (rad - 11f), c.y - Mathf.Cos(a) * (rad - 11f));
-            GUI.DrawTexture(new Rect(n.x - 10, n.y - 10, 20, 20), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(0.04f, 0.07f, 0.11f, 0.92f), 0f, 10f);
+            GUI.DrawTexture(new Rect(n.x - 10, n.y - 10, 20, 20), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(UiTheme.Ink.r, UiTheme.Ink.g, UiTheme.Ink.b, 0.94f), 0f, 10f);
             GUI.Label(new Rect(n.x - 10, n.y - 11, 20, 20), "N", letter);
         }
     }

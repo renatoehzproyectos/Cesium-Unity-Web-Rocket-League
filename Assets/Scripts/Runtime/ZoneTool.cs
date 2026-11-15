@@ -45,8 +45,7 @@ namespace RocketWorld
         public bool Over(Vector2 screenPos)
         {
             if (!Open) return false;
-            float k = Mathf.Clamp(Screen.height / 720f, 1f, 2.5f);
-            return _panel.Contains(new Vector2(screenPos.x / k, (Screen.height - screenPos.y) / k));
+            return _panel.Contains(UiLayout.ToGui(screenPos));
         }
 
         // ------------------------------------------------------------------------------------------------ picking
@@ -161,20 +160,15 @@ namespace RocketWorld
             if (!Open || root == null || geo == null) return;
             GUI.depth = -90;
             GUI.skin = UiTheme.Skin;
-            _k = Mathf.Clamp(Screen.height / 720f, 1f, 2.5f);
             var oldM = GUI.matrix;
-            GUIUtility.ScaleAroundPivot(new Vector2(_k, _k), Vector2.zero);
-            float W = Screen.width / _k, H = Screen.height / _k;
-            _panel = new Rect(Mathf.Max(8f, W - 390f), 70f, Mathf.Min(380f, W - 16f), H - 84f);
-            _wrap ??= new GUIStyle(GUI.skin.label) { wordWrap = true, fontSize = 13 };
-            _small ??= new GUIStyle(GUI.skin.label) { wordWrap = true, fontSize = 12 };
-            _sel1 ??= new GUIStyle(GUI.skin.button) { alignment = TextAnchor.MiddleLeft, fontSize = 14 };
+            UiLayout.Begin();
+            _panel = UiLayout.Panel(400f);
+            _wrap ??= new GUIStyle(GUI.skin.label) { wordWrap = true, fontSize = 14 };
+            _small ??= UiTheme.Muted;
+            _sel1 ??= UiTheme.Row;
 
             GUILayout.BeginArea(_panel, GUI.skin.box);
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Saved zones", UiTheme.Title);
-            if (GUILayout.Button("X", GUILayout.Width(34))) { GUILayout.EndHorizontal(); GUILayout.EndArea(); GUI.matrix = oldM; Close(); return; }
-            GUILayout.EndHorizontal();
+            if (UiKit.Header("Saved zones")) { GUILayout.EndArea(); GUI.matrix = oldM; Close(); return; }
 
             if (!geo.Available)
             {
@@ -183,7 +177,7 @@ namespace RocketWorld
             }
             else
             {
-                _tab = (Tab)GUILayout.Toolbar((int)_tab, new[] { "New zone", "Saved (" + geo.Zones.Count + ")" });
+                _tab = (Tab)GUILayout.Toolbar((int)_tab, new[] { "New zone", "Saved (" + geo.Zones.Count + ")" }, UiTheme.Tab, GUILayout.Height(40));
                 _scroll = GUILayout.BeginScrollView(_scroll);
                 if (_tab == Tab.New) DrawNew(); else DrawSaved();
                 GUILayout.Space(8);
@@ -192,6 +186,7 @@ namespace RocketWorld
             }
             if (Time.unscaledTime < _toastUntil) GUILayout.Label(_toast, _wrap);
             GUILayout.EndArea();
+            UiKit.TouchScroll(_panel, ref _scroll);
             GUI.matrix = oldM;
         }
 
@@ -199,8 +194,8 @@ namespace RocketWorld
         {
             GUILayout.Label("Click the ground to place the centre of the zone, then set the radius. The circle follows the surface.", _wrap);
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Lat", GUILayout.Width(28)); string la = GUILayout.TextField(_latS, GUILayout.MinWidth(70));
-            GUILayout.Label("Lon", GUILayout.Width(28)); string lo = GUILayout.TextField(_lonS, GUILayout.MinWidth(70));
+            GUILayout.Label("Lat", GUILayout.Width(30)); string la = GUILayout.TextField(_latS, GUILayout.MinWidth(60), GUILayout.Height(38));
+            GUILayout.Label("Lon", GUILayout.Width(32)); string lo = GUILayout.TextField(_lonS, GUILayout.MinWidth(60), GUILayout.Height(38));
             GUILayout.EndHorizontal();
             if (la != _latS || lo != _lonS)
             {
@@ -214,12 +209,12 @@ namespace RocketWorld
             GUILayout.Label("Radius " + GeoZoneMath.FormatRadius(r));
             _radiusT = GUILayout.HorizontalSlider(_radiusT, 0f, 1f);
             GUILayout.Label("Detail to store");
-            _detail = GUILayout.Toolbar(_detail, DetailNames);
+            _detail = GUILayout.Toolbar(_detail, DetailNames, UiTheme.Tab, GUILayout.Height(38));
             GUILayout.Label(_detail == 0 ? "Coarse tiles only: small download." : _detail == 1 ? "Enough for driving at normal speed." : "Finest tiles: much more data, use small radii.", _small);
             GUILayout.Label("Name");
             _name = GUILayout.TextField(_name, 60);
             GUI.enabled = _hasCenter && !_saving;
-            if (GUILayout.Button(_saving ? "Saving…" : "Save zone", GUILayout.Height(34))) StartCoroutine(SaveRoutine());
+            if (GUILayout.Button(_saving ? "Saving..." : "Save zone", UiTheme.Primary, GUILayout.Height(42))) StartCoroutine(SaveRoutine());
             GUI.enabled = true;
         }
 
@@ -244,7 +239,7 @@ namespace RocketWorld
             {
                 bool sel = z.id == _sel;
                 GUILayout.BeginVertical(GUI.skin.box);
-                if (GUILayout.Button((sel ? "● " : "○ ") + z.name + "   " + GeoZoneMath.FormatRadius(z.radius), _sel1)) { Select(z); }
+                if (GUILayout.Button(z.name + "   " + GeoZoneMath.FormatRadius(z.radius), sel ? UiTheme.RowOn : UiTheme.Row, GUILayout.Height(40))) { Select(z); }
                 geo.Active.TryGetValue(z.id, out var pr); bool busy = geo.Active.ContainsKey(z.id);
                 string line = busy ? (pr.phase == "planning" ? "Finding tiles…" : "Downloading " + pr.done + "/" + pr.total + "  " + GeoZoneMath.FormatBytes(pr.bytes))
                                    : GeoZoneMath.StateLabel(z.state, z.liveOnly, z.stored, z.expected) + "  ·  " + GeoZoneMath.FormatBytes(z.bytes);
@@ -265,7 +260,7 @@ namespace RocketWorld
                     GUILayout.BeginHorizontal();
                     if (busy) { if (GUILayout.Button("Cancel")) geo.Cancel(z.id); }
                     else if (GUILayout.Button(z.state == "ready" ? "Update data" : "Download missing")) geo.Sync(z.id, z.state == "ready");
-                    if (_confirmDelete == z.id) { if (GUILayout.Button("Confirm delete")) { geo.Remove(z.id); _sel = null; _confirmDelete = null; } }
+                    if (_confirmDelete == z.id) { if (GUILayout.Button("Confirm delete", UiTheme.DangerBtn)) { geo.Remove(z.id); _sel = null; _confirmDelete = null; } }
                     else if (GUILayout.Button("Delete")) _confirmDelete = z.id;
                     GUILayout.EndHorizontal();
                     if (_confirmDelete == z.id) GUILayout.Label("Tiles shared with other zones are kept.", _small);
@@ -285,12 +280,12 @@ namespace RocketWorld
             GUILayout.Label("Stored: " + geo.StoredTiles + " tiles, " + GeoZoneMath.FormatBytes(geo.StoredBytes)
                 + (geo.QuotaBytes > 0 ? " of " + GeoZoneMath.FormatBytes(geo.QuotaBytes) + " available" : "")
                 + "\nServed from the store this session: " + geo.Stats.hits + " requests (" + GeoZoneMath.FormatBytes(geo.Stats.bytesCache) + "). Downloaded: " + GeoZoneMath.FormatBytes(geo.Stats.bytesNet) + ".", _small);
-            bool allow = GUILayout.Toggle(geo.AllowRestricted, "Keep Google tiles beyond their HTTP cache lifetime and prefetch them");
+            bool allow = UiKit.Toggle(geo.AllowRestricted, "Keep Google tiles beyond their HTTP cache lifetime and prefetch them");
             if (allow != geo.AllowRestricted) geo.SetAllowRestricted(allow);
             GUILayout.Label(geo.AllowRestricted
                 ? "ON: only use this if your Google Maps Platform agreement allows storing Photorealistic 3D Tiles."
                 : "OFF (default): Google's terms allow keeping its tiles only as long as the HTTP cache headers say, and no prefetching. Zones then keep OpenStreetMap water tiles for good and reuse Google tiles while they are fresh.", _small);
-            if (_confirmClear) { if (GUILayout.Button("Confirm: delete ALL zones and stored tiles")) { geo.ClearAll(); _confirmClear = false; _sel = null; } }
+            if (_confirmClear) { if (GUILayout.Button("Confirm: delete ALL zones and stored tiles", UiTheme.DangerBtn)) { geo.ClearAll(); _confirmClear = false; _sel = null; } }
             else if (GUILayout.Button("Clear everything")) _confirmClear = true;
         }
 

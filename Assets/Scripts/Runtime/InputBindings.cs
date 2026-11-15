@@ -163,7 +163,7 @@ namespace RocketWorld
             if (string.IsNullOrEmpty(key)) return "—";
             switch (key)
             {
-                case "UpArrow": return "↑"; case "DownArrow": return "↓"; case "LeftArrow": return "←"; case "RightArrow": return "→";
+                case "UpArrow": return "Up"; case "DownArrow": return "Down"; case "LeftArrow": return "Left"; case "RightArrow": return "Right";
                 case "LeftShift": return "L-Shift"; case "RightShift": return "R-Shift";
                 case "LeftCtrl": case "LeftControl": return "L-Ctrl"; case "RightCtrl": case "RightControl": return "R-Ctrl";
                 case "LeftAlt": return "L-Alt"; case "RightAlt": return "R-Alt";
@@ -182,10 +182,10 @@ namespace RocketWorld
             switch (p)
             {
                 case PadInput.None: return "—";
-                case PadInput.ButtonSouth: return "A / ✕";
-                case PadInput.ButtonEast: return "B / ○";
-                case PadInput.ButtonWest: return "X / □";
-                case PadInput.ButtonNorth: return "Y / △";
+                case PadInput.ButtonSouth: return "A / Cross";
+                case PadInput.ButtonEast: return "B / Circle";
+                case PadInput.ButtonWest: return "X / Square";
+                case PadInput.ButtonNorth: return "Y / Triangle";
                 case PadInput.LeftShoulder: return "LB / L1";
                 case PadInput.RightShoulder: return "RB / R1";
                 case PadInput.LeftTrigger: return "LT / L2";
@@ -194,12 +194,12 @@ namespace RocketWorld
                 case PadInput.RightStickPress: return "R3";
                 case PadInput.Start: return "Start";
                 case PadInput.Select: return "Back / Select";
-                case PadInput.DpadUp: return "D-pad ↑"; case PadInput.DpadDown: return "D-pad ↓";
-                case PadInput.DpadLeft: return "D-pad ←"; case PadInput.DpadRight: return "D-pad →";
-                case PadInput.LeftStickUp: return "L-stick ↑"; case PadInput.LeftStickDown: return "L-stick ↓";
-                case PadInput.LeftStickLeft: return "L-stick ←"; case PadInput.LeftStickRight: return "L-stick →";
-                case PadInput.RightStickUp: return "R-stick ↑"; case PadInput.RightStickDown: return "R-stick ↓";
-                case PadInput.RightStickLeft: return "R-stick ←"; default: return "R-stick →";
+                case PadInput.DpadUp: return "D-pad Up"; case PadInput.DpadDown: return "D-pad Down";
+                case PadInput.DpadLeft: return "D-pad Left"; case PadInput.DpadRight: return "D-pad Right";
+                case PadInput.LeftStickUp: return "L-stick Up"; case PadInput.LeftStickDown: return "L-stick Down";
+                case PadInput.LeftStickLeft: return "L-stick Left"; case PadInput.LeftStickRight: return "L-stick Right";
+                case PadInput.RightStickUp: return "R-stick Up"; case PadInput.RightStickDown: return "R-stick Down";
+                case PadInput.RightStickLeft: return "R-stick Left"; default: return "R-stick Right";
             }
         }
     }

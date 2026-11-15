@@ -256,9 +256,8 @@ namespace RocketWorld
                 _big = new GUIStyle(_osd) { fontSize = 26 };
             }
             var oldMatrix = GUI.matrix;
-            float k = Mathf.Clamp(Screen.height / 720f, 1f, 2.5f);
-            GUIUtility.ScaleAroundPivot(new Vector2(k, k), Vector2.zero);
-            float W = Screen.width / k, H = Screen.height / k;
+            UiLayout.Begin();
+            float W = UiLayout.W, H = UiLayout.H;
             var s = _sim.s;
             FpvSim.Attitude(s, out double roll, out double pitch, out double yaw);
             double volts = s[FpvS.volt], cell = volts / _prm.cells;
@@ -270,13 +269,13 @@ namespace RocketWorld
             {
                 _osdS ??= new GUIStyle(_osd) { fontSize = 14 };
                 string shortLine = $"{FpvModes.Name(Mode)} · {arm} · {SpeedMs * 3.6f:0} km/h · AGL {(HeightAgl >= 0 ? HeightAgl.ToString("0") + " m" : "--")} · BAT {s[FpvS.soc] * 100:0}%";
-                Outline(new Rect(W * 0.5f - 190, 68, 380, 24), shortLine, _osdS, cc);
+                { float lw = UiLayout.BannerWidth(420f); Outline(new Rect((W - lw) * 0.5f, UiLayout.TopBlockBottom + UiLayout.ExtraTop, lw, 24), shortLine, _osdS, cc); }
             }
             else Outline(new Rect(W * 0.5f - 420, H - 54, 840, 28), line, _osd, cc);
             if (_sim.washNow > 0.25) Outline(new Rect(W * 0.5f - 200, H * 0.30f, 400, 32), "PROP WASH", _big, new Color(1f, 0.6f, 0.15f));
-            if (!string.IsNullOrEmpty(Status)) Outline(new Rect(W * 0.5f - 400, H * 0.40f, 800, 40), Status, _big, Color.white);
+            if (!string.IsNullOrEmpty(Status)) { float sw = UiLayout.BannerWidth(800f); Outline(new Rect((W - sw) * 0.5f, H * 0.40f, sw, 40), Status, _big, Color.white); }
             if (!_sim.Armed && !_sim.Crashed && touch)
-                Outline(new Rect(W * 0.5f - 300, H * 0.28f, 600, 24), "Left stick: ↕ throttle (stays) · ↔ yaw   |   Right stick: pitch / roll   |   tap ARM", _osdS, new Color(1, 1, 1, 0.8f));
+                { float hw = UiLayout.BannerWidth(600f); Outline(new Rect((W - hw) * 0.5f, H * 0.28f, hw, 24), UiLayout.Compact ? "Left: throttle / yaw   Right: pitch / roll   Tap ARM" : "Left stick: up/down throttle (stays), left/right yaw   |   Right stick: pitch / roll   |   tap ARM", _osdS, new Color(1, 1, 1, 0.8f)); }
             else if (!_sim.Armed && !_sim.Crashed)
                 Outline(new Rect(W * 0.5f - 460, H - 90, 920, 24), "W/S throttle · A/D yaw · arrows pitch/roll · Space arm · M mode · G drone · -/= cam tilt · C camera · R reset · K exit   |   pad: sticks (Mode 2), A arm", _osd, new Color(1, 1, 1, 0.75f));
             GUI.matrix = oldMatrix;

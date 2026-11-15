@@ -15,6 +15,9 @@ namespace RocketWorld
         [DllImport("__Internal")] static extern int RW_AntiCrashSync(int pref);
         [DllImport("__Internal")] static extern void RW_SetAntiCrash(int on);
         [DllImport("__Internal")] static extern int RW_IsLiteBuild();
+        [DllImport("__Internal")] static extern int RW_HeapMB();
+        /// <summary>Current wasm heap size in MB (0 when unknown).</summary>
+        public static int HeapMB() => RW_HeapMB();
         /// <summary>Anti crash flag as stored in the browser (shared by the main and /lite/ builds); seeds it from <paramref name="pref"/> the first time.</summary>
         public static bool AntiCrashSync(bool pref) => RW_AntiCrashSync(pref ? 1 : 0) == 1;
         public static void SetAntiCrash(bool on) => RW_SetAntiCrash(on ? 1 : 0);
@@ -31,6 +34,7 @@ namespace RocketWorld
         public static bool AntiCrashSync(bool pref) => pref;
         public static void SetAntiCrash(bool on) { }
         public static bool IsLiteBuild() => false;
+        public static int HeapMB() => 0;
         public static string Query(string name) => System.Environment.GetEnvironmentVariable("RW_" + name.ToUpperInvariant()) ?? "";
         public static string Prompt(string message, string def) => def;   // Editor/desktop: use the RW_KEY env var
         public static string BaseUrl() => "http://localhost/";

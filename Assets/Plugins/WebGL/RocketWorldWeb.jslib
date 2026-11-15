@@ -41,6 +41,9 @@ mergeInto(LibraryManager.library, {
   },
   RW_SetAntiCrash: function (on) { try { localStorage.setItem('rw_anticrash', on ? '1' : '0'); } catch (e) {} },
   RW_IsLiteBuild: function () { return window.rwLite ? 1 : 0; },
+  // Size in MB of the wasm heap right now (it only grows). Used by MemoryGuard to back off before the browser refuses to grow it
+  // (an allocation that fails shows up as "RuntimeError: memory access out of bounds").
+  RW_HeapMB: function () { try { return (HEAPU8.length / 1048576) | 0; } catch (e) { return 0; } },
   RW_HideLoading: function () {
     try { localStorage.setItem('rw_boot', '0'); } catch (e) {}   // first frame reached: this load did not crash
     try { var l = document.getElementById('rw-loading'); if (l) { l.style.opacity = '0'; setTimeout(function () { l.style.display = 'none'; }, 500); } } catch (e) {}

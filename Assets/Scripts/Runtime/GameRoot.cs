@@ -74,7 +74,11 @@ namespace RocketWorld
         /// <summary>SSE for tiles outside the view (coarse but present, so there are no holes). Lower = sharper behind/beside you, more bandwidth.</summary>
         public const float CulledSse = 128f;
         bool _turbo; float _turboStart, _turboStep, _turboCur = TurboSse;
-        public float EffectiveScale => Mathf.Clamp(antiScale >= 0f ? antiScale : settings.renderScale * autoScaleMul, 0.3f, 2f);
+        public float EffectiveScale => Mathf.Clamp((antiScale >= 0f ? antiScale : settings.renderScale * autoScaleMul) * memScaleMul, 0.3f, DeviceProfile.MaxRenderScale);
+        // MemoryGuard: 0 = fine, 3 = heap close to what the browser will give us (see MemoryGuardLogic for what each level does)
+        public float memScaleMul = 1f;
+        public int memLevel;
+        public MemoryGuard memGuard;
         /// <summary>Radius loaded at full detail round a car. With view-driven streaming only the physics ring: the rest follows the camera.</summary>
         public float EffectiveRadius => settings.viewCull && viewPolicy != null ? Mathf.Min(settings.loadRadius, viewPolicy.Ring) : settings.loadRadius * autoFarMul * RadiusMul;
         public TileViewPolicy viewPolicy;
@@ -110,7 +114,8 @@ namespace RocketWorld
             PhysicsSetup.Apply();
             // Sharp ground at grazing angles (driving): without anisotropic filtering the road/terrain smears into blur a few metres ahead.
             QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
-            Texture.SetGlobalAnisotropicFilteringLimits(DeviceProfile.IsMobile ? 8 : 16, DeviceProfile.IsMobile ? 8 : 16);
+            DeviceProfile.Load();
+            Texture.SetGlobalAnisotropicFilteringLimits(DeviceProfile.IsMobile ? 4 : 16, DeviceProfile.IsMobile ? 4 : 16);
             Application.runInBackground = false;                      // hidden tab: stop streaming/rendering (battery, bandwidth)
             settings = GameSettings.Load();
             CamTuning.LoadSaved();                                    // Camera menu: last saved offsets / follow delay / axis mode
@@ -144,6 +149,8 @@ namespace RocketWorld
             autoQuality.root = this; autoQuality.enabledByUser = settings.autoQuality;
             antiCrash = gameObject.AddComponent<AntiCrash>();
             antiCrash.root = this;
+            memGuard = gameObject.AddComponent<MemoryGuard>();
+            memGuard.root = this;
             benchmark = gameObject.AddComponent<BenchmarkRunner>();
             benchmark.root = this;
             cinematic = gameObject.AddComponent<CinematicFx>();
@@ -258,12 +265,12 @@ namespace RocketWorld
                 tileset.enforceCulledScreenSpaceError = true;
                 tileset.culledScreenSpaceError = CulledSse;
                 tileset.maximumSimultaneousTileLoads = DeviceProfile.SimultaneousLoads;
-                tileset.loadingDescendantLimit = 120;       // let many visible tiles refine in parallel
+                tileset.loadingDescendantLimit = DeviceProfile.DescendantLimit;       // let visible tiles refine in parallel (far fewer on phones: each one in flight holds decoded images)
                 // Optional tuning: set by reflection so a property that differs in this Cesium version cannot break the build.
                 TrySetTileset("preloadSiblings", false);    // siblings are mostly outside the view
                 TrySetTileset("enableFoveatedRendering", false);   // foveation blurs everything off-centre: terrain should be sharp edge to edge
                 _turbo = true; _turboStart = _turboStep = Time.unscaledTime; _turboCur = TurboSse;
-                tileset.maximumCachedBytes = DeviceProfile.TileCacheBytes;   // WebGL heap is limited: sized from the device
+                tileset.maximumCachedBytes = (long)(DeviceProfile.TileCacheBytes * MemoryGuardLogic.CacheMul(memLevel));   // WebGL heap is limited: sized from the device
                 tileset.maximumScreenSpaceError = EffectiveSse;
                 _appliedSse = EffectiveSse;
                 if (tileLog != null) tileLog.Begin(tileset);
@@ -272,6 +279,8 @@ namespace RocketWorld
                 budget.tileset = tileset;
                 budget.focus = car;
                 budget.extraFoci = extraFoci;
+                budget.addRadius = DeviceProfile.ColliderAddRadius; budget.removeRadius = DeviceProfile.ColliderRemoveRadius; budget.burstAddsWhileWaiting = DeviceProfile.ColliderBurst;
+                budget.radiusMul = MemoryGuardLogic.ColliderMul(memLevel);
                 go.SetActive(true);
             }
             if (_ground != null) { Destroy(_ground.gameObject); _ground = null; }
@@ -422,6 +431,17 @@ namespace RocketWorld
         }
 
         public void SaveSettings() { settings.Save(); }
+
+        /// <summary>MemoryGuard callback: shrink the tile cache, the collider ring and the render scale for this level (0 restores everything).</summary>
+        public void ApplyMemoryLevel(int level)
+        {
+            memLevel = level;
+            memScaleMul = MemoryGuardLogic.ScaleMul(level);
+            if (tileset != null) tileset.maximumCachedBytes = (long)(DeviceProfile.TileCacheBytes * MemoryGuardLogic.CacheMul(level));
+            if (budget != null) budget.radiusMul = MemoryGuardLogic.ColliderMul(level);
+            if (hud != null && level >= 2) hud.ShowToast("Low memory: reducing detail to keep the game running");
+            ApplyLive();
+        }
 
         // ---- look ------------------------------------------------------------------------------------------
 

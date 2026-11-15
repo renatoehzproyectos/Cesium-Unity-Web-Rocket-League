@@ -50,7 +50,8 @@ namespace RocketWorld
             int wn = wp.Count;
 
             // adjacency (CSR, duplicates are harmless) over all submeshes
-            var triAll = new List<int>(src.triangles.Length);
+            int triCap = 0; for (int s = 0; s < src.subMeshCount; s++) triCap += (int)src.GetIndexCount(s);   // (src.triangles would allocate a full copy per tile)
+            var triAll = new List<int>(triCap);
             for (int s = 0; s < src.subMeshCount; s++)
             {
                 if (src.GetTopology(s) != MeshTopology.Triangles) continue;

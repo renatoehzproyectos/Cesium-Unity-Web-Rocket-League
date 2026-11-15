@@ -27,12 +27,12 @@ namespace RocketWorld
         const WidgetKind H = WidgetKind.Hold, T = WidgetKind.Tap, L = WidgetKind.Latch;
         static readonly TouchWidget Throttle = new TouchWidget("throttle", "THROTTLE", WidgetKind.SliderSticky, 0.925f, 0.06f, 0.07f, 0.60f);
         static readonly TouchWidget Collective = new TouchWidget("vert", "COLLECTIVE", WidgetKind.SliderSpring, 0.925f, 0.06f, 0.07f, 0.60f);
-        static readonly TouchWidget Rudder = new TouchWidget("rudder", "RUDDER  ◀  ▶", WidgetKind.SliderH, 0.40f, 0.04f, 0.24f, 0.13f);
+        static readonly TouchWidget Rudder = new TouchWidget("rudder", "RUDDER   L  |  R", WidgetKind.SliderH, 0.40f, 0.04f, 0.24f, 0.13f);
 
         static readonly TouchWidget[] Car =
         {
             new TouchWidget("jump", "JUMP", H, 0.80f, 0.05f, 0.17f, 0.20f), new TouchWidget("boost", "BOOST", H, 0.80f, 0.27f, 0.17f, 0.20f),
-            new TouchWidget("rollL", "ROLL ◀", H, 0.61f, 0.05f, 0.17f, 0.20f), new TouchWidget("rollR", "ROLL ▶", H, 0.61f, 0.27f, 0.17f, 0.20f),
+            new TouchWidget("rollL", "ROLL L", H, 0.61f, 0.05f, 0.17f, 0.20f), new TouchWidget("rollR", "ROLL R", H, 0.61f, 0.27f, 0.17f, 0.20f),
             new TouchWidget("hyper", "HYPER ×6", L, 0.61f, 0.49f, 0.36f, 0.15f),
         };
         static readonly TouchWidget[] Cessna =
@@ -48,7 +48,7 @@ namespace RocketWorld
         static readonly TouchWidget[] Vtol =
         {
             Throttle, Rudder,
-            new TouchWidget("up", "LIFT ▲", H, 0.80f, 0.46f, 0.11f, 0.16f), new TouchWidget("down", "LIFT ▼", H, 0.80f, 0.27f, 0.11f, 0.16f),
+            new TouchWidget("up", "LIFT UP", H, 0.80f, 0.46f, 0.11f, 0.16f), new TouchWidget("down", "LIFT DOWN", H, 0.80f, 0.27f, 0.11f, 0.16f),
             new TouchWidget("boost", "AFTER-\nBURNER", H, 0.80f, 0.08f, 0.11f, 0.16f), new TouchWidget("mode", "VTOL", T, 0.67f, 0.46f, 0.11f, 0.16f),
             new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.27f, 0.11f, 0.16f), new TouchWidget("brake", "BRAKE", H, 0.67f, 0.08f, 0.11f, 0.16f),
         };
@@ -58,7 +58,7 @@ namespace RocketWorld
         };
         static readonly TouchWidget[] DeLorean =
         {
-            new TouchWidget("up", "UP ▲", H, 0.80f, 0.46f, 0.11f, 0.16f), new TouchWidget("down", "DOWN ▼", H, 0.80f, 0.27f, 0.11f, 0.16f),
+            new TouchWidget("up", "UP", H, 0.80f, 0.46f, 0.11f, 0.16f), new TouchWidget("down", "DOWN", H, 0.80f, 0.27f, 0.11f, 0.16f),
             new TouchWidget("boost", "BOOST", H, 0.80f, 0.08f, 0.11f, 0.16f), new TouchWidget("mode", "HOVER", T, 0.67f, 0.46f, 0.11f, 0.16f),
             new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.27f, 0.11f, 0.16f), new TouchWidget("brake", "BRAKE", H, 0.67f, 0.08f, 0.11f, 0.16f),
         };
@@ -71,21 +71,40 @@ namespace RocketWorld
             int w = Mathf.Max(1, Screen.width), h = Mathf.Max(1, Screen.height);
             if (_drone != null && w == _droneW && h == _droneH) return _drone;
             _droneW = w; _droneH = h;
-            float sz = h * 0.46f, m = h * 0.04f;
+            float u = CarInput.DesignHeight, band = u / h;
+            float sz = u * 0.46f, m = u * 0.04f;
             float x0 = (m + sz) / w + 0.012f, x1 = 1f - x0;                       // free band between the two sticks
             float gap = 0.010f, cw = Mathf.Clamp((x1 - x0 - 2f * gap) / 3f, 0.06f, 0.14f);
             float cx = 0.5f - (cw * 3f + gap * 2f) * 0.5f, c1 = cx + cw + gap, c2 = c1 + cw + gap;
-            const float r0 = 0.05f, r1 = 0.24f, r2 = 0.43f, bh = 0.17f, th = 0.12f;
+            float r0 = 0.05f * band, r1 = 0.24f * band, r2 = 0.43f * band, bh = 0.17f * band, th = 0.12f * band;
             _drone = new[]
             {
                 new TouchWidget("arm", "ARM", T, cx, r0, cw, bh), new TouchWidget("mode", "MODE", T, c1, r0, cw, bh), new TouchWidget("reset", "RESET", T, c2, r0, cw, bh),
                 new TouchWidget("cam", "CAM", T, cx, r1, cw, bh), new TouchWidget("gear", "DRONE", T, c1, r1, cw, bh), new TouchWidget("exit", "EXIT", T, c2, r1, cw, bh),
-                new TouchWidget("tiltUp", "TILT ▲", T, cx, r2, cw, th), new TouchWidget("tiltDown", "TILT ▼", T, c1, r2, cw, th),
+                new TouchWidget("tiltUp", "TILT UP", T, cx, r2, cw, th), new TouchWidget("tiltDown", "TILT DOWN", T, c1, r2, cw, th),
             };
             return _drone;
         }
 
+        // Narrow screens (phone held upright): the landscape layout is squeezed into a 16:9 band along the bottom, as wide as the screen,
+        // instead of being stretched over the whole tall screen (which made huge tall buttons).
+        static TouchWidget[] _band; static TouchProfile _bandFor = (TouchProfile)(-1); static int _bandW, _bandH;
+
         public static TouchWidget[] For(TouchProfile p)
+        {
+            var raw = Raw(p);
+            if (p == TouchProfile.Drone) return raw;
+            int w = Mathf.Max(1, Screen.width), h = Mathf.Max(1, Screen.height);
+            float band = CarInput.DesignHeight / h;
+            if (band >= 0.999f) return raw;
+            if (_band != null && _bandFor == p && _bandW == w && _bandH == h) return _band;
+            var m = new TouchWidget[raw.Length];
+            for (int i = 0; i < raw.Length; i++) { var z = raw[i].zone; m[i] = new TouchWidget(raw[i].id, raw[i].label, raw[i].kind, z.x, z.y * band, z.width, z.height * band); }
+            _band = m; _bandFor = p; _bandW = w; _bandH = h;
+            return m;
+        }
+
+        static TouchWidget[] Raw(TouchProfile p)
         {
             switch (p)
             {
