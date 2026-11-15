@@ -1,26 +1,17 @@
 /*
- * Rocket World - geographic tile store, service worker. All the logic lives in rw-geocache.js (shared with the page and the tests).
- * It only touches GET requests to the tile hosts listed in RWGeo.cfg.hosts; everything else goes straight to the browser untouched.
- * Registered by index.html with the scope of the build (/ for the main player, /lite/ for the low-memory one). Both share one IndexedDB.
+ * Clean-up stub. An earlier build registered a tile-caching service worker at this URL; that feature was reverted.
+ * Browsers keep an old service worker alive when its script disappears, so this file replaces it with one that
+ * deletes its IndexedDB store and unregisters itself. Nothing registers it any more: it only runs on devices that
+ * still have the old worker. Safe to delete (together with its header rule in vercel.json) after a few weeks.
  */
-importScripts('rw-geocache.js');
-var SW_VERSION = 1;
-
 self.addEventListener('install', function () { self.skipWaiting(); });
-self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });   // control the page that registered us, no reload needed
-RWGeo.initChannel();
-
-self.addEventListener('fetch', function (e) {
-  var r = e.request;
-  if (r.method !== 'GET' || !RWGeo.classOf(r.url)) return;
-  // If the store itself fails (IndexedDB blocked, quota...) the tile still arrives, straight from the network.
-  e.respondWith(RWGeo.handleFetch(r).catch(function () { return fetch(r); }));
+self.addEventListener('activate', function (e) {
+  e.waitUntil((async function () {
+    try { indexedDB.deleteDatabase('rw-geocache'); } catch (err) { }
+    try { var ks = await caches.keys(); await Promise.all(ks.filter(function (k) { return /rw-geocache/.test(k); }).map(function (k) { return caches.delete(k); })); } catch (err) { }
+    await self.registration.unregister();
+    var cs = await self.clients.matchAll({ type: 'window' });
+    cs.forEach(function (c) { try { c.navigate(c.url); } catch (err) { } });     // reload so the page is no longer controlled
+  })());
 });
-
-self.addEventListener('message', function (e) {
-  var port = e.ports && e.ports[0];
-  if (!port) return;
-  e.waitUntil(RWGeo.handleMessage(e.data).then(
-    function (v) { port.postMessage({ ok: true, value: v }); },
-    function (err) { port.postMessage({ ok: false, error: String((err && err.message) || err) }); }));
-});
+// no fetch handler: every request goes straight to the network

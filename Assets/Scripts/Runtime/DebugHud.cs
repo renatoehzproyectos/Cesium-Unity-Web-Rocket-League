@@ -59,7 +59,6 @@ namespace RocketWorld
             else if (ci != null ? ci.SettingsPressed : OrbitCamera.SettingsKeyPressed())
             {
                 if (root.camMenu != null && root.camMenu.Open) root.camMenu.Close();
-                else if (root.zones != null && root.zones.Open) root.zones.Close();
                 else if (ci != null && ci.MenuFromPad && !_open) SetControlsOpen(true);   // gamepad menu button: the pad-navigable screen
                 else SetOpen(!_open);
             }
@@ -81,7 +80,6 @@ namespace RocketWorld
                 _vehOpen = false;
                 if (_ctlOpen) SetControlsOpen(false);
                 if (root.camMenu != null) root.camMenu.Close();
-                if (root.zones != null) root.zones.Close();
             }
             _open = open;
         }
@@ -93,7 +91,6 @@ namespace RocketWorld
             var p = UiLayout.ToGui(screenPos);
             if (root.carInput != null && root.carInput.TouchControlsActive && CarInput.OverTouchZone(screenPos)) return true;
             if (root.camMenu != null && root.camMenu.Over(screenPos)) return true;
-            if (root.zones != null && root.zones.Over(screenPos)) return true;
             for (int i = 0; i < _hit.Count; i++) if (_hit[i].Contains(p)) return true;
             if (root.minimap != null && root.minimap.Rect.Contains(p)) return true;
             return (_vehOpen && _vehRect.Contains(p)) || (_ctlOpen && _ctlPanel.Contains(p)) || (_open && _panel.Contains(p)) || (_reportOpen && _report.Contains(p));
@@ -151,7 +148,6 @@ namespace RocketWorld
             {
                 if (_open) SetOpen(false);
                 if (_ctlOpen) SetControlsOpen(false);
-                if (root.zones != null) root.zones.Close();
                 _vehOpen = false;
                 root.camMenu.Toggle();
             }
@@ -165,14 +161,6 @@ namespace RocketWorld
                 GUI.color = old;
             }
             if (GUI.Button(Slot(TextW("Ball", 56f, 22f)), "Ball", UiTheme.Chip)) root.RequestBall();
-            if (GUI.Button(Slot(TextW("Zones", 60f, 22f)), "Zones", UiTheme.Chip) && root.zones != null)
-            {
-                if (_open) SetOpen(false);
-                if (_ctlOpen) SetControlsOpen(false);
-                if (root.camMenu != null) root.camMenu.Close();
-                _vehOpen = false;
-                root.zones.Toggle();
-            }
             if (GUI.Button(Slot(TextW("Controls", 76f, 22f)), "Controls", UiTheme.Chip)) { _vehOpen = false; SetControlsOpen(!_ctlOpen); }
             DrawBotControls();
             for (int i = 0; i < Extra.Count; i++)
@@ -355,8 +343,8 @@ namespace RocketWorld
             bool running = root.carCtl.CurrentPhase == RocketCar.Phase.Running;
             if (running && _runStart < 0f) _runStart = Time.unscaledTime;
             bool touch = root.carInput != null && root.carInput.TouchControlsActive;
-            bool camOpen = root.camMenu != null && root.camMenu.Open, zonesOpen = root.zones != null && root.zones.Open;
-            bool sheet = UiLayout.Compact && (_open || _ctlOpen || camOpen || zonesOpen);     // full-screen panels hide everything under them
+            bool camOpen = root.camMenu != null && root.camMenu.Open;
+            bool sheet = UiLayout.Compact && (_open || _ctlOpen || camOpen);     // full-screen panels hide everything under them
 
             if (Event.current.type == EventType.Repaint)
                 GUI.DrawTexture(new Rect(0, 0, W, H), UiTheme.Vignette, ScaleMode.StretchToFill, true);
@@ -535,7 +523,6 @@ namespace RocketWorld
             if (open == _ctlOpen) return;
             if (open && _open) SetOpen(false);
             if (open && root.camMenu != null) root.camMenu.Close();
-            if (open && root.zones != null) root.zones.Close();
             _ctlOpen = open;
             _listenAction = -1;
             if (!open && root.carInput != null) root.carInput.bindings.Save();
@@ -706,7 +693,18 @@ namespace RocketWorld
 
                 float gh = root.settings.groundHeight;
                 _searchStatus = "Looking up elevation...";
-                yield return ElevationLookup.Get(lat, lon, gh, v => gh = v);
+                string elevUrl = string.Format(CultureInfo.InvariantCulture,
+                    "https://api.open-meteo.com/v1/elevation?latitude={0:0.#####}&longitude={1:0.#####}", lat, lon);
+                using (var elevReq = UnityWebRequest.Get(elevUrl))
+                {
+                    yield return elevReq.SendWebRequest();
+                    if (elevReq.result == UnityWebRequest.Result.Success)
+                    {
+                        var elev = JsonUtility.FromJson<ElevationResponse>(elevReq.downloadHandler.text);
+                        if (elev != null && elev.elevation != null && elev.elevation.Length > 0)
+                            gh = elev.elevation[0];
+                    }
+                }
 
                 string name = string.IsNullOrEmpty(hit.display_name) ? query : hit.display_name;
                 if (name.Length > 60) name = name.Substring(0, 57) + "...";
@@ -717,6 +715,7 @@ namespace RocketWorld
             _searching = false;
         }
 
+        [System.Serializable] class ElevationResponse { public float[] elevation; }
         [System.Serializable] class NominatimList { public NominatimItem[] items; }
         [System.Serializable] class NominatimItem { public string lat; public string lon; public string display_name; }
 

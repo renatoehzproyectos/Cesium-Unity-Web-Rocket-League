@@ -22,7 +22,7 @@
       ]
     },
     {
-      "source": "/TemplateData/rw-geocache(.*)\\.js",
+      "source": "/TemplateData/rw-geocache-sw.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -35,7 +35,7 @@
       ]
     },
     {
-      "source": "/lite/TemplateData/rw-geocache(.*)\\.js",
+      "source": "/lite/TemplateData/rw-geocache-sw.js",
       "headers": [
         {
           "key": "Cache-Control",

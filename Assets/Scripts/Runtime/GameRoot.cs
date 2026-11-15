@@ -34,8 +34,6 @@ namespace RocketWorld
         public FpvDriver fpv;
         bool _fpvWas; int _camBeforeFpv;
         public CameraMenu camMenu;
-        public GeoCache geoCache;                 // saved zones: store of tiles per zone (service worker + IndexedDB), see docs/TILES.md
-        public ZoneTool zones;                    // "Zones" panel: pick / save / manage zones
         public CinematicFx cinematic;
         public int cameraMode;                                // 0 chase, 1 orbit, 2 helicopter
         public Camera cam;
@@ -140,9 +138,6 @@ namespace RocketWorld
             hud.root = this;
             camMenu = gameObject.AddComponent<CameraMenu>();
             camMenu.root = this;
-            geoCache = gameObject.AddComponent<GeoCache>();
-            zones = gameObject.AddComponent<ZoneTool>();
-            zones.root = this; zones.geo = geoCache;
             minimap = gameObject.AddComponent<Minimap>();
             minimap.root = this;
             autoQuality = gameObject.AddComponent<AutoQuality>();
