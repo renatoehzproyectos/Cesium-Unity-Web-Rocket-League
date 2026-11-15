@@ -186,8 +186,20 @@
       var info = document.getElementById("rw-crash-info");
       info.textContent = String(m).split("\n")[0].slice(0, 120) + heap;
       document.getElementById("rw-crash").style.display = "flex";
-      document.getElementById("rw-crash-go").onclick = function () { location.reload(); };
-      document.getElementById("rw-crash-plain").onclick = function () { try { localStorage.setItem("rw_safe", "0"); } catch (e) { } location.reload(); };
+      // Unity listens for touches on the page and may cancel them, which stops the browser from sending "click": react to the press itself
+      // (capture phase, before Unity sees it) and also to click, once.
+      function bind(id, fn) {
+        var el = document.getElementById(id), done = false;
+        function go(ev) { if (done) return; done = true; try { ev.preventDefault(); ev.stopPropagation(); } catch (e) { } fn(); }
+        ["pointerup", "touchend", "mouseup", "click"].forEach(function (t) { el.addEventListener(t, go, true); });
+      }
+      function reload() {
+        try { if (window.rwUnity && window.rwUnity.Module && window.rwUnity.Module.pauseMainLoop) window.rwUnity.Module.pauseMainLoop(); } catch (e) { }
+        try { location.replace(location.href); } catch (e) { }
+        setTimeout(function () { location.href = location.pathname + location.search + (location.search ? "&" : "?") + "r=" + Date.now(); }, 1500);
+      }
+      bind("rw-crash-go", reload);
+      bind("rw-crash-plain", function () { try { localStorage.setItem("rw_safe", "0"); } catch (e) { } reload(); });
       console.error("[RocketWorld] memory error: " + m + heap);
       return true;
     }
@@ -237,7 +249,7 @@
 
     // The game calls this (RW_HideLoading) once the first frame is ready.
     document.addEventListener("contextmenu", function (e) { e.preventDefault(); });
-    window.addEventListener("pointerdown", function () { try { document.getElementById("unity-canvas").focus(); } catch (e) {} });
+    window.addEventListener("pointerdown", function (e) { if (rwCrashed) return; try { document.getElementById("unity-canvas").focus(); } catch (e) {} });
   </script>
 </body>
 </html>

@@ -139,6 +139,17 @@ namespace RocketWorld.Editor
             PlayerSettings.WebGL.threadsSupport = true;
             // Names differ between 6000.0.x patch releases; set the ones that exist.
             TrySet(typeof(PlayerSettings.WebGL), "wasm2023", true);
+            // `-rwSymbols 1`: embed function names in the wasm so a crash stack ("wasm-function[593]") shows real names. Bigger download: debugging only.
+            if (Arg("-rwSymbols") == "1")
+            {
+                try
+                {
+                    var pr = typeof(PlayerSettings.WebGL).GetProperty("debugSymbolMode", BindingFlags.Public | BindingFlags.Static);
+                    if (pr != null) pr.SetValue(null, Enum.Parse(pr.PropertyType, "Embedded"));
+                    else Debug.Log("[RocketWorld] debugSymbolMode not available in this Unity version, skipped");
+                }
+                catch (Exception e) { Debug.LogWarning("[RocketWorld] could not enable debug symbols: " + e.Message); }
+            }
             // `-rwLite 1`: the low-memory build served at /lite/ (see Assets/WebGLTemplates/RocketWorld/index.html). iOS Safari kills the tab
             // ("A problem repeatedly occurred") when a shared wasm heap this big is reserved at startup; threads stay on (Cesium needs them).
             bool lite = Arg("-rwLite") == "1";
