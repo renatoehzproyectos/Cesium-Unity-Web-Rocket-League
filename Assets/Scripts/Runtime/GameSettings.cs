@@ -31,7 +31,7 @@ namespace RocketWorld
         public const float MaxRoadHeight = 5f;
         public bool antiCrash = true;                // settings toggle (?anticrash=0 turns it off): render scale, depth of field and motion blur start at their minimum and follow the frame rate (>= 30 FPS)
         public bool noIntro;                         // ?intro=0 skips the cargo-plane opening
-        public bool viewCull = true;                 // ?viewcull=0: load a full radius round the car again (tiles never disappear)
+        public bool viewCull = true;                 // Settings switch "Keep all tiles loaded" (= off) or ?viewcull=0: load a full radius round the car again (tiles never disappear)
         public bool water = true;                    // ?water=0 turns the water system off (no OpenStreetMap download, water stays solid)
         public bool bench;                           // ?bench=1 runs the benchmark right after the world is ready
         public int carColor = 0;
@@ -104,7 +104,8 @@ namespace RocketWorld
             s.bench = WebBridge.Query("bench") == "1";
             s.noIntro = WebBridge.Query("intro") == "0";
             s.water = WebBridge.Query("water") != "0";
-            s.viewCull = WebBridge.Query("viewcull") != "0";
+            s.viewCull = PlayerPrefs.GetInt(P + "vc", 1) == 1;                     // saved switch
+            if (WebBridge.Query("viewcull") == "0") s.viewCull = false; else if (WebBridge.Query("viewcull") == "1") s.viewCull = true;
             if (!string.IsNullOrEmpty(q = WebBridge.Query("key"))) { s.googleKey = q; s.provider = TileProvider.GoogleDirect; }
             if (!string.IsNullOrEmpty(q = WebBridge.Query("ion"))) { s.ionToken = q; s.provider = TileProvider.CesiumIon; }
             // Baked-in token from CI (ION_TOKEN secret → index.html). Query string still wins above.
@@ -144,7 +145,7 @@ namespace RocketWorld
             PlayerPrefs.SetFloat(P + "gh", groundHeight); PlayerPrefs.SetFloat(P + "hdg", heading); PlayerPrefs.SetFloat(P + "tod", timeOfDay);
             PlayerPrefs.SetFloat(P + "sse", sse); PlayerPrefs.SetFloat(P + "far", viewDistance); PlayerPrefs.SetFloat(P + "scale", renderScale); PlayerPrefs.SetFloat(P + "radius", loadRadius); PlayerPrefs.SetFloat(P + "dq", distantQuality);
             PlayerPrefs.SetInt(P + "baked", bakedLighting ? 1 : 0); PlayerPrefs.SetInt(P + "auto", autoRotate ? 1 : 0); PlayerPrefs.SetInt(P + "psky", proceduralSky ? 1 : 0); PlayerPrefs.SetInt(P + "hud", debugHud ? 1 : 0);
-            PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1); PlayerPrefs.SetInt(P + "tv", TerrainVersion); PlayerPrefs.SetInt(P + "cammode", camMode); PlayerPrefs.SetInt(P + "anticrash", antiCrash ? 1 : 0); WebBridge.SetAntiCrash(antiCrash); PlayerPrefs.SetFloat(P + "fxd", fxDof); PlayerPrefs.SetFloat(P + "fxm", fxMotion); PlayerPrefs.SetInt(P + "prio", (int)priorities); PlayerPrefs.SetInt(P + "pave", roadPavement ? 1 : 0); PlayerPrefs.SetFloat(P + "rh", Mathf.Clamp(roadHeight, 0f, MaxRoadHeight));
+            PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1); PlayerPrefs.SetInt(P + "tv", TerrainVersion); PlayerPrefs.SetInt(P + "cammode", camMode); PlayerPrefs.SetInt(P + "anticrash", antiCrash ? 1 : 0); WebBridge.SetAntiCrash(antiCrash); PlayerPrefs.SetFloat(P + "fxd", fxDof); PlayerPrefs.SetFloat(P + "fxm", fxMotion); PlayerPrefs.SetInt(P + "prio", (int)priorities); PlayerPrefs.SetInt(P + "pave", roadPavement ? 1 : 0); PlayerPrefs.SetInt(P + "vc", viewCull ? 1 : 0); PlayerPrefs.SetFloat(P + "rh", Mathf.Clamp(roadHeight, 0f, MaxRoadHeight));
             PlayerPrefs.Save();
         }
 

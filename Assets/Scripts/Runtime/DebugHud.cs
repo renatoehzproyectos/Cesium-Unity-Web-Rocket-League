@@ -473,6 +473,9 @@ namespace RocketWorld
             s.sse = UiKit.Slider("Tile detail", "SSE " + s.sse.ToString("0"), s.sse, 4f, 64f);
             GUILayout.Label("Lower is sharper but needs more data.", UiTheme.Muted);
             UiKit.Gap(4);
+            bool keep = UiKit.Toggle(!s.viewCull, "Keep tiles loaded", "Tiles around you stay loaded even when you look away, so turning back never reloads them (uses more memory). The area kept is the load radius.");
+            if (keep == s.viewCull) { s.viewCull = !keep; changed = true; }
+            UiKit.Gap(4);
             s.viewDistance = UiKit.Slider("View distance", (s.viewDistance / 1000f).ToString("0.#") + " km", s.viewDistance, 400f, 20000f);
             UiKit.Gap(4);
             float maxScale = DeviceProfile.MaxRenderScale;

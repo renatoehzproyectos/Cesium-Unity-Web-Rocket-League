@@ -361,6 +361,19 @@ namespace RocketWorld
         /// expensive Cesium properties (SSE, origin) are only written when they actually change
         /// (and origin is debounced) so tiles/colliders are not torn down while the user drags a slider.
         /// </summary>
+        /// <summary>Live switch for view-driven streaming: on = tiles off screen are dropped, off = everything in the load radius stays loaded.</summary>
+        void SyncViewPolicy()
+        {
+            if (tileset == null) return;
+            bool want = settings.viewCull;
+            if (want && viewPolicy == null) { viewPolicy = tileset.gameObject.AddComponent<TileViewPolicy>(); viewPolicy.root = this; viewPolicy.tileset = tileset; }
+            else if (!want && viewPolicy != null)
+            {
+                Destroy(viewPolicy); viewPolicy = null;
+                tileset.maximumCachedBytes = (long)(DeviceProfile.TileCacheBytes * MemoryGuardLogic.CacheMul(memLevel));   // back to the plain device budget
+            }
+        }
+
         public void ApplyLive()
         {
             var s = settings;
@@ -374,6 +387,7 @@ namespace RocketWorld
             if (!settingsOpen)
                 CommitSse(EffectiveSse, protectCar: false);
 
+            SyncViewPolicy();
             if (tileset != null && !settingsOpen)
             {
                 float cs = PriorityLogic.CulledSse(Mods);
