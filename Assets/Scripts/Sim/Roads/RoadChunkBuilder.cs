@@ -39,7 +39,7 @@ namespace RocketWorld.Sim.Roads
         public readonly Dictionary<uint, float[]> Solved = new Dictionary<uint, float[]>();
         readonly List<RoadSegment> _in; int _next;
         readonly ChunkResult _res = new ChunkResult();
-        public static int ProcVersion = 1;                      // bump when the processing changes so old processed caches are ignored
+        public static int ProcVersion = 2;                      // bump when the processing changes so old processed caches are ignored
         public int Total => _in.Count; public int Done => _next; public bool Complete => _next >= _in.Count;
 
         public RoadChunkBuilder(RoadFrame f, List<RoadSegment> segs, GroundSampler sampler, NodeHeights nodes, Dictionary<uint, float[]> cached = null)

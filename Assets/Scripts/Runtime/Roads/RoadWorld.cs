@@ -28,7 +28,7 @@ namespace RocketWorld
             public double minE = 1e9, maxE = -1e9, minN = 1e9, maxN = -1e9;
             public Dictionary<uint, float[]> solved = new Dictionary<uint, float[]>(); public bool procTried;
             public RoadChunkBuilder builder; public ChunkResult res; public GameObject go; public Mesh mesh, vmesh; public MeshCollider col; public bool viewOn, viewDebug;
-            public bool dirty = true, saved; public float retryAt; public int pending, retries, lastAdded; public float refUp; public long tileKey;
+            public bool dirty = true, saved; public float retryAt; public int pending, retries, lastAdded; public float refUp; public long tileKey; public bool sampleNear;
             public Bounds LocalBox => new Bounds(new Vector3((res.minX + res.maxX) * .5f, (res.minY + res.maxY) * .5f, (res.minZ + res.maxZ) * .5f), new Vector3(res.maxX - res.minX, res.maxY - res.minY, res.maxZ - res.minZ));
         }
 
@@ -62,7 +62,7 @@ namespace RocketWorld
             debugView = q == "debug";
             _base = !string.IsNullOrEmpty(q) && q.StartsWith("http") ? q : WebBridge.BaseUrl() + "roads/";
             if (!_base.EndsWith("/")) _base += "/";
-            string nodes = "nodes_" + "all.bin"; var nb = _store.Read(nodes); if (nb != null) _nodes.Load(nb);
+            string nodes = NodesFile; var nb = _store.Read(nodes); if (nb != null) _nodes.Load(nb);
             SavedZones.Changed += OnZones;
             StartCoroutine(LoadManifest());
         }
@@ -183,9 +183,13 @@ namespace RocketWorld
 
         // ---------------------------------------------------------------------------------------------- update
 
+        /// <summary>Shared junction heights; the name carries the processing version so heights saved by an older (wrong) version are never reused.</summary>
+        static string NodesFile => "nodes_p" + RoadChunkBuilder.ProcVersion + ".bin";
+
         void Update()
         {
             if (!Enabled || focus == null || georeference == null) return;
+            if (root != null && root.tileset != null) _heights.Update(root.tileset);
 #if ENABLE_INPUT_SYSTEM
             var kb = UnityEngine.InputSystem.Keyboard.current;
             if (kb != null && kb.f9Key.wasPressedThisFrame) SaveZoneHere(null);
@@ -234,7 +238,6 @@ namespace RocketWorld
             }
             foreach (var k in drop) DropTile(k);
             _buildQueue.Clear(); int colliders = 0, pending = 0, built = 0, drawn = 0; float nearest = -1f;
-            float lift = VisualLift; bool liftChanged = !Mathf.Approximately(lift, _appliedLift); _appliedLift = lift;
             float colOn = (float)RoadCachePolicy.ColliderRadius(budget != null ? budget.addRadius : 260f, budget != null ? budget.radiusMul : 1f);
             float colOff = (budget != null ? budget.removeRadius * budget.radiusMul : 420f) + 60f;
             foreach (var c in _chunks.Values)
@@ -244,7 +247,7 @@ namespace RocketWorld
                 if (c.res != null && c.pending > 0) pending += c.pending;
                 if (dist > resR * 1.25f && c.go != null && c != _job) { Free(c); continue; }
                 bool needs = c.res == null || (c.dirty && (c.pending == 0 || (budget != null && budget.Added != c.lastAdded)));
-                if (dist <= resR && needs && c != _job && Time.unscaledTime >= c.retryAt) _buildQueue.Add(c);
+                if (dist <= Mathf.Min(resR, _heights.Broken ? resR : SampleRadius) && needs && c != _job && Time.unscaledTime >= c.retryAt) _buildQueue.Add(c);
                 if (c.res != null && c.go != null)
                 {
                     bool want = dist < (c.col != null && c.col.enabled ? colOff : colOn);
@@ -252,7 +255,6 @@ namespace RocketWorld
                     else if (!want && c.col != null && c.col.enabled) DisableCollider(c);
                     if (c.col != null && c.col.enabled) colliders++;
                     if (c.vmesh != null && c.vmesh.vertexCount > 0) { built++; if (nearest < 0f || dist < nearest) nearest = dist; }
-                    if (liftChanged && c.go != null) { var rv = c.go.transform.Find("RoadView"); if (rv != null) rv.localPosition = new Vector3(0f, lift, 0f); }
                     bool showV = (Pavement || debugView) && c.vmesh != null && c.vmesh.vertexCount > 0 && dist < (c.viewOn ? ViewRadius + 120f : ViewRadius);
                     if (showV != c.viewOn || (showV && c.viewDebug != debugView)) { c.viewOn = showV; c.viewDebug = debugView; SetView(c, showV); }
                 }
@@ -331,7 +333,7 @@ namespace RocketWorld
                 if (!_chunks.TryGetValue(ck, out var c))
                 {
                     RoadTiles.TileBounds(RoadCachePolicy.ChunkZoom, cx, cy, out double w, out double so, out double e, out double n);
-                    c = new Chunk { key = ck, x = cx, y = cy, lon = (w + e) / 2, lat = (so + n) / 2, tileKey = key }; c.frame = new RoadFrame(c.lon, c.lat, 0); _chunks[ck] = c;
+                    c = new Chunk { refUp = float.NaN, key = ck, x = cx, y = cy, lon = (w + e) / 2, lat = (so + n) / 2, tileKey = key }; c.frame = new RoadFrame(c.lon, c.lat, 0); _chunks[ck] = c;
                 }
                 c.segs.Add(s); _segOwner[s.id] = ck; c.dirty = true;
                 for (int i = 0; i < s.lon.Length; i++) { c.frame.ToPlane(s.lon[i], s.lat[i], out double e, out double n); c.minE = Math.Min(c.minE, e); c.maxE = Math.Max(c.maxE, e); c.minN = Math.Min(c.minN, n); c.maxN = Math.Max(c.maxN, n); }
@@ -372,6 +374,7 @@ namespace RocketWorld
                 if (pd != null) foreach (var kv in pd) if (!c.solved.ContainsKey(kv.Key)) c.solved[kv.Key] = kv.Value;
             }
             if (float.IsNaN(c.refUp)) { c.refUp = FocusUp(c); }
+            c.sampleNear = ChunkDist(c) < SampleRadius;
             if (c.solved.Count > 0 && !ValidateCache(c)) c.solved.Clear();      // the tiles changed since the cache was written: refit
             c.builder = new RoadChunkBuilder(c.frame, new List<RoadSegment>(c.segs), (e, n) => Sample(c, e, n), _nodes, c.solved);
             return true;
@@ -400,7 +403,23 @@ namespace RocketWorld
             return c.go.transform.InverseTransformPoint(_fociPos[best]).y;
         }
 
+        readonly RoadHeights _heights = new RoadHeights();
+        /// <summary>Chunks farther than this are not built: their terrain is not loaded and sampling would force its download. They are built once the car gets close.</summary>
+        float SampleRadius => ViewRadius + 250f;
+
+        /// <summary>Ground height under (east, north) in the chunk frame: Cesium's SampleHeightMostDetailed (NaN until answered), or ray casts if that is unavailable.</summary>
         float Sample(Chunk c, double e, double n)
+        {
+            if (!_heights.Broken && root != null && root.tileset != null)
+            {
+                c.frame.ToLonLat(e, n, out double lo, out double la);
+                float h = _heights.Get(lo, la, c.sampleNear);
+                return float.IsNaN(h) ? float.NaN : (float)c.frame.UpFromH(e, n, h);          // chunk origin is at ellipsoid height 0 (h0 = 0): up = h - curvature drop
+            }
+            return SampleByRaycast(c, e, n);
+        }
+
+        float SampleByRaycast(Chunk c, double e, double n)
         {
             var t = c.go.transform; Vector3 o = t.TransformPoint(new Vector3((float)e, c.refUp + 150f, (float)n));
             if (!Physics.Raycast(o, -t.up, out var h, 420f, PhysicsSetup.TileOnlyMask, QueryTriggerInteraction.Ignore)) return float.NaN;
@@ -448,10 +467,10 @@ namespace RocketWorld
         /// <summary>Pavement is only drawn this close: far away it would z-fight with the tile (depth precision) and cost draw calls for nothing.</summary>
         public float ViewRadius => Mobile ? 450f : 750f;
         /// <summary>The render mesh floats this far over the collider so the photogrammetry cannot z-fight through it.</summary>
-        public float VisualLift => (root != null && root.settings != null ? root.settings.roadLiftCm : 6f) * 0.01f;
-        float _appliedLift = -1f; int _built, _drawn; float _nearestBuilt = -1f;
+        public const float VisualLift = 0.04f;
+        int _built, _drawn; float _nearestBuilt = -1f;
         /// <summary>Diagnostics for the Settings panel: chunks with a pavement mesh, chunks drawn right now, distance to the nearest built chunk.</summary>
-        public string ViewInfo => Enabled ? $"pavement: {_drawn}/{_built} chunks drawn, nearest {(_nearestBuilt < 0 ? "none" : _nearestBuilt.ToString("0") + " m")}, lift {VisualLift * 100f:0} cm" : "";
+        public string ViewInfo => Enabled ? $"pavement: {_drawn}/{_built} chunks drawn, nearest {(_nearestBuilt < 0 ? "none" : _nearestBuilt.ToString("0") + " m")}; heights: {(_heights.Broken ? "ray casts" : "Cesium sample")}, {_heights.Cells} known, {_heights.Queued} queued" : "";
 
         /// <summary>Debug: paint the road yellow and translucent (?roads=debug, or the Settings toggle) to see where the collider is.</summary>
         public bool ShowSurface { get => debugView; set => debugView = value; }
@@ -539,7 +558,7 @@ namespace RocketWorld
             b.Expand(6f); _changes.Add((b, Epoch)); if (_changes.Count > 32) _changes.RemoveAt(0);
         }
 
-        void SaveNodes(bool force) { if (!_nodesDirty && !force) return; _nodesDirty = false; _store.Write("nodes_all.bin", _nodes.Save()); }
+        void SaveNodes(bool force) { if (!_nodesDirty && !force) return; _nodesDirty = false; _store.Write(NodesFile, _nodes.Save()); }
 
         public void Boost() { _nextScan = 0f; }
 

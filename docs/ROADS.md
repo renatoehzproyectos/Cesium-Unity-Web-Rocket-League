@@ -3,14 +3,21 @@
 Independent, smooth road colliders under the Google Photorealistic 3D Tiles. The tiles stay the only visuals; roads are invisible pavement that the car
 drives on (`?roads=debug` draws them). Photogrammetry still provides buildings, walls, kerbs, overpasses and relief.
 
+## Heights: Cesium SampleHeightMostDetailed
+Ground heights come from `Cesium3DTileset.SampleHeightMostDetailed` (`Runtime/Roads/RoadHeights.cs`): ellipsoidal metres taken from the tileset geometry that is drawn, requested in batches and answered
+asynchronously. Until a point is answered the segment stays pending and the chunk is rebuilt later, so far terrain that is not loaded does not matter: chunks are only built within
+`ViewRadius + 250 m` of the car (1000 m desktop, 700 m phones), and when you get close the tiles load, the heights are sampled and the road appears. If the API is missing or keeps failing
+the system falls back to ray casts against the tile colliders (Settings shows which one is in use). Fixed along the way: the ray-cast fallback started its rays at local height 0 + 150 m
+instead of above the car (`refUp` was never NaN), which put roads ~450 m below the map; `ProcVersion` is now 2 so processed profiles / node heights saved with those wrong values are ignored.
+
 ## Pavement (what you see)
 The generated road is drawn as real, smooth 3D pavement (`RoadWorld.SetView`), not only used as an invisible collider. The render mesh is built with the collider
-(`RoadMeshBuilder`: texture coordinates, 2 submeshes) and floats 5 cm above it so the tile's bumpy road does not z-fight through. Textures: the "Road with substance designer" tile (CC BY 4.0,
+(`RoadMeshBuilder`: texture coordinates, 2 submeshes) and floats 4 cm above it so the tile's bumpy road does not z-fight through. Textures: the "Road with substance designer" tile (CC BY 4.0,
 see THIRD_PARTY.md): marked asphalt (white edge lines + yellow centre line, stretched across the road width) on motorway..tertiary roads at least 5.5 m wide, plain asphalt on side streets,
 ramps and junction patches. Tunnels, dirt roads and tracks are not drawn (the tile's own surface shows). Only chunks within 750 m (450 m on phones) are drawn.
 Switch: Settings -> Saved zones -> "Road pavement" (`?pave=0` hides it). Materials `RoadPlain` / `RoadMarked` are created by the editor setup (`ProjectSetup`) from `Assets/Resources/Roads/*.png`;
 `tools/roads/pavement_from_glb.py` regenerates those textures from the glb. Known limits: no one-way markings, the tile's own road is still visible beside a narrower pavement, and
-photogrammetry spikes taller than 5 cm can still poke through.
+photogrammetry spikes taller than 4 cm can still poke through.
 
 ## Automatic by default (nothing to generate or upload)
 With no `/roads/manifest.json` on the host the game builds road tiles itself, at runtime, from **OpenStreetMap through OpenFreeMap vector tiles** (the same free,
@@ -28,7 +35,7 @@ Differences from the Overture path below: OSM tiles carry no widths or lane coun
 2. **Runtime download (`RoadWorld`):** manifest -> tiles within 1.2-3 km of the car (grows with speed, shrinks on phones / under memory pressure), bots get 600 m,
    saved zones are fetched ahead and pinned. 404 = no roads (cached as empty). Offline: last manifest and last cached release are used.
 3. **Persistent cache (`RoadStore`):** `persistentDataPath/roads` (IndexedDB on WebGL, flushed by `RW_FlushFS`). `raw_` tiles per release, `proc_` fitted profiles per chunk
-   (release + `ProcVersion`), `nodes_all.bin` shared junction heights. LRU bound 160 MB desktop / 48 MB mobile; zone tiles never evicted. A new release downloads fresh tiles
+   (release + `ProcVersion`), `nodes_p<ProcVersion>.bin` shared junction heights. LRU bound 160 MB desktop / 48 MB mobile; zone tiles never evicted. A new release downloads fresh tiles
    and invalidates the processed profiles; an older cached release is used only when the download fails.
 4. **Geometry (`Sim/Roads`, engine-free):** z15 chunks. Centreline = centripetal Catmull-Rom through the source vertices (data positions kept, corners rounded),
    4 m stations. Height = robust fit of ray hits on the original tile colliders (median/MAD outlier rejection, then asymmetric least squares that follows the lower
