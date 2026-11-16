@@ -237,6 +237,7 @@ namespace RocketWorld
                 if (!st.pinned && dmin > fetchR * 1.6 + 800 && Time.unscaledTime - st.used > 20f) { drop.Add(kv.Key); continue; }
             }
             foreach (var k in drop) DropTile(k);
+            ApplyRoadHeight();
             _buildQueue.Clear(); int colliders = 0, pending = 0, built = 0, drawn = 0; float nearest = -1f;
             float colOn = (float)RoadCachePolicy.ColliderRadius(budget != null ? budget.addRadius : 260f, budget != null ? budget.radiusMul : 1f);
             float colOff = (budget != null ? budget.removeRadius * budget.radiusMul : 420f) + 60f;
@@ -468,6 +469,23 @@ namespace RocketWorld
         public float ViewRadius => Mobile ? 450f : 750f;
         /// <summary>The render mesh floats this far over the collider so the photogrammetry cannot z-fight through it.</summary>
         public const float VisualLift = 0.04f;
+        /// <summary>User road height (Settings slider, 0..5 m): applied to the pavement and to the collider.</summary>
+        public float RoadHeight => root != null && root.settings != null ? Mathf.Clamp(root.settings.roadHeight, 0f, GameSettings.MaxRoadHeight) : 0f;
+        float _appliedHeight;
+
+        /// <summary>Move every existing chunk's pavement and collider to the current road height (cheap: only transforms change).</summary>
+        void ApplyRoadHeight()
+        {
+            float h = RoadHeight; if (Mathf.Approximately(h, _appliedHeight)) return; _appliedHeight = h;
+            foreach (var c in _chunks.Values)
+            {
+                if (c.go == null) continue;
+                var v = c.go.transform.Find("RoadView"); if (v != null) v.localPosition = new Vector3(0f, VisualLift + h, 0f);
+                var k = c.go.transform.Find("RoadCol"); if (k != null) k.localPosition = new Vector3(0f, h, 0f);
+                if (c.col != null && c.col.enabled) Changed(c);
+            }
+            Physics.SyncTransforms();
+        }
         int _built, _drawn; float _nearestBuilt = -1f;
         /// <summary>Diagnostics for the Settings panel: chunks with a pavement mesh, chunks drawn right now, distance to the nearest built chunk.</summary>
         public string ViewInfo => Enabled ? $"pavement: {_drawn}/{_built} chunks drawn, nearest {(_nearestBuilt < 0 ? "none" : _nearestBuilt.ToString("0") + " m")}; heights: {(_heights.Broken ? "ray casts" : "Cesium sample")}, {_heights.Cells} known, {_heights.Queued} queued" : "";
@@ -521,7 +539,7 @@ namespace RocketWorld
             if (t == null)
             {
                 var v = new GameObject("RoadView");                                    // default layer: drawn by every camera; no collider, so the car's rays never see it
-                v.transform.SetParent(c.go.transform, false); v.transform.localPosition = new Vector3(0f, VisualLift, 0f);
+                v.transform.SetParent(c.go.transform, false); v.transform.localPosition = new Vector3(0f, VisualLift + RoadHeight, 0f);
                 v.AddComponent<MeshFilter>(); var mr = v.AddComponent<MeshRenderer>();
                 mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = false;
                 t = v.transform;
@@ -537,7 +555,12 @@ namespace RocketWorld
 
         void EnableCollider(Chunk c)
         {
-            if (c.col == null) { c.col = c.go.AddComponent<MeshCollider>(); c.col.sharedMaterial = PhysicsSetup.RoadMaterial; }
+            if (c.col == null)
+            {
+                var k = new GameObject("RoadCol") { layer = PhysicsSetup.RoadLayer };    // child so the whole collider can be lifted by the road height
+                k.transform.SetParent(c.go.transform, false); k.transform.localPosition = new Vector3(0f, RoadHeight, 0f);
+                c.col = k.AddComponent<MeshCollider>(); c.col.sharedMaterial = PhysicsSetup.RoadMaterial;
+            }
             c.col.sharedMesh = c.mesh; c.col.enabled = true; Physics.SyncTransforms(); Changed(c);
         }
         void DisableCollider(Chunk c) { c.col.enabled = false; c.col.sharedMesh = null; Changed(c); }

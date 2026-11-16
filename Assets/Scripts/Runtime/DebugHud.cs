@@ -509,6 +509,9 @@ namespace RocketWorld
                 UiKit.Gap(4);
                 bool pave = UiKit.Toggle(s.roadPavement, "Road pavement", "Smooth asphalt with lane markings over the tile's own bumpy road.");
                 if (pave != s.roadPavement) { s.roadPavement = pave; changed = true; }
+                s.roadHeight = UiKit.Slider("Road height", s.roadHeight.ToString("0.00") + " m", s.roadHeight, 0f, GameSettings.MaxRoadHeight);
+                s.roadHeight = Mathf.Round(s.roadHeight * 20f) / 20f;      // 5 cm steps
+                GUILayout.Label("Raises the road and its collider (0 to 5 m).", UiTheme.Muted);
                 bool show = UiKit.Toggle(root.roads.ShowSurface, "Show road collider (debug)", "Paints the collider yellow so you can see exactly where it is.");
                 if (show != root.roads.ShowSurface) root.roads.ShowSurface = show;
                 UiKit.Gap(4);
