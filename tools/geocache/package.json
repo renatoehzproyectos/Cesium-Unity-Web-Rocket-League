@@ -1,7 +1,0 @@
-{
-  "name": "rw-geocache-tests",
-  "private": true,
-  "type": "module",
-  "scripts": { "test": "node test.mjs" },
-  "devDependencies": { "fake-indexeddb": "^6.0.0" }
-}

@@ -233,7 +233,8 @@ namespace RocketWorld
                 if (!st.pinned && dmin > fetchR * 1.6 + 800 && Time.unscaledTime - st.used > 20f) { drop.Add(kv.Key); continue; }
             }
             foreach (var k in drop) DropTile(k);
-            _buildQueue.Clear(); int colliders = 0, pending = 0;
+            _buildQueue.Clear(); int colliders = 0, pending = 0, built = 0, drawn = 0; float nearest = -1f;
+            float lift = VisualLift; bool liftChanged = !Mathf.Approximately(lift, _appliedLift); _appliedLift = lift;
             float colOn = (float)RoadCachePolicy.ColliderRadius(budget != null ? budget.addRadius : 260f, budget != null ? budget.radiusMul : 1f);
             float colOff = (budget != null ? budget.removeRadius * budget.radiusMul : 420f) + 60f;
             foreach (var c in _chunks.Values)
@@ -250,11 +251,15 @@ namespace RocketWorld
                     if (want && (c.col == null || !c.col.enabled) && c.mesh != null && c.res.mesh.TriangleCount > 0) EnableCollider(c);
                     else if (!want && c.col != null && c.col.enabled) DisableCollider(c);
                     if (c.col != null && c.col.enabled) colliders++;
+                    if (c.vmesh != null && c.vmesh.vertexCount > 0) { built++; if (nearest < 0f || dist < nearest) nearest = dist; }
+                    if (liftChanged && c.go != null) { var rv = c.go.transform.Find("RoadView"); if (rv != null) rv.localPosition = new Vector3(0f, lift, 0f); }
                     bool showV = (Pavement || debugView) && c.vmesh != null && c.vmesh.vertexCount > 0 && dist < (c.viewOn ? ViewRadius + 120f : ViewRadius);
                     if (showV != c.viewOn || (showV && c.viewDebug != debugView)) { c.viewOn = showV; c.viewDebug = debugView; SetView(c, showV); }
                 }
             }
-            ColliderCount = colliders; PendingSegments = pending;
+            ColliderCount = colliders; PendingSegments = pending; _built = built; _nearestBuilt = nearest;
+            foreach (var cc in _chunks.Values) if (cc.viewOn) drawn++;
+            _drawn = drawn;
             _buildQueue.Sort((a, b) => ChunkDist(a).CompareTo(ChunkDist(b)));
             if (_store.Ok) _store.Enforce(RoadCachePolicy.DiskBudgetBytes(Mobile, memLevel));
         }
@@ -443,7 +448,10 @@ namespace RocketWorld
         /// <summary>Pavement is only drawn this close: far away it would z-fight with the tile (depth precision) and cost draw calls for nothing.</summary>
         public float ViewRadius => Mobile ? 450f : 750f;
         /// <summary>The render mesh floats this far over the collider so the photogrammetry cannot z-fight through it.</summary>
-        public const float VisualLift = 0.05f;
+        public float VisualLift => (root != null && root.settings != null ? root.settings.roadLiftCm : 6f) * 0.01f;
+        float _appliedLift = -1f; int _built, _drawn; float _nearestBuilt = -1f;
+        /// <summary>Diagnostics for the Settings panel: chunks with a pavement mesh, chunks drawn right now, distance to the nearest built chunk.</summary>
+        public string ViewInfo => Enabled ? $"pavement: {_drawn}/{_built} chunks drawn, nearest {(_nearestBuilt < 0 ? "none" : _nearestBuilt.ToString("0") + " m")}, lift {VisualLift * 100f:0} cm" : "";
 
         /// <summary>Debug: paint the road yellow and translucent (?roads=debug, or the Settings toggle) to see where the collider is.</summary>
         public bool ShowSurface { get => debugView; set => debugView = value; }

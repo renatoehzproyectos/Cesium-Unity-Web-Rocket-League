@@ -509,6 +509,7 @@ namespace RocketWorld
                 UiKit.Gap(4);
                 bool pave = UiKit.Toggle(s.roadPavement, "Road pavement", "Smooth asphalt with lane markings over the tile's own bumpy road.");
                 if (pave != s.roadPavement) { s.roadPavement = pave; changed = true; }
+                if (s.roadPavement) s.roadLiftCm = UiKit.Slider("Pavement height", s.roadLiftCm.ToString("0") + " cm over the collider", s.roadLiftCm, 0f, 60f);
                 bool show = UiKit.Toggle(root.roads.ShowSurface, "Show road collider (debug)", "Paints the collider yellow so you can see exactly where it is.");
                 if (show != root.roads.ShowSurface) root.roads.ShowSurface = show;
                 UiKit.Gap(4);
@@ -517,6 +518,7 @@ namespace RocketWorld
                 GUI.enabled = true;
                 if (SavedZones.All.Count > 0) GUILayout.Label(SavedZones.All.Count + " saved - " + root.roads.ZoneProgress(), UiTheme.Muted);
                 GUILayout.Label(root.roads.Info + "   (keyboard: F9)", UiTheme.Muted);
+                GUILayout.Label(root.roads.ViewInfo, UiTheme.Muted);
                 if (!string.IsNullOrEmpty(root.roads.Attribution)) GUILayout.Label(root.roads.Attribution, UiTheme.Muted);
                 GUILayout.Label("Pavement texture: \"Road with substance designer\" by Gaby4545 (CC BY 4.0)", UiTheme.Muted);
             }
