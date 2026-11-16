@@ -27,7 +27,7 @@ namespace RocketWorld
             public long key; public int x, y; public double lon, lat; public RoadFrame frame; public List<RoadSegment> segs = new List<RoadSegment>();
             public double minE = 1e9, maxE = -1e9, minN = 1e9, maxN = -1e9;
             public Dictionary<uint, float[]> solved = new Dictionary<uint, float[]>(); public bool procTried;
-            public RoadChunkBuilder builder; public ChunkResult res; public GameObject go; public Mesh mesh; public MeshCollider col;
+            public RoadChunkBuilder builder; public ChunkResult res; public GameObject go; public Mesh mesh, vmesh; public MeshCollider col; public bool viewOn, viewDebug;
             public bool dirty = true, saved; public float retryAt; public int pending, retries, lastAdded; public float refUp; public long tileKey;
             public Bounds LocalBox => new Bounds(new Vector3((res.minX + res.maxX) * .5f, (res.minY + res.maxY) * .5f, (res.minZ + res.maxZ) * .5f), new Vector3(res.maxX - res.minX, res.maxY - res.minY, res.maxZ - res.minZ));
         }
@@ -250,6 +250,8 @@ namespace RocketWorld
                     if (want && (c.col == null || !c.col.enabled) && c.mesh != null && c.res.mesh.TriangleCount > 0) EnableCollider(c);
                     else if (!want && c.col != null && c.col.enabled) DisableCollider(c);
                     if (c.col != null && c.col.enabled) colliders++;
+                    bool showV = (Pavement || debugView) && c.vmesh != null && c.vmesh.vertexCount > 0 && dist < (c.viewOn ? ViewRadius + 120f : ViewRadius);
+                    if (showV != c.viewOn || (showV && c.viewDebug != debugView)) { c.viewOn = showV; c.viewDebug = debugView; SetView(c, showV); }
                 }
             }
             ColliderCount = colliders; PendingSegments = pending;
@@ -382,7 +384,7 @@ namespace RocketWorld
             var vs = new List<Vector3>(res.mesh.VertexCount); for (int i = 0; i < res.mesh.v.Count; i += 3) vs.Add(new Vector3(res.mesh.v[i], res.mesh.v[i + 1], res.mesh.v[i + 2]));
             c.mesh.Clear(); c.mesh.indexFormat = vs.Count > 65000 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
             c.mesh.SetVertices(vs); c.mesh.SetTriangles(res.mesh.t, 0, false); c.mesh.RecalculateBounds();
-            var mf = c.go.GetComponent<MeshFilter>(); if (mf != null) mf.sharedMesh = c.mesh;
+            BuildViewMesh(c, vs, res.mesh);
             if (c.col != null && c.col.enabled) { c.col.sharedMesh = null; c.col.sharedMesh = c.mesh; Changed(c); }   // rebuilt while active: new footprint
         }
 
@@ -431,13 +433,79 @@ namespace RocketWorld
             var north = V(georeference.TransformEarthCenteredEarthFixedDirectionToUnity(new double3(-Math.Sin(la) * Math.Cos(lo), -Math.Sin(la) * Math.Sin(lo), Math.Cos(la))));
             go.transform.SetPositionAndRotation(new Vector3((float)p.x, (float)p.y, (float)p.z), Quaternion.LookRotation(north, up));
             go.AddComponent<CesiumGlobeAnchor>();                      // keeps the chunk valid when Cesium re-centres the origin
-            if (debugView)
-            {
-                if (_debugMat == null) { _debugMat = new Material(Shader.Find("Sprites/Default")); _debugMat.color = new Color(1f, 0.85f, 0.1f, 0.55f); }
-                go.AddComponent<MeshFilter>(); go.AddComponent<MeshRenderer>().sharedMaterial = _debugMat;
-            }
             c.go = go;
         }
+
+        // ---------------------------------------------------------------------------------------------- pavement (what the player sees)
+
+        /// <summary>Draw the generated road as real pavement (the "Road with substance designer" textures) over the tile's own, bumpy road.</summary>
+        public bool Pavement => root == null || root.settings == null || root.settings.roadPavement;
+        /// <summary>Pavement is only drawn this close: far away it would z-fight with the tile (depth precision) and cost draw calls for nothing.</summary>
+        public float ViewRadius => Mobile ? 450f : 750f;
+        /// <summary>The render mesh floats this far over the collider so the photogrammetry cannot z-fight through it.</summary>
+        public const float VisualLift = 0.05f;
+
+        /// <summary>Debug: paint the road yellow and translucent (?roads=debug, or the Settings toggle) to see where the collider is.</summary>
+        public bool ShowSurface { get => debugView; set => debugView = value; }
+
+        Material _mPlain, _mMarked, _mDebug; bool _matsTried;
+
+        void EnsureMaterials()
+        {
+            if (_matsTried) return; _matsTried = true;
+            _mPlain = LoadPavement("RoadPlain", "plain"); _mMarked = LoadPavement("RoadMarked", "marked");
+        }
+
+        /// <summary>The materials are assets made by the editor setup (ProjectSetup), so their shader and keywords survive WebGL stripping.
+        /// Without them (setup not run yet) a plain URP Lit with the albedo texture is made, so the road is still drawn.</summary>
+        static Material LoadPavement(string name, string tex)
+        {
+            var m = Resources.Load<Material>("Materials/" + name); if (m != null) return m;
+            var sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Universal Render Pipeline/Simple Lit") ?? Shader.Find("Sprites/Default"); if (sh == null) return null;
+            m = new Material(sh) { name = "RW_" + name };
+            var t = Resources.Load<Texture2D>("Roads/" + tex + "_d");
+            if (t != null) { m.mainTexture = t; if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", t); }
+            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.3f);
+            return m;
+        }
+
+        void BuildViewMesh(Chunk c, List<Vector3> vs, RoadMeshData m)
+        {
+            if (m.tm.Count + m.tp.Count == 0) { if (c.vmesh != null) c.vmesh.Clear(); return; }
+            if (c.vmesh == null) { c.vmesh = new Mesh { name = "RoadPavement" }; c.vmesh.MarkDynamic(); }
+            var vm = c.vmesh; vm.Clear(); vm.indexFormat = vs.Count > 65000 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
+            vm.SetVertices(vs);
+            var uvs = new List<Vector2>(vs.Count); for (int i = 0; i + 1 < m.uv.Count; i += 2) uvs.Add(new Vector2(m.uv[i], m.uv[i + 1]));
+            vm.SetUVs(0, uvs);
+            vm.subMeshCount = 2; vm.SetTriangles(m.tp, 0, false); vm.SetTriangles(m.tm, 1, false);    // 0 plain asphalt, 1 marked asphalt
+            vm.RecalculateNormals(); vm.RecalculateTangents(); vm.RecalculateBounds();
+        }
+
+        void SetView(Chunk c, bool show)
+        {
+            var t = c.go.transform.Find("RoadView");
+            if (!show) { if (t != null) t.gameObject.SetActive(false); return; }
+            EnsureMaterials();
+            if (debugView && _mDebug == null)
+            {
+                var sh = Shader.Find("Sprites/Default") ?? Shader.Find("Universal Render Pipeline/Unlit");
+                if (sh != null) _mDebug = new Material(sh) { color = new Color(1f, 0.85f, 0.1f, 0.5f) };
+            }
+            if (t == null)
+            {
+                var v = new GameObject("RoadView");                                    // default layer: drawn by every camera; no collider, so the car's rays never see it
+                v.transform.SetParent(c.go.transform, false); v.transform.localPosition = new Vector3(0f, VisualLift, 0f);
+                v.AddComponent<MeshFilter>(); var mr = v.AddComponent<MeshRenderer>();
+                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = false;
+                t = v.transform;
+            }
+            t.GetComponent<MeshFilter>().sharedMesh = c.vmesh;
+            var r = t.GetComponent<MeshRenderer>();
+            if (debugView && _mDebug != null) r.sharedMaterials = new[] { _mDebug, _mDebug };
+            else if (_mPlain != null && _mMarked != null) r.sharedMaterials = new[] { _mPlain, _mMarked };
+            t.gameObject.SetActive(true);
+        }
+
         static Vector3 V(double3 d) => new Vector3((float)d.x, (float)d.y, (float)d.z).normalized;
 
         void EnableCollider(Chunk c)
@@ -451,8 +519,8 @@ namespace RocketWorld
         {
             bool had = c.col != null && c.col.enabled;
             if (had) Changed(c);
-            if (c.go != null) Destroy(c.go); if (c.mesh != null) Destroy(c.mesh);
-            c.go = null; c.mesh = null; c.col = null; c.res = null; c.builder = null; c.dirty = true; c.procTried = true;
+            if (c.go != null) Destroy(c.go); if (c.mesh != null) Destroy(c.mesh); if (c.vmesh != null) Destroy(c.vmesh);
+            c.go = null; c.mesh = null; c.vmesh = null; c.viewOn = false; c.col = null; c.res = null; c.builder = null; c.dirty = true; c.procTried = true;
         }
 
         void Changed(Chunk c)

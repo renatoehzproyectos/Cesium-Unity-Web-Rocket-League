@@ -83,7 +83,7 @@ namespace RocketWorld.Sim.Roads
             }
             if (nA != 0 && !Nodes.TryGet(nA, out _)) Nodes.Set(nA, (float)Frame.HFromUp(line.e[0], line.n[0], up[0]));
             if (nB != 0 && !Nodes.TryGet(nB, out _)) Nodes.Set(nB, (float)Frame.HFromUp(line.e[n - 1], line.n[n - 1], up[n - 1]));
-            _res.segments.Add(new BuiltSegment { src = s, line = line, up = up, bank = bank, halfWidth = hw, nodeA = nA, nodeB = nB, noCarve = s.IsTunnel });
+            _res.segments.Add(new BuiltSegment { src = s, line = line, up = up, bank = bank, halfWidth = hw, nodeA = nA, nodeB = nB, noCarve = s.IsTunnel, view = RoadClassInfo.ViewKind(s) });
         }
 
         float Pin(uint node, double e, double n)

@@ -74,6 +74,15 @@ namespace RocketWorld.Sim.Roads
             }
         }
 
+        /// <summary>How the pavement is drawn: 0 = not at all (tunnel, loose surface: the tile shows through), 1 = plain asphalt, 2 = with the road markings of the pavement texture.
+        /// Markings only on proper two-way roads: the centre line of the texture would be wrong on a side street, a ramp or a one-lane service road.</summary>
+        public static int ViewKind(RoadSegment s)
+        {
+            if (s.IsTunnel || IsLoose(s) || s.cls == RoadClass.Track) return 0;
+            bool marked = s.cls != RoadClass.Unknown && s.cls <= RoadClass.Tertiary && (s.flags & RoadFlags.Link) == 0 && Width(s) >= 5.5f;
+            return marked ? 2 : 1;
+        }
+
         /// <summary>Steepest believable grade (rise/run); steeper fitted profiles are photogrammetry noise.</summary>
         public static float MaxGrade(RoadClass c)
         {
@@ -104,9 +113,19 @@ namespace RocketWorld.Sim.Roads
         public List<float> v = new List<float>(4096);     // x,y,z triples
         public List<int> t = new List<int>(8192);
         public List<int> c = new List<int>(8192);         // subset of t that may carve the tile colliders (not tunnels)
+        public List<float> uv = new List<float>(4096);    // u,v per vertex (pavement texture)
+        public List<int> tm = new List<int>(8192);        // visible pavement with lane markings (submesh 1 of the render mesh)
+        public List<int> tp = new List<int>(8192);        // visible plain asphalt: side streets, ramps, junction patches (submesh 0)
         public int VertexCount => v.Count / 3;
         public int TriangleCount => t.Count / 3;
-        public int Add(float x, float y, float z) { v.Add(x); v.Add(y); v.Add(z); return v.Count / 3 - 1; }
-        public void Tri(int a, int b, int c, bool carve = true) { t.Add(a); t.Add(b); t.Add(c); if (carve) { this.c.Add(a); this.c.Add(b); this.c.Add(c); } }
+        public int Add(float x, float y, float z) => Add(x, y, z, 0f, 0f);
+        public int Add(float x, float y, float z, float u, float w) { v.Add(x); v.Add(y); v.Add(z); uv.Add(u); uv.Add(w); return v.Count / 3 - 1; }
+        /// <param name="view">0 = collider only (tunnels, dirt roads: the tile's own surface stays visible), 1 = plain asphalt, 2 = asphalt with lane markings</param>
+        public void Tri(int a, int b, int c, bool carve = true, int view = 0)
+        {
+            t.Add(a); t.Add(b); t.Add(c);
+            if (carve) { this.c.Add(a); this.c.Add(b); this.c.Add(c); }
+            if (view == 2) { tm.Add(a); tm.Add(b); tm.Add(c); } else if (view == 1) { tp.Add(a); tp.Add(b); tp.Add(c); }
+        }
     }
 }

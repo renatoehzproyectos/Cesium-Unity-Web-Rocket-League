@@ -27,3 +27,8 @@ F-35B, F-15E, helicopter and DeLorean are optimised derivatives of GLB files sup
 were not included with the files: TODO fill in author, source URL and licence for each before publishing.
 
 - **ShramkoGSFPV** (https://github.com/AndriiShramko/ShramkoGSFPV, MIT, (c) 2026 Andrii Shramko): `Assets/Scripts/Sim/Fpv/*` is a C# port of its flight model (`packages/sim-core`: motors, battery, mixer, Betaflight-style rate PID, rate curves, self-level, prop wash, contact / crash rules), and `FpvPresets.cs` is generated from its drone presets (`packages/sim-core/presets/*.json`, each number with its source there). The FPV camera (rigid mount, uptilt, horizontal FOV) and the Mode 2 stick layout follow its behaviour. The MIT notice is in `Assets/Scripts/Sim/Fpv/LICENSE-ShramkoGSFPV.txt`. The original formulas come from Betaflight 4.5.1 (GPL-3.0) and were re-implemented there, not copied; see its `docs/PROVENANCE.md`.
+
+## Road pavement texture
+"Road with substance designer" by Gaby4545 (https://sketchfab.com/Gaby4545), licensed CC BY 4.0 (http://creativecommons.org/licenses/by/4.0/),
+source https://sketchfab.com/3d-models/road-with-substance-designer-1b2916d72e724558b1ccfe09646f46a7. Its textures (base colour, normal, metallic-roughness) were cropped, repacked
+for Unity URP and, for the plain asphalt variant, flattened and mirrored by `tools/roads/pavement_from_glb.py`; they live in `Assets/Resources/Roads/`. The credit is shown in Settings.

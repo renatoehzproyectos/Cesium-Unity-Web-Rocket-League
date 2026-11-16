@@ -3,6 +3,15 @@
 Independent, smooth road colliders under the Google Photorealistic 3D Tiles. The tiles stay the only visuals; roads are invisible pavement that the car
 drives on (`?roads=debug` draws them). Photogrammetry still provides buildings, walls, kerbs, overpasses and relief.
 
+## Pavement (what you see)
+The generated road is drawn as real, smooth 3D pavement (`RoadWorld.SetView`), not only used as an invisible collider. The render mesh is built with the collider
+(`RoadMeshBuilder`: texture coordinates, 2 submeshes) and floats 5 cm above it so the tile's bumpy road does not z-fight through. Textures: the "Road with substance designer" tile (CC BY 4.0,
+see THIRD_PARTY.md): marked asphalt (white edge lines + yellow centre line, stretched across the road width) on motorway..tertiary roads at least 5.5 m wide, plain asphalt on side streets,
+ramps and junction patches. Tunnels, dirt roads and tracks are not drawn (the tile's own surface shows). Only chunks within 750 m (450 m on phones) are drawn.
+Switch: Settings -> Saved zones -> "Road pavement" (`?pave=0` hides it). Materials `RoadPlain` / `RoadMarked` are created by the editor setup (`ProjectSetup`) from `Assets/Resources/Roads/*.png`;
+`tools/roads/pavement_from_glb.py` regenerates those textures from the glb. Known limits: no one-way markings, the tile's own road is still visible beside a narrower pavement, and
+photogrammetry spikes taller than 5 cm can still poke through.
+
 ## Automatic by default (nothing to generate or upload)
 With no `/roads/manifest.json` on the host the game builds road tiles itself, at runtime, from **OpenStreetMap through OpenFreeMap vector tiles** (the same free,
 key-less service the water system uses): `Sim/Roads/RoadMvt.cs` turns the z14 `transportation` layer into the same tile model (class, surface, bridge / tunnel / ramp, layer),

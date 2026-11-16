@@ -8,6 +8,7 @@ namespace RocketWorld.Sim.Roads
         public RoadSegment src; public Centerline line; public float[] up, bank; public float halfWidth;
         public uint nodeA, nodeB;            // connectors at the two ends (0 = none)
         public bool noCarve;                 // tunnels: the road is under the terrain, never cut the tiles
+        public int view;                     // RoadClassInfo.ViewKind: 0 collider only, 1 plain asphalt, 2 marked asphalt
     }
 
     /// <summary>
@@ -17,6 +18,10 @@ namespace RocketWorld.Sim.Roads
     /// </summary>
     public static class RoadMeshBuilder
     {
+        /// <summary>Real-world size of the pavement textures (the "Road with substance designer" tile, 512x1024 px): the marked texture spans the whole road width and is twice as long as wide;
+        /// the plain one repeats every PlainU metres across and PlainV metres along.</summary>
+        public const float MarkedAspect = 2f, PlainU = 6.2f, PlainV = 12.5f;
+
         public static void AddSegment(RoadMeshData m, BuiltSegment s, List<float> endL, List<float> endR, out int[] endIdx)
         {
             var c = s.line; int n = c.Count; var li = new int[n]; var ri = new int[n];
@@ -32,11 +37,15 @@ namespace RocketWorld.Sim.Roads
                     if (kappa > 1e-4) { float lim = (float)(0.85 / kappa); if (cross > 0) hl = Math.Min(hl, lim); else hr = Math.Min(hr, lim); }
                 }
                 float b = s.bank[i];
-                li[i] = m.Add((float)c.e[i] - rx * hl, s.up[i] - b * hl, (float)c.n[i] - rz * hl);
-                ri[i] = m.Add((float)c.e[i] + rx * hr, s.up[i] + b * hr, (float)c.n[i] + rz * hr);
+                float W = 2f * s.halfWidth, v0 = ((s.src.id * 2654435761u) >> 8 & 0xFFFF) / 65535f;       // start the texture at a different phase on every segment
+                float ul, ur, vv;
+                if (s.view == 2) { ul = 0f; ur = 1f; vv = ((float)c.s[i] + v0 * W * MarkedAspect) / (W * MarkedAspect); }
+                else { ul = 0f; ur = W / PlainU; vv = ((float)c.s[i] + v0 * PlainV) / PlainV; }
+                li[i] = m.Add((float)c.e[i] - rx * hl, s.up[i] - b * hl, (float)c.n[i] - rz * hl, ul, vv);
+                ri[i] = m.Add((float)c.e[i] + rx * hr, s.up[i] + b * hr, (float)c.n[i] + rz * hr, ur, vv);
             }
             bool carve = !s.noCarve;
-            for (int i = 0; i < n - 1; i++) { m.Tri(li[i], li[i + 1], ri[i], carve); m.Tri(ri[i], li[i + 1], ri[i + 1], carve); }
+            for (int i = 0; i < n - 1; i++) { m.Tri(li[i], li[i + 1], ri[i], carve, s.view); m.Tri(ri[i], li[i + 1], ri[i + 1], carve, s.view); }
             endIdx = new[] { li[0], ri[0], li[n - 1], ri[n - 1] };
         }
 
@@ -82,9 +91,11 @@ namespace RocketWorld.Sim.Roads
             if (h.Count < 3) return;
             float cx = 0, cz = 0, cy = 0; foreach (var q in h) { cx += q.x; cz += q.z; cy += q.y; }
             cx /= h.Count; cz /= h.Count; cy /= h.Count;
-            int c = m.Add(cx, cy, cz);
+            // own vertices for the patch: the corners belong to the road strips (their texture coordinates run along the road), the patch is mapped from above
+            int c = m.Add(cx, cy, cz, cx / PlainU, cz / PlainV); var ni = new int[h.Count];
+            for (int i = 0; i < h.Count; i++) ni[i] = m.Add(h[i].x, h[i].y, h[i].z, h[i].x / PlainU, h[i].z / PlainV);
             // hull from the monotone chain is counter clockwise in (x, z); Unity wants clockwise seen from above -> reverse the fan order
-            for (int i = 0; i < h.Count; i++) m.Tri(c, h[(i + 1) % h.Count].i, h[i].i, carve);
+            for (int i = 0; i < h.Count; i++) m.Tri(c, ni[(i + 1) % h.Count], ni[i], carve, carve ? 1 : 0);
         }
         static float Cross((float x, float z, float y, int i) o, (float x, float z, float y, int i) a, (float x, float z, float y, int i) b)
             => (a.x - o.x) * (b.z - o.z) - (a.z - o.z) * (b.x - o.x);

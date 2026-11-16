@@ -507,12 +507,18 @@ namespace RocketWorld
                 SavedZones.DefaultRadius = zr;
                 GUILayout.Label("Roads inside the zone are downloaded and kept for offline use.", UiTheme.Muted);
                 UiKit.Gap(4);
+                bool pave = UiKit.Toggle(s.roadPavement, "Road pavement", "Smooth asphalt with lane markings over the tile's own bumpy road.");
+                if (pave != s.roadPavement) { s.roadPavement = pave; changed = true; }
+                bool show = UiKit.Toggle(root.roads.ShowSurface, "Show road collider (debug)", "Paints the collider yellow so you can see exactly where it is.");
+                if (show != root.roads.ShowSurface) root.roads.ShowSurface = show;
+                UiKit.Gap(4);
                 GUI.enabled = root.roads.CanSaveZone && SavedZones.All.Count < SavedZones.MaxZones;
                 if (UiKit.PrimaryButton("Save zone here")) root.roads.SaveZoneHere(null);
                 GUI.enabled = true;
                 if (SavedZones.All.Count > 0) GUILayout.Label(SavedZones.All.Count + " saved - " + root.roads.ZoneProgress(), UiTheme.Muted);
                 GUILayout.Label(root.roads.Info + "   (keyboard: F9)", UiTheme.Muted);
                 if (!string.IsNullOrEmpty(root.roads.Attribution)) GUILayout.Label(root.roads.Attribution, UiTheme.Muted);
+                GUILayout.Label("Pavement texture: \"Road with substance designer\" by Gaby4545 (CC BY 4.0)", UiTheme.Muted);
             }
             GUILayout.Space(8);
             GUILayout.EndScrollView();

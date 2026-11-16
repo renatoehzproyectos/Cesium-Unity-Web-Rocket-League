@@ -101,7 +101,22 @@ static class T
             var pe = new double[s.lon.Length]; var pn = new double[s.lon.Length]; for (int i = 0; i < pe.Length; i++) f.ToPlane(s.lon[i], s.lat[i], out pe[i], out pn[i]);
             var line = RoadCenterline.Build(pe, pn); segs.Add(new BuiltSegment { src = s, line = line, up = new float[line.Count], bank = new float[line.Count], halfWidth = RoadClassInfo.Width(s) / 2, nodeA = s.connectors[0].id, nodeB = s.connectors[1].id });
         }
+        foreach (var q in segs) q.view = RoadClassInfo.ViewKind(q.src);
         var m = RoadMeshBuilder.Build(segs);
+        // pavement: texture coordinates, which triangles are drawn, and with which texture
+        Ok(m.uv.Count == m.VertexCount * 2, "one uv pair per vertex");
+        Ok(segs[0].view == 2 && segs[1].view == 1 && segs[2].view == 2, "view kinds: main roads marked, side street plain");
+        Ok(m.tm.Count > 0 && m.tp.Count > 0 && m.tm.Count + m.tp.Count == m.t.Count, "every triangle of this chunk is drawn, marked + plain");
+        bool uOk = true; foreach (int vi in m.tm) { float u = m.uv[vi * 2]; if (u < -1e-4f || u > 1.0001f) uOk = false; }
+        Ok(uOk, "marked strips map the whole texture width: u in 0..1");
+        float vmax = 0; foreach (int vi in m.tm) vmax = Math.Max(vmax, m.uv[vi * 2 + 1]);
+        Ok(vmax > 100f / (2 * RoadClassInfo.Width(segs[0].src)) * 0.9f, "marked v runs along the road in texture lengths (2 x width) -> " + vmax.ToString("0.0"));
+        var tun = Seg(9, RoadClass.Primary, 2.35, 48.85, 100, 0); tun.flags |= RoadFlags.Tunnel;
+        Ok(RoadClassInfo.ViewKind(tun) == 0, "tunnels are not drawn");
+        var dirt = Seg(10, RoadClass.Residential, 2.35, 48.85, 100, 0); dirt.surface = RoadSurface.Dirt;
+        Ok(RoadClassInfo.ViewKind(dirt) == 0 && RoadClassInfo.ViewKind(Seg(11, RoadClass.Track, 2.35, 48.85, 1, 1)) == 0, "dirt roads and tracks keep the tile's own surface");
+        var ramp = Seg(12, RoadClass.Primary, 2.35, 48.85, 100, 0); ramp.flags |= RoadFlags.Link;
+        Ok(RoadClassInfo.ViewKind(ramp) == 1, "ramps are plain asphalt (no centre line)");
         int down = 0; for (int i = 0; i < m.t.Count; i += 3) { var n = Normal(m, m.t[i], m.t[i + 1], m.t[i + 2]); if (n.y <= 0) down++; }
         Ok(down == 0, "all triangles face up: " + down + " down of " + m.TriangleCount);
         var fp = new RoadFootprint(m.v.ToArray(), m.c.ToArray());

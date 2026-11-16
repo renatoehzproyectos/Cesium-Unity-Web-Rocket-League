@@ -31,6 +31,8 @@ namespace RocketWorld.Editor
             EnsureParticleMaterial("Assets/Resources/Materials/ParticleAdd.mat", true);      // ball touch sparks
             EnsureParticleMaterial("Assets/Resources/Materials/ParticleAlpha.mat", false);   // boost trail
             EnsureBallMaterial("Assets/Resources/Materials/Ball.mat");
+            EnsurePavementMaterial("Assets/Resources/Materials/RoadPlain.mat", "plain");      // generated road pavement (RoadWorld)
+            EnsurePavementMaterial("Assets/Resources/Materials/RoadMarked.mat", "marked");
             EnsureMaterial("Assets/Resources/Materials/Sky.mat", "Skybox/Procedural", Color.white);
             EnsurePostProcessing();
             RemoveEdgeBlur();
@@ -174,6 +176,28 @@ namespace RocketWorld.Editor
             m.SetOverrideTag("RenderType", "Transparent");
             m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", Color.white);
+            AssetDatabase.CreateAsset(m, path);
+        }
+
+        /// <summary>URP Lit with the pavement textures from Assets/Resources/Roads (albedo, normal, metallic-in-R / smoothness-in-A). The material lives in Resources so the shader and keywords survive WebGL stripping.</summary>
+        static void EnsurePavementMaterial(string path, string set)
+        {
+            if (AssetDatabase.LoadAssetAtPath<Material>(path) != null) return;
+            string dir = "Assets/Resources/Roads/";
+            foreach (var suffix in new[] { "_d", "_n", "_m" })     // textures imported before RoadTextureImporter existed: import them again so it applies
+            {
+                string tp = dir + set + suffix + ".png"; var ti = AssetImporter.GetAtPath(tp) as TextureImporter; if (ti == null) continue;
+                if ((suffix == "_n" && ti.textureType != TextureImporterType.NormalMap) || (suffix == "_m" && ti.sRGBTexture)) AssetDatabase.ImportAsset(tp, ImportAssetOptions.ForceUpdate);
+            }
+            var d = AssetDatabase.LoadAssetAtPath<Texture2D>(dir + set + "_d.png"); if (d == null) { Debug.LogWarning("[RocketWorld] pavement textures missing: " + dir + set + "_d.png"); return; }
+            var sh = Shader.Find("Universal Render Pipeline/Lit"); if (sh == null) { Debug.LogWarning("[RocketWorld] shader not found: Universal Render Pipeline/Lit"); return; }
+            var m = new Material(sh) { name = "Road_" + set };
+            m.SetTexture("_BaseMap", d); if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", Color.white);
+            var n = AssetDatabase.LoadAssetAtPath<Texture2D>(dir + set + "_n.png");
+            if (n != null) { m.SetTexture("_BumpMap", n); m.SetFloat("_BumpScale", 1f); m.EnableKeyword("_NORMALMAP"); }
+            var mk = AssetDatabase.LoadAssetAtPath<Texture2D>(dir + set + "_m.png");
+            if (mk != null) { m.SetTexture("_MetallicGlossMap", mk); m.EnableKeyword("_METALLICSPECGLOSSMAP"); if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 1f); if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0f); }
+            if (m.HasProperty("_Cull")) m.SetFloat("_Cull", 2f);
             AssetDatabase.CreateAsset(m, path);
         }
 
