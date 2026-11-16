@@ -353,6 +353,16 @@ namespace RocketWorld
             if (!sheet)
             {
                 if (root.minimap != null) root.minimap.Draw(_mapN);
+                if (root.minimap != null && root.roads != null && root.roads.Enabled)      // manual road-height sampling, right beside the minimap
+                {
+                    var mr = root.minimap.Rect; float bw = UiLayout.Compact ? 76f : 92f, bh = UiLayout.Compact ? 40f : 46f;
+                    var br = new Rect(mr.xMax + 12f, mr.y + 4f, bw, bh); _hit.Add(br);
+                    if (GUI.Button(br, "Sample\nroad height", UiTheme.Primary))
+                    {
+                        int n = root.roads.ResampleHeights();
+                        Toast(n > 0 ? "Sampling road heights (" + n + " chunks)..." : "No roads loaded to sample");
+                    }
+                }
                 if (root.waterMap != null)       // OpenStreetMap's licence asks for attribution wherever its data is used
                 {
                     var oc = GUI.color; GUI.color = new Color(1f, 1f, 1f, 0.50f);

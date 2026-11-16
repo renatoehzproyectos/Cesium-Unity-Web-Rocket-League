@@ -473,6 +473,18 @@ namespace RocketWorld
         public float RoadHeight => root != null && root.settings != null ? Mathf.Clamp(root.settings.roadHeight, 0f, GameSettings.MaxRoadHeight) : 0f;
         float _appliedHeight;
 
+        /// <summary>Manual re-sample (minimap button): forget every cached ground height and fitted profile, then rebuild all loaded chunks from fresh samples.</summary>
+        public int ResampleHeights()
+        {
+            _heights.Clear(); int n = 0;
+            foreach (var c in _chunks.Values)
+            {
+                c.solved.Clear(); c.procTried = true;      // procTried: do not reload the old processed profiles from the store
+                c.res = null; c.dirty = true; c.saved = false; c.retryAt = 0f; c.retries = 0; c.refUp = float.NaN; n++;
+            }
+            return n;
+        }
+
         /// <summary>Move every existing chunk's pavement and collider to the current road height (cheap: only transforms change).</summary>
         void ApplyRoadHeight()
         {
