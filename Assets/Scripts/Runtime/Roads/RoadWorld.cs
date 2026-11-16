@@ -247,7 +247,7 @@ namespace RocketWorld
                 if (c.res != null && c.pending > 0) pending += c.pending;
                 if (dist > resR * 1.25f && c.go != null && c != _job) { Free(c); continue; }
                 bool needs = c.res == null || (c.dirty && (c.pending == 0 || (budget != null && budget.Added != c.lastAdded)));
-                if (dist <= Mathf.Min(resR, _heights.Broken ? resR : SampleRadius) && needs && c != _job && Time.unscaledTime >= c.retryAt) _buildQueue.Add(c);
+                if (dist <= (_heights.Broken ? resR : Math.Min(resR, (double)SampleRadius)) && needs && c != _job && Time.unscaledTime >= c.retryAt) _buildQueue.Add(c);
                 if (c.res != null && c.go != null)
                 {
                     bool want = dist < (c.col != null && c.col.enabled ? colOff : colOn);
