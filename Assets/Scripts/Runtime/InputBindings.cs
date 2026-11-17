@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace RocketWorld
 {
-    public enum CarAction { Accelerate, Brake, SteerLeft, SteerRight, RollLeft, RollRight, Jump, Boost, Handbrake, CameraToggle, Reset, Ball, Plane, Vehicle, HyperBoost, VehicleMode, Gear, Flaps, Menu, Fpv }
+    public enum CarAction { Accelerate, Brake, SteerLeft, SteerRight, RollLeft, RollRight, Jump, Boost, Handbrake, CameraToggle, Reset, Ball, Plane, Vehicle, HyperBoost, VehicleMode, Gear, Flaps, Menu, Fpv, Door }
 
     /// <summary>Gamepad inputs a car action can be bound to (buttons, triggers, d-pad and the four directions of each stick).</summary>
     public enum PadInput
@@ -58,6 +58,7 @@ namespace RocketWorld
                 case CarAction.Gear: return "Landing gear";
                 case CarAction.Flaps: return "Flaps";
                 case CarAction.Fpv: return "FPV drone mode on / off";
+                case CarAction.Door: return "Cargo ramp open / close (Antonov)";
                 default: return "Settings menu";
             }
         }
@@ -88,6 +89,7 @@ namespace RocketWorld
                 case CarAction.Gear: return new Binding { key0 = "G", pad = PadInput.DpadLeft };
                 case CarAction.Flaps: return new Binding { key0 = "F" };
                 case CarAction.Fpv: return new Binding { key0 = "K" };
+                case CarAction.Door: return new Binding { key0 = "O" };
                 default: return new Binding { pad = PadInput.Start };
             }
         }

@@ -25,3 +25,7 @@ helicopter lift-off and forward flight, DeLorean 0-60 mph in about 6 s.
 * Inertia products (Ixz) are ignored; fuel burn changes mass but not the Rigidbody centre of mass.
 * Ground friction is a velocity-limited friction model, not JSBSim's Lagrange-multiplier solver.
 * A pitch-hold trim assist is added for the F-15E (JSBSim has no autopilot for them).
+
+## Liquid rocket engines (added to the C# port)
+
+`JsbEngine` now also reads native `<rocket_engine>` (liquid branch of `FGRocket` + the rocket part of `FGPropulsion::ConsumeFuel`): thrust = Isp (constant or a `<function>`, e.g. over `atmosphere/pressure-altitude`) × the propellant flow of the previous frame, flow = `slfuelflowmax`/`sloxiflowmax` (or `propflowmax` + `mixtureratio`) × throttle, fuel from FUEL tanks and oxidizer from OXIDIZER tanks split evenly, flame-out below `minthrottle`, starvation when a tank is empty. Only `direct` thrusters (with `pitch-angle-rad` / `yaw-angle-rad` gimbal) are supported. `tools/flight2/run_all.sh` compares it with native JSBSim (`starship burn`, `burn-hi`): forces and thrust agree to ~1e-15, mass to 5e-5.

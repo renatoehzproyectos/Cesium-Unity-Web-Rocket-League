@@ -43,7 +43,7 @@ namespace RocketWorld.Sim
         double milThrust = 10000, maxThrust = 10000, bpr, bleed, tsfc = 0.8, atsfc = 1.7, idleN1 = 30, idleN2 = 60, maxN1 = 100, maxN2 = 100;
         int augmented, augMethod, injected; double n1Spin = 1, n2Spin = 3, n1Start = 1.4, n2Start = 2, n1Down = 2, n2Down = 2, igniteN1 = 5.21, igniteN2 = 25.18;
         public double N1, N2, N2norm, ffPph, nozzle = 1, epr = 1, idleFF; double augCmd, throttle, n1Factor, n2Factor; bool running, cutoff = true, starved, aug, starter;
-        public bool Starved => starved; public bool Running => running; public bool Afterburner => aug;
+        public bool Starved => starved || _starvedR; public bool Running => running; public bool Afterburner => aug;
         enum Phase { Off, Run, SpinUp, Start, Stall, Seize, Trim } Phase phase = Phase.Off;
         JsbFdm.Ev idleThr, milThr, augThr, n1Up, n1Dn, n2Up, n2Dn, tsfcFn; double fuelUsed;
         // electric / generic power engine for rotor thrusters: not used here
@@ -53,6 +53,7 @@ namespace RocketWorld.Sim
         {
             var e = new JsbEngine { fdm = f, num = num };
             var ed = new XmlDocument(); ed.LoadXml(f.readEngine(en.GetAttribute("file"))); var er = ed.DocumentElement; e.type = er.Name;
+            if (e.type == "rocket_engine") { e.LoadRocket(f, en, er); return e; }
             if (e.type != "turbine_engine") throw new FormatException("engine type <" + e.type + "> is not supported by the generic port");
             // functions are named relative; evaluate with this engine's property prefix
             Func<string, XmlElement> fn = nm => { foreach (XmlElement x in er.SelectNodes("function")) if (x.GetAttribute("name") == nm) return x; return null; };
@@ -77,6 +78,66 @@ namespace RocketWorld.Sim
             f.Cell("fcs/throttle-cmd-norm[" + num + "]"); f.Cell("fcs/throttle-pos-norm[" + num + "]");
             return e;
         }
+
+        // ------------------------------------------------------------------------------------------------------------------------------------------------
+        // Liquid rocket engine: port of FGRocket (liquid branch) + the rocket part of FGPropulsion::ConsumeFuel (JSBSim 1.3, src/models/propulsion).
+        // thrust = Isp * propellant flow of the PREVIOUS frame; flow = max flow * throttle; fuel from FUEL tanks, oxidizer from OXIDIZER tanks, split evenly;
+        // an empty tank starves the engine; below <minthrottle> the engine flames out. Thruster: direct (pressure thrust comes in through an Isp(altitude) function).
+        // ------------------------------------------------------------------------------------------------------------------------------------------------
+        public bool IsRocket { get; private set; }
+        double _isp = 300, _minThr, _slFuel, _slOxi, _fuelExp, _oxiExp, _pct; JsbFdm.Ev _ispFn; bool _flameout;
+        public double PctPower => _pct;
+        public bool Flameout => _flameout;
+
+        void LoadRocket(JsbFdm f, XmlElement en, XmlElement er)
+        {
+            IsRocket = true;
+            Func<string, bool> has = t => er.SelectSingleNode(t) != null;
+            Func<string, double> val = t => double.Parse(er.SelectSingleNode(t).InnerText.Trim(), CultureInfo.InvariantCulture);
+            var ispEl = er.SelectSingleNode("isp") as XmlElement; if (ispEl == null) throw new FormatException("rocket_engine without <isp>");
+            var ispFn = ispEl.SelectSingleNode("function") as XmlElement;
+            if (ispFn != null) { _ispFn = f.Func(ispFn); _isp = _ispFn(); } else _isp = val("isp");
+            if (has("minthrottle")) _minThr = val("minthrottle");
+            double flowMax = 0, mxr = 0;
+            if (has("slfuelflowmax")) { _slFuel = val("slfuelflowmax"); _slOxi = has("sloxiflowmax") ? val("sloxiflowmax") : 0; }
+            else if (has("propflowmax")) { flowMax = val("propflowmax"); mxr = has("mixtureratio") ? val("mixtureratio") : 0; _slFuel = flowMax / (1 + mxr); _slOxi = flowMax * mxr / (1 + mxr); }
+            foreach (XmlElement fd in en.SelectNodes("feed")) _feeds.Add(int.Parse(fd.InnerText.Trim()));
+            var th = (XmlElement)en.SelectSingleNode("thruster");
+            if (th.GetAttribute("file") != "direct") throw new FormatException("only direct thrusters are supported here (got '" + th.GetAttribute("file") + "')");
+            locIn = JsbFdm.Loc(th.SelectSingleNode("location")); actingIn = locIn;
+            var or = th.SelectSingleNode("orient"); if (or != null) { double k = ((XmlElement)or).GetAttribute("unit") == "RAD" ? 1 : JsbFdm.Deg; roll0 = double.Parse(or.SelectSingleNode("roll").InnerText, CultureInfo.InvariantCulture) * k; pitch0 = double.Parse(or.SelectSingleNode("pitch").InnerText, CultureInfo.InvariantCulture) * k; yaw0 = double.Parse(or.SelectSingleNode("yaw").InnerText, CultureInfo.InvariantCulture) * k; }
+            _thrustCell = f.Cell(P("thrust-lbs"));
+            f.Cell(P("pitch-angle-rad")).v = pitch0; f.Cell(P("yaw-angle-rad")).v = yaw0; f.Cell(P("reverser-angle-rad")).v = 0;
+            f.Cell("fcs/throttle-cmd-norm[" + num + "]"); f.Cell("fcs/throttle-pos-norm[" + num + "]");
+            _starvedR = false; running = true;
+        }
+        bool _starvedR;
+
+        void RunRocket(Ctx c)
+        {
+            double dt = c.dt, prop = dt > 0 ? (_fuelExp + _oxiExp) / dt : 0, thrust;
+            if (_ispFn != null) _isp = _ispFn();
+            double throttle = fdm.Cell("fcs/throttle-pos-norm[" + num + "]").v;
+            if (throttle < _minThr || _starvedR) { _pct = 0; _flameout = true; thrust = 0; }
+            else { _pct = throttle; _flameout = false; thrust = _isp * prop; }
+            running = !_flameout;
+            double rev = fdm.Cell(P("reverser-angle-rad")).v, th = Math.Cos(rev) * thrust; _thrust = th; _thrustCell.v = th;
+            double pitch = fdm.Cell(P("pitch-angle-rad")).v, yaw = fdm.Cell(P("yaw-angle-rad")).v;
+            double cp = Math.Cos(pitch), sp = Math.Sin(pitch), cy = Math.Cos(yaw), sy = Math.Sin(yaw);
+            _fb = new D3(th * cp * cy, th * cp * sy, -th * sp); moment = new D3();
+            fdm.Cell(P("n1")).v = _pct * 100; fdm.Cell(P("n2")).v = _pct * 100; fdm.Cell(P("fuel-flow-rate-pps")).v = _slFuel * _pct; fdm.Cell(P("oxi-flow-rate-pps")).v = _slOxi * _pct; fdm.Cell(P("isp")).v = _isp;
+        }
+
+        void BurnRocket(double dt)
+        {
+            // feed lists: tanks with propellant (above 0), per type
+            int nf = 0, no = 0; foreach (var i in _feeds) { if (i >= fdm.tanks.Count) continue; var t = fdm.tanks[i]; if (t.contents > 0) { if (t.fuelType == "OXIDIZER") no++; else nf++; } }
+            bool hasOx = false; foreach (var i in _feeds) if (i < fdm.tanks.Count && fdm.tanks[i].fuelType == "OXIDIZER") hasOx = true;
+            _starvedR = nf == 0 || (hasOx && no == 0);
+            if (_starvedR) return;
+            _fuelExp = _slFuel * _pct * dt; _oxiExp = _slOxi * _pct * dt;
+            foreach (var i in _feeds) { if (i >= fdm.tanks.Count) continue; var t = fdm.tanks[i]; if (t.contents <= 0) continue; bool ox = t.fuelType == "OXIDIZER"; double take = (ox ? _oxiExp / Math.Max(no, 1) : _fuelExp / Math.Max(nf, 1)); t.contents = Math.Max(0, t.contents - take); }
+        }
         static JsbFdm.Ev FnOf(JsbFdm f, XmlElement x) => x == null ? null : f.Func(x);
         public bool trimPending = true;
         public void Finish() { }
@@ -84,6 +145,7 @@ namespace RocketWorld.Sim
         /// <summary>JSBSim "propulsion/set-running = -1": the engine starts at the N1 / N2 of the current throttle setting (FGTurbine tpTrim path).</summary>
         public void SetRunning(double? thr = null)
         {
+            if (IsRocket) { running = true; return; }
             trimPending = false; n1Factor = maxN1 - idleN1; n2Factor = maxN2 - idleN2; throttle = thr ?? fdm.Cell("fcs/throttle-pos-norm[" + num + "]").v;
             N2 = idleN2 + throttle * n2Factor; N1 = idleN1 + throttle * n1Factor; N2norm = throttle; phase = Phase.Run; cutoff = false; running = true;
             idleFF = Math.Pow(milThrust, 0.2) * 107.0; ffPph = 0; _ffInit = true;
@@ -100,6 +162,7 @@ namespace RocketWorld.Sim
 
         public void Run(Ctx c)
         {
+            if (IsRocket) { RunRocket(c); return; }
             // idle fuel flow (FGTurbine::Load): 
             if (trimPending) { trimPending = false; SetRunning(); }
             starved = false; double need = 0; foreach (var tIdx in _feeds) if (tIdx < fdm.tanks.Count && fdm.tanks[tIdx].contents > 0.01) { need = 1; break; }
@@ -162,6 +225,7 @@ namespace RocketWorld.Sim
         /// <summary>consume fuel from the feed tanks (FGPropulsion::GetSteadyState / Run).</summary>
         public void Burn(double dt)
         {
+            if (IsRocket) { BurnRocket(dt); return; }
             double fuel = ffPph / 3600.0 * dt; if (fuel <= 0) return; fuelUsed += fuel;
             foreach (var ti in _feeds) { if (ti >= fdm.tanks.Count) continue; var t = fdm.tanks[ti]; double take = Math.Min(t.contents, fuel); t.contents -= take; fuel -= take; if (fuel <= 1e-12) break; }
         }

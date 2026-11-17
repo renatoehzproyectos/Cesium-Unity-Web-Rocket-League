@@ -3,9 +3,9 @@ using UnityEngine;
 namespace RocketWorld
 {
     /// <summary>What the visual needs from the physics each frame (all 0..1 except wheelSpeed, m/s).</summary>
-    public struct VehicleViz { public float gear, fold, rotorRpm, burner, wheelSpeed, nozzle; }
+    public struct VehicleViz { public float gear, fold, rotorRpm, burner, wheelSpeed, nozzle, ramp; }   // ramp: Antonov rear ramp, 0 = closed .. 1 = open
 
-    public enum VehicleToggle { Mode, Gear, Flaps }
+    public enum VehicleToggle { Mode, Gear, Flaps, Door }
 
     /// <summary>
     /// The seam between <see cref="VehicleDriver"/> (mode switching, colliders, visual, HUD, Hyper Boost) and a vehicle's flight / driving physics.
@@ -35,7 +35,8 @@ namespace RocketWorld
         {
             switch (spec.kind)
             {
-                case VehicleKind.F35B: case VehicleKind.F15E: case VehicleKind.Helicopter: case VehicleKind.DeLorean: return new JsbJetModel(spec);
+                case VehicleKind.F35B: case VehicleKind.F15E: case VehicleKind.Helicopter: case VehicleKind.DeLorean:
+                case VehicleKind.Starship: case VehicleKind.Megaliner: case VehicleKind.Antonov: return new JsbJetModel(spec);
                 default: return new PlaceholderPhysics(spec);
             }
         }

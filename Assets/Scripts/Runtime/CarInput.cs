@@ -34,6 +34,7 @@ namespace RocketWorld
         public bool ModePressed { get; private set; }
         public bool GearPressed { get; private set; }
         public bool FlapsPressed { get; private set; }
+        public bool DoorPressed { get; private set; }
         public bool FpvPressed { get; private set; }
         /// <summary>Drone touch layout taps (arm switch, camera tilt up / down).</summary>
         public bool ArmPressed { get; private set; }
@@ -89,7 +90,7 @@ namespace RocketWorld
         public InputBindings bindings;
         /// <summary>Set by the HUD while a menu that uses the keyboard / gamepad is open: the car gets no input and no hot-keys fire.</summary>
         public bool Blocked;
-        Edge _eCam, _eReset, _eMenu, _eBall, _ePlane, _eVehicle, _eMode, _eGear, _eFlaps, _eFpv;
+        Edge _eCam, _eReset, _eMenu, _eBall, _ePlane, _eVehicle, _eMode, _eGear, _eFlaps, _eFpv, _eDoor;
 
         float Axis(CarAction a)
         {
@@ -101,7 +102,7 @@ namespace RocketWorld
 
         void Update()
         {
-            CameraTogglePressed = ResetPressed = SettingsPressed = BallPressed = PlanePressed = VehiclePressed = ModePressed = GearPressed = FlapsPressed = FpvPressed = ArmPressed = TiltUpPressed = TiltDownPressed = false;
+            CameraTogglePressed = ResetPressed = SettingsPressed = BallPressed = PlanePressed = VehiclePressed = ModePressed = GearPressed = FlapsPressed = DoorPressed = FpvPressed = ArmPressed = TiltUpPressed = TiltDownPressed = false;
             // Edges are tracked even while blocked so a held button does not "fire" the moment a menu closes.
             bool cam = _eCam.Update(Axis(CarAction.CameraToggle) > 0.5f);
             bool reset = _eReset.Update(Axis(CarAction.Reset) > 0.5f);
@@ -112,6 +113,7 @@ namespace RocketWorld
             bool gear = _eGear.Update(Axis(CarAction.Gear) > 0.5f);
             bool flaps = _eFlaps.Update(Axis(CarAction.Flaps) > 0.5f);
             bool fpv = _eFpv.Update(Axis(CarAction.Fpv) > 0.5f);
+            bool door = _eDoor.Update(Axis(CarAction.Door) > 0.5f);
             bool menuKey = InputDevices.KeyValue("Escape") > 0f || InputDevices.KeyValue("Tab") > 0f;
             bool menuPad = InputDevices.PadValue(bindings.GetPad(CarAction.Menu)) > 0.5f;
             bool menu = _eMenu.Update(menuKey || menuPad);
@@ -136,7 +138,7 @@ namespace RocketWorld
                 for (int i = 0; i < _held.Length; i++) { _held[i] = false; _touched[i] = false; }
                 return;
             }
-            BallPressed = ball; PlanePressed = plane; VehiclePressed = vehicle; ModePressed = mode; GearPressed = gear; FlapsPressed = flaps; FpvPressed = fpv;
+            BallPressed = ball; PlanePressed = plane; VehiclePressed = vehicle; ModePressed = mode; GearPressed = gear; FlapsPressed = flaps; DoorPressed = door; FpvPressed = fpv;
             CameraTogglePressed = cam; ResetPressed = reset; SettingsPressed = menu; MenuFromPad = menu && menuPad && !menuKey;
 
             float th = Axis(CarAction.Accelerate) - Axis(CarAction.Brake);
@@ -217,7 +219,7 @@ namespace RocketWorld
         {
             switch (id)
             {
-                case "gear": GearPressed = true; break; case "mode": ModePressed = true; break; case "flaps": FlapsPressed = true; break;
+                case "gear": GearPressed = true; break; case "mode": ModePressed = true; break; case "flaps": FlapsPressed = true; break; case "door": DoorPressed = true; break;
                 case "arm": ArmPressed = true; break; case "tiltUp": TiltUpPressed = true; break; case "tiltDown": TiltDownPressed = true; break;
                 case "cam": CameraTogglePressed = true; break; case "reset": ResetPressed = true; break; case "exit": FpvPressed = true; break;
             }

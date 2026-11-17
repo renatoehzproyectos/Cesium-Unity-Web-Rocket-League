@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using UnityEngine;
+using RocketWorld.Sim;
 
 namespace RocketWorld.Tests
 {
@@ -7,6 +8,43 @@ namespace RocketWorld.Tests
     public class VehicleTests
     {
         static readonly VehicleKind[] Driven = { VehicleKind.F35B, VehicleKind.F15E, VehicleKind.Helicopter, VehicleKind.DeLorean };
+
+        static readonly VehicleKind[] Big = { VehicleKind.Starship, VehicleKind.Megaliner, VehicleKind.Antonov };
+
+        [Test] public void BigVehiclesHaveCompleteSpecsAndAJsbsimFile()
+        {
+            foreach (var k in Big)
+            {
+                var s = Vehicles.Get(k); Assert.IsNotNull(s, k.ToString()); Assert.AreEqual(k, s.kind); Assert.AreEqual(Vehicles.ProfileOf(k), s.profile, s.name);
+                Assert.IsTrue(s.model.StartsWith("Models/Vehicles/"), s.name); Assert.Greater(s.boxes.Length, 0, s.name); Assert.GreaterOrEqual(s.wheels.Length, 3, s.name);
+                var cfg = JsbVehicleCfg.For(k); var f = JsbRes.Load(cfg.file);                       // the file parses with the generic C# port
+                Assert.GreaterOrEqual(f.gears.Count, s.wheels.Length, s.name + ": a JSBSim contact for every wheel");
+                Assert.Greater(f.engines.Count, 0, s.name);
+            }
+            Assert.IsTrue(Vehicles.Get(VehicleKind.Starship).rocket); Assert.IsTrue(Vehicles.Get(VehicleKind.Antonov).hasRamp);
+            Assert.IsNotNull(Vehicles.Get(VehicleKind.Antonov).holdBoxes);
+        }
+
+        [Test] public void StarshipBurnsPropellantAndCutsOffWhenTanksRunDry()
+        {
+            var f = JsbRes.Load("starship"); f.StartEngines(1.0);
+            double w0 = f["inertia/weight-lbs"];
+            var st = new JsbFdm.State { aglFt = 3000, altSlFt = 3000, theta = 1.4, uvw = new D3(60, 0, 0) };
+            for (int i = 0; i < 120 * 5; i++) { foreach (var e in new[] { 0, 1, 2, 3, 4, 5 }) f["fcs/throttle-cmd-norm[" + e + "]"] = 1.0; f.Step(st, 1.0 / 120); }
+            Assert.Less(f["inertia/weight-lbs"], w0 - 20000, "five seconds at full thrust burn tens of tonnes");
+            Assert.Greater(f.engines[0].PctPower, 0.99);
+            foreach (var t in f.tanks) t.contents = 0;
+            f.Step(st, 1.0 / 120); f.Step(st, 1.0 / 120);
+            Assert.IsTrue(f.engines[0].Starved || f.engines[0].Flameout);
+        }
+
+        [Test] public void MegalinerIsAsTallAsTheStatueOfLiberty()
+        {   // model is scaled by tools/models/prep.mjs so that its height is 93 m: the belly contact (y = -46.5 + 1 m skid) and the tail must fit that
+            var s = Vehicles.Get(VehicleKind.Megaliner);
+            float lowest = 0f, top = -1e9f; foreach (var w in s.wheels) lowest = Mathf.Min(lowest, w.pos.y - w.radius);
+            foreach (var b in s.boxes) top = Mathf.Max(top, b.center.y + b.size.y * 0.5f);
+            Assert.AreEqual(93f, top - lowest, 8f, "belly to top of the T-tail ~ 93 m");
+        }
 
         [Test] public void EveryDrivenVehicleHasACompleteSpec()
         {
@@ -32,6 +70,7 @@ namespace RocketWorld.Tests
                 foreach (var b in s.boxes) Assert.Less(Mathf.Abs(b.center.x) + b.size.x * 0.5f, 20f, s.name);
                 foreach (var w in s.wheels) Assert.Greater(w.radius, 0f, s.name);
             }
+            foreach (var k in Big) { var s = Vehicles.Get(k); if (!s.rocket) foreach (var w in s.wheels) Assert.Greater(w.radius, 0f, s.name); }
         }
 
         [Test] public void OrderListsEveryKindOnce()

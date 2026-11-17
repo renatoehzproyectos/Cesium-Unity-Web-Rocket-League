@@ -11,6 +11,8 @@ namespace RocketWorld
         bool IsClientOnly { get; }
         /// <summary>Ask the host to put the ball in front of this player's car.</summary>
         void RequestBall();
+        /// <summary>Host: tell the joined players that the Tsar Bomba went off at this Unity world position (visual only).</summary>
+        void BroadcastExplosion(Vector3 worldPosition);
     }
 
     /// <summary>

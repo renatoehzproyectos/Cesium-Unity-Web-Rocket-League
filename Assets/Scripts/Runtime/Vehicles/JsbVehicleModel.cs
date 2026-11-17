@@ -18,7 +18,7 @@ namespace RocketWorld
     /// <summary>Per-vehicle JSBSim wiring: which file, how the throttle lever maps onto the JSBSim throttle, which controls exist.</summary>
     public sealed class JsbVehicleCfg
     {
-        public string file; public bool augmentedThrottle, stovl, speedbrake, flapDetents, reverser, autoTrim, heli, hoverCar; public float[] flapSteps;
+        public string file; public bool augmentedThrottle, stovl, speedbrake, flapDetents, reverser, autoTrim, heli, hoverCar, rocket, airliner; public float[] flapSteps;
         public static JsbVehicleCfg For(VehicleKind k)
         {
             switch (k)
@@ -27,6 +27,9 @@ namespace RocketWorld
                 case VehicleKind.F35B: return new JsbVehicleCfg { file = "f35b", stovl = true };
                 case VehicleKind.Helicopter: return new JsbVehicleCfg { file = "heli", heli = true };
                 case VehicleKind.DeLorean: return new JsbVehicleCfg { file = "delorean", hoverCar = true };
+                case VehicleKind.Starship: return new JsbVehicleCfg { file = "starship", rocket = true };                                  // JSBSim <rocket_engine> x6, rate-command SAS (gimbal + RCS)
+                case VehicleKind.Megaliner: return new JsbVehicleCfg { file = "megaliner", airliner = true, autoTrim = true, speedbrake = true, reverser = true, flapDetents = true, flapSteps = new[] { 0f, 0.33f, 0.66f, 1f } };
+                case VehicleKind.Antonov: return new JsbVehicleCfg { file = "an124", airliner = true, autoTrim = true, speedbrake = true, reverser = true, flapDetents = true, flapSteps = new[] { 0f, 0.33f, 0.66f, 1f } };
                 default: return null;
             }
         }
@@ -39,7 +42,7 @@ namespace RocketWorld
         {
             var cfg = For(sp.kind); if (cfg == null) return sp;
             var f = JsbRes.Load(cfg.file);
-            if (cfg.heli) return sp;                                                                   // spec.com / hub already follow the JSBSim file
+            if (cfg.heli || cfg.rocket) return sp;                                                     // spec.com / hub (rocket: CG) already follow the JSBSim file
             if (cfg.hoverCar)
             {   // centroid of the contact points: model wheels (bottoms) vs JSBSim contacts
                 double jx = 0, jz = 0; foreach (var g in f.gears) { var b = f.StructuralToBody(g.locIn); jx += b.x; jz += b.z; } jx /= f.gears.Count; jz /= f.gears.Count;
@@ -67,20 +70,24 @@ namespace RocketWorld
     {
         readonly VehicleSpec s; readonly JsbVehicleCfg cfg; JsbFdm f;
         float _lever, _el, _ail, _rud, _trim, _drive; int _flaps; bool _gearDown = true, _stovl, _sb, _reverse, _onGround, _hover; float _alpha; D3 _uvwPrev; bool _hasPrev;
-        readonly bool[] _wow = new bool[8]; int _enginesStarted;
+        readonly bool[] _wow = new bool[8]; int _enginesStarted; float _ramp;
+        /// <summary>Propellant left (0..1) over all tanks (rocket HUD).</summary>
+        float PropFraction() { if (f == null) return 0f; double c = 0, m = 0; foreach (var t in f.tanks) { c += t.contents; m += t.capacity; } return m > 0 ? (float)(c / m) : 0f; }
 
         public JsbJetModel(VehicleSpec spec) { s = spec; cfg = JsbVehicleCfg.For(spec.kind); }
         public float Lever => _lever;
         public bool OnGround => _onGround;
         public float AlphaDeg => _alpha;
-        public bool Stalled => !cfg.heli && !cfg.hoverCar && !_onGround && _alpha > 28f;
+        public bool Stalled => !cfg.heli && !cfg.hoverCar && !cfg.rocket && !_onGround && _alpha > 28f;
         public string Status
         {
             get
             {
                 if (cfg.heli) return "ROTOR " + (f != null ? (f["rotor/omega-rad_sec"] / 33.5 * 100).ToString("0") : "100") + "%  COLL " + (_lever * 100f).ToString("0") + "%  JSBSim";
                 if (cfg.hoverCar) return (_hover ? "HOVER" : "WHEELS") + "  JSBSim";
-                string t = _gearDown ? "GEAR DN" : "GEAR UP";
+                if (cfg.rocket) return "THR " + (_lever * 100f).ToString("0") + "%  PROP " + (PropFraction() * 100f).ToString("0") + "%  LEGS " + (_gearDown ? "DN" : "UP") + (f != null && f.engines.Count > 0 && f.engines[0].Starved ? "  NO PROPELLANT" : "") + "  JSBSim";
+                string t = s.hasGear ? (_gearDown ? "GEAR DN" : "GEAR UP") : "SKIDS";
+                if (s.hasRamp) t += _ramp > 0.98f ? "  RAMP OPEN" : _ramp < 0.02f ? "  RAMP CLOSED" : "  RAMP MOVING";
                 if (cfg.flapDetents) t += "  FLAPS " + _flaps;
                 if (cfg.stovl) t += _stovl ? "  VTOL" : "  CRUISE";
                 if (cfg.speedbrake) t += _sb ? "  BRAKE" : "";
@@ -99,6 +106,7 @@ namespace RocketWorld
             f["gear/gear-cmd-norm"] = _gearDown ? 1 : 0; f["gear/gear-pos-norm"] = _gearDown ? 1 : 0;
             _lever = airborne ? 0.7f : 0f;
             if (cfg.heli) { _lever = airborne ? 0.52f : 0.25f; _gearDown = true; }
+            if (cfg.rocket) { _gearDown = true; f["gear/gear-cmd-norm"] = 1; f["gear/gear-pos-norm"] = 1; _lever = airborne ? 0.62f : 0f; }
             if (cfg.hoverCar) { _hover = airborne; _gearDown = !airborne; f["fcs/hover-cmd-norm"] = airborne ? 1 : 0; f["fcs/hover-pos-norm"] = airborne ? 1 : 0; f["gear/gear-pos-norm"] = airborne ? 0 : 1; _lever = 0f; }
             f.StartEngines(airborne ? ThrottleOf(_lever) : 0.0);
             _enginesStarted = 1;
@@ -121,8 +129,8 @@ namespace RocketWorld
             // ---- pilot inputs (stick smoothing like the Cessna: JSBSim convention, stick forward = elevator cmd +, rudder cmd + = nose left)
             if (cfg.hoverCar) _lever = Mathf.Abs(c.throttle);
             else if (c.leverSet) _lever = Mathf.MoveTowards(_lever, Mathf.Clamp01(c.lever), 2f * dt);
-            else _lever = Mathf.Clamp01(_lever + ((c.jump ? 1f : 0f) - (c.handbrake && !_reverse ? 1f : 0f)) * (cfg.heli ? 0.3f : 0.45f) * dt);
-            float tgtEl = Mathf.Clamp(c.throttle, -1f, 1f), tgtAil = Mathf.Clamp(c.steer, -1f, 1f), tgtRud = Mathf.Clamp(-(c.roll + (_onGround ? c.steer * 0.6f : c.steer * 0.8f)), -1f, 1f);
+            else _lever = Mathf.Clamp01(_lever + ((c.jump ? 1f : 0f) - (c.handbrake && !_reverse ? 1f : 0f)) * (cfg.heli ? 0.3f : cfg.rocket ? 0.6f : 0.45f) * dt);
+            float tgtEl = Mathf.Clamp(c.throttle, -1f, 1f), tgtAil = Mathf.Clamp(c.steer, -1f, 1f), tgtRud = Mathf.Clamp(-(c.roll + (cfg.rocket ? 0f : _onGround ? c.steer * 0.6f : c.steer * 0.8f)), -1f, 1f);
             float rate = 3.2f * dt; _el = Mathf.MoveTowards(_el, tgtEl, rate); _ail = Mathf.MoveTowards(_ail, tgtAil, rate); _rud = Mathf.MoveTowards(_rud, tgtRud, rate);
             // reverse thrust: hold the lever brake at idle on the ground
             if (cfg.reverser) _reverse = _onGround && _lever < 0.02f && c.handbrake && vW.magnitude > 3f;
@@ -183,10 +191,11 @@ namespace RocketWorld
             _alpha = (float)(o.alpha * 57.29578);
             if (cfg.heli) { d.Viz = new VehicleViz { gear = 1f, rotorRpm = Mathf.Clamp01((float)(f["rotor/omega-rad_sec"] / 33.5)), wheelSpeed = spd }; return; }
             if (cfg.hoverCar) { d.Viz = new VehicleViz { gear = (float)f["gear/gear-pos-norm"], fold = (float)f["fcs/hover-pos-norm"], wheelSpeed = (float)uvw.x * PlaneModel.FtToM }; return; }
+            _ramp = d.RampOpen01;
             d.Viz = new VehicleViz
             {
-                gear = (float)f["gear/gear-pos-norm"], fold = 0f, rotorRpm = 0f, wheelSpeed = spd,
-                burner = f.engines.Count > 0 && f.engines[0].Afterburner ? 1f : (c.hyper ? 1f : 0f),
+                gear = (float)f["gear/gear-pos-norm"], fold = 0f, rotorRpm = 0f, wheelSpeed = spd, ramp = d.RampOpen01,
+                burner = cfg.rocket ? (f.engines.Count > 0 ? (float)f.engines[0].PctPower : 0f) : f.engines.Count > 0 && f.engines[0].Afterburner ? 1f : (c.hyper ? 1f : 0f),
                 nozzle = cfg.stovl ? Mathf.Clamp01((float)f["fcs/nozzle-pos-deg"] / 90f) : 0f
             };
         }
@@ -211,7 +220,8 @@ namespace RocketWorld
                 float N = (float)-g.StrutForce(compress, compressSpeed) * PlaneModel.LbfToN;
                 rb.AddForceAtPosition(nrm * N, hit.point, ForceMode.Force);
                 float speed = vp.magnitude, steerFactor = 1f / (1f + (speed / 9f) * (speed / 9f));
-                Vector3 fw = Vector3.ProjectOnPlane(q * Vector3.forward, nrm).normalized;
+                Vector3 fw0 = Vector3.ProjectOnPlane(q * Vector3.forward, nrm); if (fw0.sqrMagnitude < 0.04f) fw0 = Vector3.ProjectOnPlane(q * Vector3.up, nrm);   // rocket standing on its tail: use the body 'up' axis
+                Vector3 fw = fw0.normalized;
                 if (g.maxSteerDeg > 0.01) fw = Quaternion.AngleAxis((Mathf.Abs(steer) > 0.01f ? steer : -rudder * 0.5f) * (float)g.maxSteerDeg * steerFactor, nrm) * fw;
                 Vector3 rt = Vector3.Cross(nrm, fw).normalized;
                 float vx = Vector3.Dot(vp, fw), vy = Vector3.Dot(vp, rt);

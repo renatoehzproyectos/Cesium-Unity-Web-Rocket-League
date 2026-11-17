@@ -50,3 +50,20 @@ The licences of the source models were not part of the upload: check them (Sketc
 ## Network
 
 Pose flags bits 5-7 carry the vehicle kind (bit 4 = aircraft / vehicle mode as before), so other players see the right model. Vehicle switching is host / solo only, like plane mode.
+
+## Starship, Megaliner and Antonov An-124 (added)
+
+All three are JSBSim vehicles (`tools/flight3/gen_big_vehicles.py` writes the files into `Assets/Resources/Flight/jsb/`; the C# port in `Assets/Scripts/Sim/Flight` runs them, `tools/flight2/run_all.sh` checks it frame by frame against native JSBSim).
+Vehicles can only be selected by the solo player / the match creator (`carCtl.simulated`), so the Tsar Bomba can only be set off there too.
+
+| | model | JSBSim file | engines | notes |
+|---|---|---|---|---|
+| **Starship** | `starship_mk1.glb`, 50 m | `starship.xml`, `raptor.xml` | 6 × native liquid `<rocket_engine>` (Isp 327 s SL → 360 s vac, 3.6 O/F, 2.26 MN each) | stands on its tail (pitch 90°), 120 t dry + 544 t propellant (separate FUEL / OXIDIZER tanks that really drain), rate-command SAS (engine gimbal ±11° + RCS moments), 3 landing skids |
+| **Megaliner** | `Meshy_AI_Skyborne_Megaliner…glb`, **293 m long, 307 m span, 93 m tall = Statue of Liberty (ground to torch)** | `megaliner.xml`, `megafan.xml` | 8 × turbofan (JSBSim JT9D-3 tables, 485 klbf each) | 8 000 t, 16 000 m² wing, rotates at ~160 kt after ~2 km, no gear mesh (belly skids), flaps / spoilers / thrust reverse |
+| **Antonov An-124** | `antonov.glb`, 69 m | `an124.xml`, `d18t.xml` | 4 × D-18T class turbofans (229.7 kN) | tricycle gear, flaps, spoilers, reverse; **rear ramp is its own model node** |
+
+Controls (keyboard): throttle lever = Space / Ctrl (as the other planes), **G** gear / rocket legs, **F** flaps, **M** spoilers, **O** cargo ramp (Antonov; touch button `RAMP`).
+
+* **Rocket crash.** The hull colliders carry a `VehicleCrashSensor`; a hit with the world faster than `crashSpeed` (4 m/s relative) destroys the rocket. The legs are ray springs below the hull, so a slow, upright touch-down is survived. Solo / match creator: `TsarBomba` (50 Mt: flash, 4.6 km fireball, shock ring, 64 km mushroom, 15 km blast that throws other bodies, rumble, camera shake), also broadcast to the joined players (`INetRole.BroadcastExplosion` → `PlayerNet.ExplosionRpc`). The player is back in the car at the crash site.
+* **Antonov hold.** Invisible PlaneLayer boxes (deck, walls, ceiling, bulkhead; same trick as the intro cargo plane) plus a ramp collider on a hinge that turns with the model node `Ramp` (open 0° … shut 34°, 9 s). Other players' cars (host-simulated) can drive up the ramp and ride inside; the pilot shuts the ramp and takes off. The ramp opening travels in `PoseSnap.aux`, the vehicle kind in `PoseSnap.veh`.
+* Models are prepared by `tools/models/prep.mjs` (jobs `Starship`, `Megaliner`, `Antonov`); the Megaliner height constant is `STATUE_M = 93`.

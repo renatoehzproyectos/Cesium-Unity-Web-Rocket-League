@@ -81,6 +81,8 @@ namespace RocketWorld.Net
         public void HostGame() { _ = HostCore(); }
         public void JoinByCode(string code) { _ = JoinCore((code ?? "").Trim()); }
 
+        public void BroadcastExplosion(Vector3 worldPosition) { foreach (var p in PlayerNet.All) if (p.IsOwner) { p.SendExplosion(worldPosition); return; } }
+
         public void RequestBall()
         {
             foreach (var p in PlayerNet.All) if (p.IsOwner) { p.RequestBall(); return; }

@@ -3,10 +3,10 @@ using UnityEngine;
 namespace RocketWorld
 {
     /// <summary>Every drivable thing. Car and Cessna are the originals (RocketSim / JSBSim); the rest are driven by <see cref="VehicleDriver"/>.</summary>
-    public enum VehicleKind { Car = 0, Cessna = 1, F35B = 2, F15E = 3, Helicopter = 4, DeLorean = 5 }
+    public enum VehicleKind { Car = 0, Cessna = 1, F35B = 2, F15E = 3, Helicopter = 4, DeLorean = 5, Starship = 6, Megaliner = 7, Antonov = 8 }
 
     /// <summary>Which on-screen touch layout a vehicle uses (see <see cref="TouchLayout"/>).</summary>
-    public enum TouchProfile { Car, Cessna, Jet, Vtol, Helicopter, DeLorean, Drone }
+    public enum TouchProfile { Car, Cessna, Jet, Vtol, Helicopter, DeLorean, Drone, Rocket, Airliner, Cargo }
 
     public enum AeroClass { None, Jet }
 
@@ -45,13 +45,23 @@ namespace RocketWorld
         // main rotor / hover geometry (model space)
         public Vector3 hub, tailRotor; public float rotorRadius, tailRadius;
         public Vector3[] nozzles;                                  // exhaust positions (afterburner glow)
+
+        // --- Starship / Megaliner / Antonov
+        public bool rocket, airliner, hasRamp;
+        public float startPitchDeg;                                // 90 = stands on its tail on the pad
+        public float flameScale = 1f, flameWidth = 1f;             // exhaust plume size
+        public float crashSpeed;                                   // rocket: relative speed (m/s) of a hull-vs-world hit that destroys it
+        public BoxDef[] holdBoxes;                                 // walkable / drivable interior (PlaneLayer, seen by the wheel rays of other cars)
+        public Vector3 rampHinge; public float rampClosedDeg, rampOpenSlopeDeg, rampLen, rampWidth;   // rear ramp: node "Ramp" turns about +X; 0 = open (as modelled), rampClosedDeg = shut
     }
 
     public static class Vehicles
     {
         public const float G = 9.80665f;
-        public static readonly VehicleKind[] Order = { VehicleKind.Car, VehicleKind.Cessna, VehicleKind.F35B, VehicleKind.F15E, VehicleKind.Helicopter, VehicleKind.DeLorean };
-        static VehicleSpec _f35, _f15, _heli, _dmc;
+        public static readonly VehicleKind[] Order = { VehicleKind.Car, VehicleKind.Cessna, VehicleKind.F35B, VehicleKind.F15E, VehicleKind.Helicopter, VehicleKind.DeLorean, VehicleKind.Starship, VehicleKind.Megaliner, VehicleKind.Antonov };
+        /// <summary>Vehicles the demo bots may fly (the rocket, the giants and the cargo plane need a pilot).</summary>
+        public static readonly VehicleKind[] BotOrder = { VehicleKind.Car, VehicleKind.Cessna, VehicleKind.F35B, VehicleKind.F15E, VehicleKind.Helicopter, VehicleKind.DeLorean };
+        static VehicleSpec _f35, _f15, _heli, _dmc, _star, _mega, _an;
 
         public static string NameOf(VehicleKind k)
         {
@@ -63,6 +73,9 @@ namespace RocketWorld
                 case VehicleKind.F15E: return "F-15E";
                 case VehicleKind.Helicopter: return "Helicopter";
                 case VehicleKind.DeLorean: return "DeLorean";
+                case VehicleKind.Starship: return "Starship";
+                case VehicleKind.Megaliner: return "Megaliner";
+                case VehicleKind.Antonov: return "Antonov An-124";
                 default: return "Vehicle";
             }
         }
@@ -76,6 +89,9 @@ namespace RocketWorld
                 case VehicleKind.F15E: return TouchProfile.Jet;
                 case VehicleKind.Helicopter: return TouchProfile.Helicopter;
                 case VehicleKind.DeLorean: return TouchProfile.DeLorean;
+                case VehicleKind.Starship: return TouchProfile.Rocket;
+                case VehicleKind.Megaliner: return TouchProfile.Airliner;
+                case VehicleKind.Antonov: return TouchProfile.Cargo;
                 default: return TouchProfile.Car;
             }
         }
@@ -89,6 +105,9 @@ namespace RocketWorld
                 case VehicleKind.F15E: return _f15 ?? (_f15 = JsbVehicleCfg.Align(MakeF15()));
                 case VehicleKind.Helicopter: return _heli ?? (_heli = MakeHeli());
                 case VehicleKind.DeLorean: return _dmc ?? (_dmc = JsbVehicleCfg.Align(MakeDeLorean()));
+                case VehicleKind.Starship: return _star ?? (_star = JsbVehicleCfg.Align(MakeStarship()));
+                case VehicleKind.Megaliner: return _mega ?? (_mega = JsbVehicleCfg.Align(MakeMegaliner()));
+                case VehicleKind.Antonov: return _an ?? (_an = JsbVehicleCfg.Align(MakeAntonov()));
                 default: return null;
             }
         }
@@ -132,6 +151,48 @@ namespace RocketWorld
             wheels = new[] { new WheelDef(0.69f, -0.382f, 1.2f, 0.30f, steer: true), new WheelDef(-0.69f, -0.382f, 1.2f, 0.30f, steer: true),
                              new WheelDef(0.696f, -0.348f, -1.162f, 0.33f, drive: true, rear: true), new WheelDef(-0.696f, -0.348f, -1.162f, 0.33f, drive: true, rear: true) },
             vMax = 55f, camBack = 8.5f, camUp = 3.0f, camLook = 5f, profile = TouchProfile.DeLorean, hoverCar = true,
+        };
+
+        // ---------------------------------------------------------------------------------------------------------------- Starship Mk1 (Resources/Flight/jsb/starship.xml, raptor.xml)
+        // Model space: 50 m long, nose +Z, tail at z = -25. Contact points = three landing skids on an 8 m circle (JSBSim contacts LEG_0..2). com = JSBSim CG (29.5 m from the nose).
+        static VehicleSpec MakeStarship() => new VehicleSpec
+        {
+            kind = VehicleKind.Starship, name = "Starship", model = "Models/Vehicles/Starship", mass = 664000f, inertia = new Vector3(8.3e7f, 8.3e7f, 4.0e6f), com = new Vector3(0, 0, -4.5f),
+            boxes = new[] { new BoxDef(0, 0, 17.0f, 6.0f, 6.0f, 14.0f), new BoxDef(0, 0, -3.5f, 8.6f, 8.6f, 37.0f), new BoxDef(0, 0, -20.5f, 18.8f, 0.7f, 4.0f), new BoxDef(0, 0, 9.0f, 15.0f, 0.5f, 2.5f) },
+            wheels = new[] { new WheelDef(0f, 8.0f, -24.7f, 0f), new WheelDef(-6.93f, -4.0f, -24.7f, 0f), new WheelDef(6.93f, -4.0f, -24.7f, 0f) },
+            vMax = 1500f, camBack = 70f, camUp = 14f, camLook = 20f, profile = TouchProfile.Rocket, hasGear = true, rocket = true, startPitchDeg = 90f, crashSpeed = 4f,
+            flameScale = 9f, flameWidth = 3.2f,
+            nozzles = new[] { new Vector3(0, 1.1f, -25.5f), new Vector3(1.0f, -0.55f, -25.5f), new Vector3(-1.0f, -0.55f, -25.5f), new Vector3(0, 3.0f, -25.5f), new Vector3(2.6f, -1.5f, -25.5f), new Vector3(-2.6f, -1.5f, -25.5f) },
+        };
+
+        // ---------------------------------------------------------------------------------------------------------------- Megaliner (megaliner.xml, megafan.xml). 294 m long, 307 m span, 93 m tall = the Statue of Liberty
+        // (ground to torch). Model origin = bounding-box centre, belly at y = -46.5. No landing-gear mesh: three skid contacts under the belly.
+        static VehicleSpec MakeMegaliner() => new VehicleSpec
+        {
+            kind = VehicleKind.Megaliner, name = "Megaliner", model = "Models/Vehicles/Megaliner", mass = 8.0e6f, inertia = new Vector3(4.3e10f, 5.8e10f, 1.5e10f),
+            boxes = new[] { new BoxDef(0, -21f, 0, 34f, 50f, 270f), new BoxDef(0, -6f, 46f, 305f, 2f, 52f), new BoxDef(0, 25f, -105f, 3f, 40f, 25f), new BoxDef(0, 41f, -105f, 90f, 2f, 20f) },
+            wheels = new[] { new WheelDef(0, -45.5f, 110f, 1.0f, steer: true), new WheelDef(-9f, -45.5f, 38f, 1.0f, rear: true), new WheelDef(9f, -45.5f, 38f, 1.0f, rear: true) },
+            vMax = 260f, camBack = 420f, camUp = 90f, camLook = 160f, profile = TouchProfile.Airliner, aero = AeroClass.Jet, airliner = true, flaps = true, hasGear = false,
+            nozzles = new[] { new Vector3(-90f, -12f, -100f), new Vector3(-30f, -12f, -100f), new Vector3(30f, -12f, -100f), new Vector3(90f, -12f, -100f) },
+            flameScale = 8f, flameWidth = 6f,
+        };
+
+        // ---------------------------------------------------------------------------------------------------------------- Antonov An-124 (an124.xml, d18t.xml). 69.1 m long, origin = bbox centre, ground at y = -7.607.
+        // Hold (invisible PlaneLayer boxes): deck at y = -4.67, 5.4 m wide, from z = +24.5 (bulkhead) to the tail; the ramp hinge is at (0, -4.67, -12.09) and the model node "Ramp" turns about it.
+        static VehicleSpec MakeAntonov() => new VehicleSpec
+        {
+            kind = VehicleKind.Antonov, name = "Antonov An-124", model = "Models/Vehicles/Antonov", mass = 295000f, inertia = new Vector3(8.8e7f, 1.2e8f, 3.1e7f),
+            boxes = new[] { new BoxDef(0, -3.0f, 29.7f, 4.2f, 4.6f, 9.6f), new BoxDef(0, -0.1f, 2.0f, 73.0f, 0.8f, 14f), new BoxDef(-11f, -3.0f, 7f, 1.6f, 1.8f, 5f), new BoxDef(11f, -3.0f, 7f, 1.6f, 1.8f, 5f),
+                            new BoxDef(-22f, -3.0f, 7f, 1.6f, 1.8f, 5f), new BoxDef(22f, -3.0f, 7f, 1.6f, 1.8f, 5f), new BoxDef(0, 3.8f, -30.5f, 0.7f, 7.5f, 6f), new BoxDef(0, 0.9f, -31.5f, 26f, 0.5f, 5f),
+                            new BoxDef(0, -0.3f, -28.3f, 5.5f, 2.0f, 12.5f) },
+            holdBoxes = new[] { new BoxDef(0, -4.95f, 6.2f, 6.2f, 0.6f, 36.6f),                                   // deck (front bulkhead to the ramp hinge)
+                                new BoxDef(-3.0f, -2.5f, 1.2f, 0.6f, 4.8f, 46.6f), new BoxDef(3.0f, -2.5f, 1.2f, 0.6f, 4.8f, 46.6f),   // side walls
+                                new BoxDef(0, 0.05f, 1.2f, 6.6f, 0.6f, 46.6f),                                    // ceiling
+                                new BoxDef(0, -2.5f, 24.8f, 6.2f, 5.2f, 0.6f) },                                  // front bulkhead
+            wheels = new[] { new WheelDef(0, -7.0f, 26.05f, 0.6f, steer: true), new WheelDef(-2.6f, -7.0f, 0.55f, 0.6f, drive: true, rear: true), new WheelDef(2.6f, -7.0f, 0.55f, 0.6f, drive: true, rear: true) },
+            vMax = 240f, camBack = 85f, camUp = 18f, camLook = 45f, profile = TouchProfile.Cargo, aero = AeroClass.Jet, airliner = true, flaps = true, hasGear = true, hasRamp = true,
+            rampHinge = new Vector3(0, -4.67f, -12.09f), rampClosedDeg = 34f, rampOpenSlopeDeg = 13.9f, rampLen = 10.3f, rampWidth = 5.2f,
+            nozzles = new[] { new Vector3(-22f, -3.0f, 4f), new Vector3(-11f, -3.0f, 4f), new Vector3(11f, -3.0f, 4f), new Vector3(22f, -3.0f, 4f) }, flameScale = 1.2f, flameWidth = 0.9f,
         };
     }
 

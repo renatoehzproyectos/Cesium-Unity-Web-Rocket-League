@@ -63,6 +63,22 @@ namespace RocketWorld
             new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.27f, 0.11f, 0.16f), new TouchWidget("brake", "BRAKE", H, 0.67f, 0.08f, 0.11f, 0.16f),
         };
 
+        static readonly TouchWidget[] Rocket =
+        {
+            Throttle, Rudder, new TouchWidget("gear", "LEGS", T, 0.80f, 0.27f, 0.11f, 0.18f), new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.27f, 0.11f, 0.18f),
+        };
+        static readonly TouchWidget[] Airliner =
+        {
+            Throttle, Rudder, new TouchWidget("brake", "BRAKE\nREVERSE", H, 0.80f, 0.06f, 0.11f, 0.18f), new TouchWidget("flaps", "FLAPS", T, 0.67f, 0.06f, 0.11f, 0.18f),
+            new TouchWidget("mode", "SPOILER", T, 0.80f, 0.27f, 0.11f, 0.18f), new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.27f, 0.11f, 0.18f),
+        };
+        static readonly TouchWidget[] Cargo =
+        {
+            Throttle, Rudder, new TouchWidget("brake", "BRAKE\nREVERSE", H, 0.80f, 0.06f, 0.11f, 0.18f), new TouchWidget("flaps", "FLAPS", T, 0.67f, 0.06f, 0.11f, 0.18f),
+            new TouchWidget("gear", "GEAR", T, 0.80f, 0.27f, 0.11f, 0.18f), new TouchWidget("door", "RAMP", T, 0.67f, 0.27f, 0.11f, 0.18f),
+            new TouchWidget("mode", "SPOILER", T, 0.80f, 0.48f, 0.11f, 0.14f), new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.48f, 0.11f, 0.14f),
+        };
+
         // ---- FPV drone: two sticks (left = throttle + yaw, right = pitch + roll, both drawn by DebugHud / read by CarInput) and a band of buttons between them.
         // The layout depends on the screen shape (the sticks are square in pixels), so it is rebuilt when the screen size changes.
         static TouchWidget[] _drone; static int _droneW, _droneH;
@@ -114,6 +130,9 @@ namespace RocketWorld
                 case TouchProfile.Vtol: return Vtol;
                 case TouchProfile.Helicopter: return Heli;
                 case TouchProfile.DeLorean: return DeLorean;
+                case TouchProfile.Rocket: return Rocket;
+                case TouchProfile.Airliner: return Airliner;
+                case TouchProfile.Cargo: return Cargo;
                 default: return Car;
             }
         }

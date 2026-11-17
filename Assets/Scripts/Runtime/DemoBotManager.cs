@@ -92,7 +92,7 @@ namespace RocketWorld
             if (_hitFx == null) _hitFx = gameObject.AddComponent<DemoHitEffect>();
 
             var bot = new Bot { car = car, number = n };
-            bot.kind = allVehicles ? Vehicles.Order[(n - 1) % Vehicles.Order.Length] : VehicleKind.Car;
+            bot.kind = allVehicles ? Vehicles.BotOrder[(n - 1) % Vehicles.BotOrder.Length] : VehicleKind.Car;
             if (bot.Flies) bot.flight = new FlightBotBrain(ProfileOf(bot.kind));
             _bots.Add(bot);
             PlaceNearPlayer(bot);

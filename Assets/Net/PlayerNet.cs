@@ -155,6 +155,7 @@ namespace RocketWorld.Net
             var s = Pack(rb.position, rb.rotation, rb.isKinematic ? Vector3.zero : rb.linearVelocity, ++_snapSeq,
                 (Car.State.isOnGround ? 1 : 0) | (Car.IsBoosting ? 2 : 0) | (running ? 4 : 0) | (Car.InBoat ? 8 : 0) | ((Car.InPlane || Car.InVehicle) ? 16 : 0) | (Car.InVehicle ? (int)Car.vehicle.Kind << 5 : 0));   // bits 5-7: which vehicle (0 = Cessna / none)
             s.ack = _lastSeq;
+            if (Car.InVehicle) { s.veh = (byte)Car.vehicle.Kind; s.aux = Car.vehicle.RampOpen01; }
             SnapshotRpc(s);
             SendPlane();
             if (IsOwner) SendBall();
@@ -199,6 +200,22 @@ namespace RocketWorld.Net
                 throttle = Sb(packed >> 16), steer = Sb(packed >> 24), pitch = Sb(packed >> 32), yaw = Sb(packed >> 40), roll = Sb(packed >> 48),
                 jump = (packed & (1UL << 56)) != 0, boost = (packed & (1UL << 57)) != 0, handbrake = (packed & (1UL << 58)) != 0,
             };
+        }
+
+        /// <summary>Host: the Starship set off the Tsar Bomba here; the joined players only get the visual (position travels as ECEF, every machine has its own Unity origin).</summary>
+        public void SendExplosion(Vector3 worldPos)
+        {
+            if (!IsServer || !IsSpawned || Root == null || Root.georeference == null) return;
+            GeoSync.ToEcef(Root.georeference, worldPos, Quaternion.identity, Vector3.zero, out double x, out double y, out double z, out _, out _, out _);
+            ExplosionRpc(x, y, z);
+        }
+
+        [Rpc(SendTo.NotServer)]
+        void ExplosionRpc(double x, double y, double z)
+        {
+            if (Root == null || Root.georeference == null) return;
+            GeoSync.FromEcef(Root.georeference, x, y, z, Vector3.forward, Vector3.up, Vector3.zero, out var pos, out _, out _);
+            TsarBomba.Spawn(pos, true, null);
         }
 
         [Rpc(SendTo.Server)]
@@ -318,7 +335,7 @@ namespace RocketWorld.Net
                 if (!_centered) { GeoSync.Recenter(Root.georeference, s.x, s.y, s.z); _centered = true; }
             }
             GeoSync.FromEcef(Root.georeference, s.x, s.y, s.z, s.f, s.u, s.v, out var pos, out var rot, out var vel);
-            Car.ApplyPuppetPose(pos, rot, vel, s.OnGround, s.Boosting, s.Running, s.Boat, s.Plane, s.VehicleKind);
+            Car.ApplyPuppetPose(pos, rot, vel, s.OnGround, s.Boosting, s.Running, s.Boat, s.Plane, s.VehicleKind, s.aux);
         }
 
         void ApplyBall()

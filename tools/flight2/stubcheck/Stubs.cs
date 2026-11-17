@@ -6,7 +6,7 @@ namespace UnityEngine
         public static Vector3 down => new Vector3(0, -1, 0); public static Vector3 up => new Vector3(0, 1, 0); public static Vector3 forward => new Vector3(0, 0, 1); public static Vector3 right => new Vector3(1, 0, 0); public static Vector3 zero => new Vector3();
         public static Vector3 operator +(Vector3 a, Vector3 b) => new Vector3(a.x + b.x, a.y + b.y, a.z + b.z); public static Vector3 operator -(Vector3 a, Vector3 b) => new Vector3(a.x - b.x, a.y - b.y, a.z - b.z);
         public static Vector3 operator *(Vector3 a, float s) => new Vector3(a.x * s, a.y * s, a.z * s); public static Vector3 operator *(float s, Vector3 a) => a * s; public static Vector3 operator -(Vector3 a) => new Vector3(-a.x, -a.y, -a.z); public static Vector3 operator /(Vector3 a, float s) => a * (1 / s);
-        public float magnitude => (float)Math.Sqrt(x * x + y * y + z * z); public Vector3 normalized => this / magnitude;
+        public float magnitude => (float)Math.Sqrt(x * x + y * y + z * z); public float sqrMagnitude => x * x + y * y + z * z; public Vector3 normalized => this / magnitude;
         public static Vector3 Cross(Vector3 a, Vector3 b) => new Vector3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x); public static float Dot(Vector3 a, Vector3 b) => a.x * b.x + a.y * b.y + a.z * b.z;
         public static Vector3 ProjectOnPlane(Vector3 v, Vector3 n) => v - n * Dot(v, n); public static Vector3 ClampMagnitude(Vector3 v, float m) => v; public static Vector3 RotateTowards(Vector3 a, Vector3 b, float c, float d) => a; }
     public struct Quaternion { public static Quaternion identity => new Quaternion(); public static Quaternion Inverse(Quaternion q) => q; public static Quaternion AngleAxis(float a, Vector3 axis) => new Quaternion(); public static Quaternion Euler(float x, float y, float z) => new Quaternion();
@@ -26,5 +26,5 @@ namespace RocketWorld
     public static class PhysicsSetup { public static int TerrainMask => 0; }
     public class CarInput { public struct Controls { public float throttle, steer, pitch, yaw, roll; public bool jump, boost, handbrake, leverSet; public float lever, vert; public bool hyper, wheelBrake; } }
     public class RocketCar { public float HyperMul => 1f; }
-    public class VehicleDriver { public RocketCar car; public VehicleViz Viz; public float HeightMeters(UnityEngine.Rigidbody rb) => 0f; public void ApplyHyperDrive(UnityEngine.Rigidbody rb, UnityEngine.Vector3 d, float v, float dt, bool s) { } }
+    public class VehicleDriver { public float RampOpen01; public RocketCar car; public VehicleViz Viz; public float HeightMeters(UnityEngine.Rigidbody rb) => 0f; public void ApplyHyperDrive(UnityEngine.Rigidbody rb, UnityEngine.Vector3 d, float v, float dt, bool s) { } }
 }

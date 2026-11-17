@@ -64,6 +64,8 @@ static class Fly
         dir = a[0]; string sc = a[1];
         if (sc == "f15e") { Load("f15e"); Takeoff("F-15E", 1.0, 0.0, 0, 142, -0.30, 160, 1.0); }
         else if (sc == "f35b") { Load("f35b"); Takeoff("F-35B (CTOL)", 1.0, 0.0, 0, 130, -0.30, 150, 1.0); }
+        else if (sc == "an124") { Load("an124"); f["fcs/flap-cmd-norm"] = 0.33; Takeoff("An-124", 1.0, 0.0, 0, 150, -0.30, 170, 1.0, true); }
+        else if (sc == "megaliner") { Load("megaliner"); f["fcs/flap-cmd-norm"] = 0.33; Takeoff("Megaliner", 1.0, 0.0, 0, 160, -0.30, 180, 1.0, true); }
         else if (sc == "f35b-vtol") Vtol();
         else if (sc == "delorean") Dmc();
         else if (sc == "heli") Heli();

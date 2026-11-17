@@ -14,7 +14,8 @@ namespace RocketWorld.Net
         public double x, y, z;
         public Vector3 f, u, v;
         public byte flags;                 // 1 on ground, 2 boosting, 4 running / exists, 8 afloat (boat mode), 16 plane mode
-        public float aux;                  // plane snapshots: rear ramp angle (degrees)
+        public float aux;                  // plane snapshots: rear ramp angle (degrees); car snapshots in the Antonov: ramp opening 0..1
+        public byte veh;                   // VehicleKind of the vehicle the player is in (flags bits 5-7 only hold 0..7; there are 9 kinds)
 
         public bool OnGround => (flags & 1) != 0;
         public bool Boosting => (flags & 2) != 0;
@@ -22,14 +23,14 @@ namespace RocketWorld.Net
         public bool Boat => (flags & 8) != 0;
         public bool Plane => (flags & 16) != 0;
         /// <summary>Which <c>VehicleKind</c> the player is in when <see cref="Plane"/> is set (0 = the Cessna).</summary>
-        public int VehicleKind => (flags >> 5) & 7;
+        public int VehicleKind => veh != 0 ? veh : (flags >> 5) & 7;
 
         public void NetworkSerialize<T>(BufferSerializer<T> s) where T : IReaderWriter
         {
             s.SerializeValue(ref seq); s.SerializeValue(ref ack);
             s.SerializeValue(ref x); s.SerializeValue(ref y); s.SerializeValue(ref z);
             s.SerializeValue(ref f); s.SerializeValue(ref u); s.SerializeValue(ref v);
-            s.SerializeValue(ref flags); s.SerializeValue(ref aux);
+            s.SerializeValue(ref flags); s.SerializeValue(ref aux); s.SerializeValue(ref veh);
         }
 
         public static PoseSnap Lerp(PoseSnap a, PoseSnap b, float k)
@@ -37,7 +38,7 @@ namespace RocketWorld.Net
             var r = a;
             r.x = a.x + (b.x - a.x) * k; r.y = a.y + (b.y - a.y) * k; r.z = a.z + (b.z - a.z) * k;
             r.f = Vector3.Slerp(a.f, b.f, k); r.u = Vector3.Slerp(a.u, b.u, k); r.v = Vector3.Lerp(a.v, b.v, k);
-            r.flags = k < 0.5f ? a.flags : b.flags;
+            r.flags = k < 0.5f ? a.flags : b.flags; r.veh = k < 0.5f ? a.veh : b.veh;
             r.aux = a.aux + (b.aux - a.aux) * k;
             return r;
         }

@@ -5,7 +5,7 @@ import sys, csv, math, jsbsim
 root, ac, scen, out = sys.argv[1:5]; N = int(sys.argv[5]) if len(sys.argv) > 5 else 1200
 fdm = jsbsim.FGFDMExec(root, None); fdm.set_debug_level(0); fdm.load_model(ac); fdm.set_dt(1/120)
 S = {  # scenario: (alt ft, kt, throttle, gear, flaps)
- 'cruise': (20000, 350, 0.8, 0, 0), 'slow': (3000, 160, 0.6, 1, 1), 'ab': (10000, 450, 1.0, 0, 0), 'fast': (30000, 900, 1.2, 0, 0), 'vtol': (1500, 90, 0.0, 0, 0), 'vcruise': (10000, 350, 0.0, 0, 0), 'hover': (500, 0, 0.0, 0, 0)}
+ 'cruise': (20000, 350, 0.8, 0, 0), 'slow': (3000, 160, 0.6, 1, 1), 'ab': (10000, 450, 1.0, 0, 0), 'fast': (30000, 900, 1.2, 0, 0), 'vtol': (1500, 90, 0.0, 0, 0), 'vcruise': (10000, 350, 0.0, 0, 0), 'hover': (500, 0, 0.0, 0, 0), 'airliner': (8000, 220, 0.7, 0, 0.33), 'burn': (5000, 200, 0.8, 1, 0), 'burn-hi': (60000, 900, 1.0, 0, 0)}
 alt, kt, thr, gear, flap = S[scen]
 for k, v in (('ic/h-sl-ft', alt), ('ic/vt-kts', kt), ('ic/psi-true-deg', 90), ('ic/gamma-deg', 0)): fdm[k] = v
 fdm.run_ic()
@@ -33,6 +33,7 @@ extra = [e for e in extra if fdm.get_property_catalog is not None]
 def _ok(k):
     try: fdm[k]; return True
     except Exception: return False
+extra = [e for e in extra if _ok(e)]
 cols_out = [k for k in cols_out if _ok(k)] + [k for k in ('forces/fbx-external-lbs','forces/fby-external-lbs','forces/fbz-external-lbs','moments/l-external-lbsft','moments/m-external-lbsft','moments/n-external-lbsft') if _ok(k)]
 with open(out, 'w', newline='') as f:
     w = csv.writer(f); XK = sorted(xin(0).keys())

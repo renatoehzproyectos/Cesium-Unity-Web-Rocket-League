@@ -2,7 +2,8 @@
 // Optimises + normalises the vehicle GLBs for the web build (nose = +Z, up = +Y, metres, origin = bbox centre).
 // usage: node prep.mjs <name|all> <input dir> <output dir>      (needs: npm i @gltf-transform/{core,functions,extensions} meshoptimizer sharp)
 import { NodeIO } from '@gltf-transform/core';
-import { KHRONOS_EXTENSIONS } from '@gltf-transform/extensions';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import draco3d from 'draco3dgltf';
 import { flatten, uninstance, clearNodeTransform, transformMesh, getBounds, prune, dedup, weld, simplifyPrimitive, joinPrimitives, compactPrimitive, textureCompress } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
@@ -11,7 +12,7 @@ import path from 'path';
 
 const [, , which = 'all', inDir = '.', outDir = '.'] = process.argv;
 await MeshoptSimplifier.ready;
-const io = new NodeIO().registerExtensions(KHRONOS_EXTENSIONS);
+const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'draco3d.decoder': await draco3d.createDecoderModule() });   // Megaliner is Draco + WebP
 
 const rotY = (deg, s) => { const a = deg * Math.PI / 180, c = Math.cos(a) * s, sn = Math.sin(a) * s; return [c, 0, -sn, 0, 0, s, 0, 0, sn, 0, c, 0, 0, 0, 0, 1]; };
 const trans = (x, y, z) => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1];
@@ -209,6 +210,70 @@ const jobs = {
     console.log('DeLorean wheel pivots (m):', JSON.stringify(Object.fromEntries(Object.entries(pivots).map(([a, p]) => [a, f2(p)]))));
     const r = await finish(doc, 'DeLorean', Infinity, 1024);
     r.pivots = Object.fromEntries(Object.entries(pivots).map(([a, p]) => [a, f2(p)]));
+    return r;
+  },
+  // ---------------------------------------------------------------------------------------------------------------- Starship (rocket)
+  async Starship() {
+    const doc = await io.read(path.join(inDir, 'starship_mk1.glb'));
+    await bake(doc);
+    // world axes depend on the exporter (Sketchfab node rotations): find the long axis; the nose is the narrower end
+    const pts = []; for (const m of doc.getRoot().listMeshes()) for (const pr of m.listPrimitives()) { const a = pr.getAttribute('POSITION').getArray(); for (let i = 0; i < a.length; i += 3) pts.push([a[i], a[i + 1], a[i + 2]]); }
+    const lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9]; for (const q of pts) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], q[k]); hi[k] = Math.max(hi[k], q[k]); }
+    const ext = hi.map((h, k) => h - lo[k]); const ax = ext.indexOf(Math.max(...ext)), o = [0, 1, 2].filter(k => k !== ax);
+    const radius = (end) => { let s = 0, n = 0; for (const q of pts) { const t = (q[ax] - lo[ax]) / ext[ax]; if (end ? t > 0.9 : t < 0.1) { s += Math.hypot(q[o[0]] - (lo[o[0]] + hi[o[0]]) / 2, q[o[1]] - (lo[o[1]] + hi[o[1]]) / 2); n++; } } return s / Math.max(n, 1); };
+    const sign = radius(1) < radius(0) ? 1 : -1;
+    const Rz = [0, 0, 0]; Rz[ax] = sign; const Ry = [0, 0, 0]; Ry[o[0]] = 1;
+    const Rx = [Ry[1] * Rz[2] - Ry[2] * Rz[1], Ry[2] * Rz[0] - Ry[0] * Rz[2], Ry[0] * Rz[1] - Ry[1] * Rz[0]];
+    const s = 50 / ext[ax];                                // Starship Mk1: 50 m tall
+    console.log('Starship long axis', ax, 'nose sign', sign, 'scale', s);
+    applyMatrix(doc, [Rx[0] * s, Ry[0] * s, Rz[0] * s, 0, Rx[1] * s, Ry[1] * s, Rz[1] * s, 0, Rx[2] * s, Ry[2] * s, Rz[2] * s, 0, 0, 0, 0, 1]);
+    const scene = doc.getRoot().listScenes()[0];
+    mergeNodes(doc, scene, meshNodes(doc), 'Body');
+    recenter(doc, bounds(doc).ctr);
+    return finish(doc, 'Starship', Infinity, 1024);
+  },
+  // ---------------------------------------------------------------------------------------------------------------- Megaliner (giant cruise airliner)
+  async Megaliner() {
+    const STATUE_M = 93;                                   // Statue of Liberty, ground to torch. The airliner is scaled so its overall HEIGHT matches (=> ~295 m long, ~307 m span)
+    const doc = await io.read(path.join(inDir, 'Meshy_AI_Skyborne_Megaliner_1116172811_texture-compressed__1_.glb'));
+    for (const e of doc.getRoot().listExtensionsUsed()) if (/draco|webp/i.test(e.extensionName)) e.dispose();   // decoded already; write plain
+    await bake(doc);
+    const s = STATUE_M / bounds(doc).size[1];
+    applyMatrix(doc, [0, 0, -s, 0, 0, s, 0, 0, s, 0, 0, 0, 0, 0, 0, 1]);   // nose -X -> +Z, up stays +Y
+    const scene = doc.getRoot().listScenes()[0];
+    mergeNodes(doc, scene, meshNodes(doc), 'Body');
+    recenter(doc, bounds(doc).ctr);
+    return finish(doc, 'Megaliner', 70000, 1024, 0.01);
+  },
+  // ---------------------------------------------------------------------------------------------------------------- Antonov An-124 (rear ramp is its own node)
+  async Antonov() {
+    const doc = await io.read(path.join(inDir, 'antonov.glb'));
+    await bake(doc);
+    const s = 69.1 / bounds(doc).size[2];                  // An-124 is 69.1 m long (after the Sketchfab rotation baked in: nose +Z, up +Y, 9035 units)
+    // the ramp is modelled lowered (about 14 deg down) and welded into four meshes: pull its triangles out (rear, low, between the side walls)
+    const RAMP_NAMES = ['Object_5', 'Object_13', 'Object_21', 'Object_23'], rampPrims = [];
+    for (const n of meshNodes(doc)) {
+      const mesh = n.getMesh(); if (!RAMP_NAMES.includes(mesh.getName())) continue;
+      const keep = [];
+      for (const p of mesh.listPrimitives()) {
+        const [rest, ramp] = splitPrim(doc, p, 2, c => (c[2] < -1500 && c[1] < 430 && Math.abs(c[0]) < 400) ? 1 : 0);
+        if (rest) keep.push(rest); if (ramp) rampPrims.push(ramp);
+      }
+      const nm = doc.createMesh(mesh.getName() + '_rest'); keep.forEach(p => nm.addPrimitive(p)); n.setMesh(nm);
+    }
+    console.log('Antonov ramp triangles:', rampPrims.reduce((a, p) => a + tris(p), 0));
+    const scene = doc.getRoot().listScenes()[0];
+    const rampNode = doc.createNode('Ramp_tmp'); scene.addChild(rampNode); meshOf(doc, rampNode, rampPrims, 'Ramp');
+    mergeNodes(doc, scene, meshNodes(doc).filter(n => n !== rampNode), 'Body');
+    applyMatrix(doc, [s, 0, 0, 0, 0, s, 0, 0, 0, 0, s, 0, 0, 0, 0, 1]);   // units -> m
+    const c = bounds(doc).ctr; recenter(doc, c);
+    // hinge (model 0, 1581, 384) -> pivot of the node "Ramp": closed = +37 deg about X (up), open = 0
+    const hinge = [0 - c[0], 384 * s - c[1], -1581 * s - c[2]];
+    transformMesh(rampNode.getMesh(), trans(-hinge[0], -hinge[1], -hinge[2]));
+    rampNode.setName('Ramp').setTranslation(hinge);
+    const r = await finish(doc, 'Antonov', Infinity, 1024);
+    r.hinge = f2(hinge);
+    console.log('Antonov ramp hinge (m):', f2(hinge), 'scale', s);
     return r;
   },
 };

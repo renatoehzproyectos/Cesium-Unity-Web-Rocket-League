@@ -497,7 +497,7 @@ namespace RocketWorld.Sim
             var pro = root.SelectSingleNode("propulsion");
             if (pro != null)
             {
-                foreach (XmlElement t in pro.SelectNodes("tank")) { var tk = new Tank { loc = Loc(t.SelectSingleNode("location")), capacity = Num(t, "capacity"), contents = Num(t, "contents") }; tanks.Add(tk); }
+                foreach (XmlElement t in pro.SelectNodes("tank")) { var tk = new Tank { loc = Loc(t.SelectSingleNode("location")), capacity = Num(t, "capacity"), contents = Num(t, "contents"), fuelType = t.GetAttribute("type") }; tanks.Add(tk); }
                 foreach (XmlElement en in pro.SelectNodes("engine")) { var eng = JsbEngine.Load(this, en, engines.Count); engines.Add(eng); }
             }
             // flight control (inline channels, then <system> includes in document order after propulsion)

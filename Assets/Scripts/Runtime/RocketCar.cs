@@ -139,10 +139,10 @@ namespace RocketWorld
             _puppetKind = kind;
         }
         bool IsUnderPuppetVehicle(Transform t) { foreach (var v in _puppetVeh.Values) if (v != null && t.IsChildOf(v.transform)) return true; return false; }
-        void TickPuppetVehicle(bool onGround, float speed)
+        void TickPuppetVehicle(bool onGround, float speed, float aux = 0f)
         {
             if (_puppetKind == 0 || !_puppetVeh.TryGetValue(_puppetKind, out var v) || v == null) return;
-            v.Tick(new VehicleViz { gear = onGround ? 1f : 0f, rotorRpm = 1f, burner = Mathf.Clamp01(speed / 200f) * 0.6f, wheelSpeed = onGround ? speed : 0f, fold = (_puppetKind == (int)VehicleKind.DeLorean && !onGround) ? 1f : 0f }, Time.deltaTime);
+            v.Tick(new VehicleViz { gear = onGround ? 1f : 0f, rotorRpm = 1f, burner = Mathf.Clamp01(speed / 200f) * 0.6f, ramp = aux, wheelSpeed = onGround ? speed : 0f, fold = (_puppetKind == (int)VehicleKind.DeLorean && !onGround) ? 1f : 0f }, Time.deltaTime);
         }
 
         void SetPuppetPlane(bool on)
@@ -289,11 +289,11 @@ namespace RocketWorld
         public void Rescue() { if (CurrentPhase == Phase.Running && simulated) { _rescue = true; BeginWaiting(); } }
 
         /// <summary>Puppet pose from a snapshot (multiplayer clients).</summary>
-        public void ApplyPuppetPose(Vector3 pos, Quaternion rot, Vector3 vel, bool onGround, bool boosting, bool running, bool boat = false, bool planeFlag = false, int vehicleKind = 0)
+        public void ApplyPuppetPose(Vector3 pos, Quaternion rot, Vector3 vel, bool onGround, bool boosting, bool running, bool boat = false, bool planeFlag = false, int vehicleKind = 0, float aux = 0f)
         {
             SetPuppetPlane(planeFlag && vehicleKind < 2);
             SetPuppetVehicle(planeFlag ? vehicleKind : 0);
-            TickPuppetVehicle(onGround, vel.magnitude);
+            TickPuppetVehicle(onGround, vel.magnitude, aux);
             transform.SetPositionAndRotation(pos, rot);
             _puppetSink = Mathf.MoveTowards(_puppetSink, boat ? WaterDriver.DefaultVisualSink : 0f, Mathf.Min(Time.unscaledDeltaTime, 0.1f) * 0.8f);
             if (visual != null) visual.SetPositionAndRotation(pos - rot * Vector3.up * _puppetSink, rot);

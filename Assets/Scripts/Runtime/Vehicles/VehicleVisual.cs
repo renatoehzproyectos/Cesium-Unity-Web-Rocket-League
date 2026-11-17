@@ -12,7 +12,7 @@ namespace RocketWorld
     {
         public Transform ModelRoot { get; private set; }
         VehicleSpec _s;
-        Transform _gearDown, _gearUp, _gear, _mainRotor, _tailRotor;
+        Transform _gearDown, _gearUp, _gear, _mainRotor, _tailRotor, _ramp;
         readonly List<Wheel> _wheels = new List<Wheel>();
         readonly List<Transform> _flames = new List<Transform>(), _glows = new List<Transform>(); readonly List<Vector3> _flameBase = new List<Vector3>();
         float _rotorAngle, _spin;
@@ -42,7 +42,7 @@ namespace RocketWorld
                 PlaneIntro.FixMaterials(m);
                 foreach (var c in m.GetComponentsInChildren<Collider>(true)) Destroy(c);
                 Orient(m.transform);
-                _gearDown = Find("Gear_Down"); _gearUp = Find("Gear_Up"); _gear = Find("Gear");
+                _gearDown = Find("Gear_Down"); _gearUp = Find("Gear_Up"); _gear = Find("Gear"); _ramp = _s.hasRamp ? Find("Ramp") : null;
                 foreach (var n in new[] { "F0", "F1", "R0", "R1" })
                 {
                     var w = Find("Wheel_" + n); if (w == null) continue;
@@ -133,6 +133,7 @@ namespace RocketWorld
                 if (w.spin != null) { _spin += v.wheelSpeed / Mathf.Max(0.1f, w.radius) * Mathf.Rad2Deg * dt / _wheels.Count; w.spin.localRotation = Quaternion.AngleAxis(_spin, w.axleLocal); }
             }
             foreach (var g in _glows) { g.gameObject.SetActive(v.fold > 0.6f); }
+            if (_ramp != null) _ramp.localRotation = Quaternion.Euler(_s.rampClosedDeg * (1f - Mathf.Clamp01(v.ramp)), 0f, 0f);   // node pivot = ramp hinge; 0 deg = open (as modelled)
             if (_mainRotor != null)
             {
                 _rotorAngle += v.rotorRpm * 1100f * dt;
@@ -143,7 +144,7 @@ namespace RocketWorld
             {
                 var f = _flames[i]; bool on = v.burner > 0.05f; if (f.gameObject.activeSelf != on) f.gameObject.SetActive(on);
                 if (!on) continue;
-                float len = 1f + 3.2f * v.burner; f.localScale = new Vector3(0.6f, 0.6f, len); f.localPosition = _flameBase[i] + Vector3.back * (0.5f * len);
+                float len = (1f + 3.2f * v.burner) * _s.flameScale, w = 0.6f * _s.flameWidth * (_s.rocket ? Mathf.Lerp(0.5f, 1f, v.burner) : 1f); f.localScale = new Vector3(w, w, len); f.localPosition = _flameBase[i] + Vector3.back * (0.5f * len);
             }
         }
     }

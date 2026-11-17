@@ -184,6 +184,7 @@ namespace RocketWorld
                     if (carInput.ModePressed) carCtl.vehicle.Toggle(VehicleToggle.Mode);
                     if (carInput.GearPressed) carCtl.vehicle.Toggle(VehicleToggle.Gear);
                     if (carInput.FlapsPressed) carCtl.vehicle.Toggle(VehicleToggle.Flaps);
+                    if (carInput.DoorPressed) carCtl.vehicle.Toggle(VehicleToggle.Door);
                 }
             }
             if (tileset != null && Time.unscaledTime - _radChkT >= 6f)

@@ -32,13 +32,17 @@ namespace RocketWorld
         public string Status => _model != null ? _model.Status : "";
         public string Info => Active ? $"{Spec.name}  {SpeedMs * 3.6f:0} km/h  alt {AltM:0} m  vs {VsMs:0.0}  {Status}" : "vehicle off";
 
-        sealed class Built { public GameObject cols; public VehicleVisual vis; public IVehicleModel model; }
-        readonly Built[] _built = new Built[8];
+        sealed class Built { public GameObject cols, hold; public Transform hinge; public VehicleVisual vis; public IVehicleModel model; }
+        readonly Built[] _built = new Built[16];
         Transform _visRoot;
         IVehicleModel _model; Built _cur;
         float _lastAlt; bool _hasAlt;
         float _carMass; Vector3 _carInertia; Quaternion _carInertiaRot; bool _carGravity; float _carMaxLin;
         Renderer[] _hidden;
+        float _ramp, _rampTarget; bool _crashed;
+        /// <summary>Antonov rear ramp: 0 = closed .. 1 = open (replicated to the other players through the pose snapshot).</summary>
+        public float RampOpen01 => _ramp;
+        public bool HasRamp => Active && Spec != null && Spec.hasRamp;
 
         void Awake() { if (car == null) car = GetComponent<RocketCar>(); }
 
@@ -65,7 +69,43 @@ namespace RocketWorld
         /// <summary>What the player is driving right now, across all drivers.</summary>
         public VehicleKind CurrentKind => Active ? Kind : (car != null && car.plane != null && car.plane.Active ? VehicleKind.Cessna : VehicleKind.Car);
 
-        public void Toggle(VehicleToggle what) { if (Active && _model != null) _model.Toggle(this, what); }
+        public void Toggle(VehicleToggle what)
+        {
+            if (!Active || _model == null) return;
+            if (what == VehicleToggle.Door) { if (Spec.hasRamp) _rampTarget = _rampTarget > 0.5f ? 0f : 1f; return; }
+            _model.Toggle(this, what);
+        }
+
+        /// <summary>Turns the ramp collider (and the model node, through <see cref="Viz"/>) to the current opening; the ramp visual follows in <see cref="Update"/>.</summary>
+        void ApplyRamp()
+        {
+            if (_cur == null || _cur.hinge == null) return;
+            _cur.hinge.localRotation = Quaternion.Euler(Spec.rampClosedDeg * (1f - _ramp), 0f, 0f);
+            Physics.SyncTransforms();
+        }
+
+        /// <summary>Called by <see cref="VehicleCrashSensor"/> for every hull collision of the rocket.</summary>
+        internal void OnHullCollision(Collision c)
+        {
+            if (!Active || Spec == null || !Spec.rocket || _crashed) return;
+            int layer = c.collider.gameObject.layer;
+            if (layer == PhysicsSetup.CarLayer || layer == PhysicsSetup.BallLayer) return;           // other cars / the ball do not destroy it
+            if (c.relativeVelocity.magnitude < Spec.crashSpeed) return;                              // a gentle touch is survivable (the skids land it)
+            Crash(c.contactCount > 0 ? c.GetContact(0).point : car.Body.position);
+        }
+
+        /// <summary>The rocket is destroyed: Tsar Bomba for the solo player / match creator, a small fireball for a joined client; the player is back in the car.</summary>
+        void Crash(Vector3 point)
+        {
+            if (_crashed) return; _crashed = true;
+            bool nuke = TsarBomba.CanDetonate();
+            var rb = car.Body; Vector3 where = point;
+            Select(VehicleKind.Car);
+            TsarBomba.Spawn(where, nuke, rb);
+            var root = Object.FindFirstObjectByType<GameRoot>();
+            if (root != null && root.net != null && nuke) root.net.BroadcastExplosion(where);
+            Debug.Log("[RocketWorld] rocket crash at " + where + (nuke ? " -> Tsar Bomba" : " -> small fireball"));
+        }
 
         void Build(VehicleKind k)
         {
@@ -77,6 +117,20 @@ namespace RocketWorld
                 var c = b.cols.AddComponent<BoxCollider>(); c.center = bx.center - sp.com; c.size = bx.size; c.sharedMaterial = PhysicsSetup.CarMaterial;
             }
             b.cols.SetActive(false);
+            if (sp.rocket) b.cols.AddComponent<VehicleCrashSensor>().driver = this;
+            if (sp.holdBoxes != null)
+            {   // drivable interior (Antonov): PlaneLayer, like the intro cargo plane, so the wheel rays of other cars see the deck
+                b.hold = new GameObject("VehicleHold_" + sp.name); b.hold.transform.SetParent(transform, false); b.hold.layer = PhysicsSetup.PlaneLayer;
+                foreach (var bx in sp.holdBoxes) { var c = b.hold.AddComponent<BoxCollider>(); c.center = bx.center - sp.com; c.size = bx.size; c.sharedMaterial = PhysicsSetup.WorldMaterial; }
+                if (sp.hasRamp)
+                {
+                    b.hinge = new GameObject("RampHinge").transform; b.hinge.SetParent(b.hold.transform, false); b.hinge.localPosition = sp.rampHinge - sp.com; b.hinge.gameObject.layer = PhysicsSetup.PlaneLayer;
+                    var rc = new GameObject("RampCollider") { layer = PhysicsSetup.PlaneLayer }; rc.transform.SetParent(b.hinge, false);
+                    rc.transform.localRotation = Quaternion.Euler(-sp.rampOpenSlopeDeg, 0f, 0f);          // open pose: the ramp slopes down towards the tail
+                    var bc = rc.AddComponent<BoxCollider>(); bc.size = new Vector3(sp.rampWidth, 0.3f, sp.rampLen); bc.center = new Vector3(0f, -0.15f, -sp.rampLen * 0.5f); bc.sharedMaterial = PhysicsSetup.WorldMaterial;
+                }
+                b.hold.SetActive(false);
+            }
             if (_visRoot == null) { _visRoot = new GameObject("Vehicles").transform; _visRoot.SetParent(car.visual, false); }
             b.vis = VehicleVisual.Build(_visRoot, sp); b.vis.gameObject.SetActive(false);
             b.model = VehiclePhysicsFactory.Create(sp);
@@ -93,16 +147,17 @@ namespace RocketWorld
             _carMass = rb.mass; _carInertia = rb.inertiaTensor; _carInertiaRot = rb.inertiaTensorRotation; _carGravity = rb.useGravity; _carMaxLin = rb.maxLinearVelocity;
 
             float bottom = 0f;                                                    // lowest contact point below the body origin
-            foreach (var w in sp.wheels) bottom = Mathf.Max(bottom, -(w.pos.y - w.radius - sp.com.y));
+            foreach (var w in sp.wheels) bottom = Mathf.Max(bottom, sp.rocket ? -(w.pos.z - sp.com.z) : -(w.pos.y - w.radius - sp.com.y));   // rocket: it stands on its tail, the skids are along -Z
             bool ground = Physics.Raycast(rb.position + Vector3.up * 2f, Vector3.down, out var hit, 6f, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore);
-            float yaw = rb.rotation.eulerAngles.y; var rot = Quaternion.Euler(0, yaw, 0);
+            float yaw = rb.rotation.eulerAngles.y; var rot = Quaternion.Euler(-sp.startPitchDeg, yaw, 0);   // startPitchDeg 90: nose up
             if (ground) { rb.position = hit.point + Vector3.up * (bottom + 0.15f); rb.linearVelocity = Vector3.zero; }
             else rb.linearVelocity = rot * Vector3.forward * (sp.aero != AeroClass.None ? Mathf.Min(150f, sp.vMax * 0.45f) : 0f);
             rb.rotation = rot; rb.angularVelocity = Vector3.zero;
             rb.mass = sp.mass; rb.inertiaTensor = sp.inertia; rb.inertiaTensorRotation = Quaternion.identity;
             rb.useGravity = false; rb.maxLinearVelocity = 6000f;                 // Hyper Boost goes well past the car's 1000 m/s clamp
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-            car.HitCollider.enabled = false; _cur.cols.SetActive(true);
+            car.HitCollider.enabled = false; _cur.cols.SetActive(true); if (_cur.hold != null) _cur.hold.SetActive(true);
+            _crashed = false; _ramp = _rampTarget = sp.hasRamp && ground ? 1f : 0f; ApplyRamp();
 
             _hidden = car.visual.GetComponentsInChildren<Renderer>(true);
             foreach (var r in _hidden) if (r != null && !r.transform.IsChildOf(_visRoot)) r.enabled = false;
@@ -127,7 +182,7 @@ namespace RocketWorld
         void Restore(Rigidbody rb)
         {
             Active = false; Kind = VehicleKind.Car;
-            if (_cur != null) { _cur.cols.SetActive(false); _cur.vis.gameObject.SetActive(false); foreach (var r in _cur.vis.GetComponentsInChildren<Renderer>(true)) r.enabled = false; }
+            if (_cur != null) { _cur.cols.SetActive(false); if (_cur.hold != null) _cur.hold.SetActive(false); _cur.vis.gameObject.SetActive(false); foreach (var r in _cur.vis.GetComponentsInChildren<Renderer>(true)) r.enabled = false; }
             if (car.HitCollider != null) car.HitCollider.enabled = true;
             if (_hidden != null) foreach (var r in _hidden) if (r != null && (_visRoot == null || !r.transform.IsChildOf(_visRoot))) r.enabled = true;
             if (rb != null) { rb.mass = _carMass; rb.inertiaTensor = _carInertia; rb.inertiaTensorRotation = _carInertiaRot; rb.useGravity = _carGravity; rb.maxLinearVelocity = _carMaxLin; }
@@ -140,6 +195,8 @@ namespace RocketWorld
         void Update()
         {
             if (!Active || _cur == null) return;
+            if (!Mathf.Approximately(_ramp, _rampTarget)) { _ramp = Mathf.MoveTowards(_ramp, _rampTarget, Mathf.Min(Time.unscaledDeltaTime, 0.1f) / 9f); ApplyRamp(); }   // 9 s from shut to open
+            Viz.ramp = _ramp;
             _cur.vis.Tick(Viz, Mathf.Min(Time.unscaledDeltaTime, 0.1f));
         }
 
@@ -183,5 +240,15 @@ namespace RocketWorld
                 rb.AddForce(-v / speed * (Mathf.Min(excess * 2f, 150f) * rb.mass), ForceMode.Force);
             }
         }
+    }
+}
+
+namespace RocketWorld
+{
+    /// <summary>Sits on the rocket's hull colliders and reports collisions to the <see cref="VehicleDriver"/>.</summary>
+    public sealed class VehicleCrashSensor : UnityEngine.MonoBehaviour
+    {
+        public VehicleDriver driver;
+        void OnCollisionEnter(UnityEngine.Collision c) { if (driver != null) driver.OnHullCollision(c); }
     }
 }
