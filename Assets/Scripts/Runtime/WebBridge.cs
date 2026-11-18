@@ -15,6 +15,7 @@ namespace RocketWorld
         [DllImport("__Internal")] static extern int RW_AntiCrashSync(int pref);
         [DllImport("__Internal")] static extern void RW_SetAntiCrash(int on);
         [DllImport("__Internal")] static extern int RW_IsLiteBuild();
+        [DllImport("__Internal")] static extern int RW_IsMaxBuild();
         [DllImport("__Internal")] static extern int RW_HeapMB();
         [DllImport("__Internal")] static extern void RW_FlushFS();
         /// <summary>Writes the persistent file system (IndexedDB) now: the road cache lives in persistentDataPath.</summary>
@@ -26,6 +27,8 @@ namespace RocketWorld
         public static void SetAntiCrash(bool on) => RW_SetAntiCrash(on ? 1 : 0);
         /// <summary>True when this page is the low-memory build served at /lite/.</summary>
         public static bool IsLiteBuild() => RW_IsLiteBuild() == 1;
+        /// <summary>True when this page is the big-heap build served at /max/ (wasm heap up to 4 GB).</summary>
+        public static bool IsMaxBuild() => RW_IsMaxBuild() == 1;
         public static string DeviceInfo() => RW_GetDeviceInfo();
         public static string BaseUrl() => RW_GetBaseUrl();
         public static string Query(string name) => RW_GetQueryParam(name);
@@ -37,6 +40,7 @@ namespace RocketWorld
         public static bool AntiCrashSync(bool pref) => pref;
         public static void SetAntiCrash(bool on) { }
         public static bool IsLiteBuild() => false;
+        public static bool IsMaxBuild() => System.Environment.GetEnvironmentVariable("RW_MAXBUILD") == "1";
         public static int HeapMB() => 0;
         public static void FlushFS() { }
         public static string Query(string name) => System.Environment.GetEnvironmentVariable("RW_" + name.ToUpperInvariant()) ?? "";

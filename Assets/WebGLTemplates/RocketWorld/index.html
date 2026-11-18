@@ -2,17 +2,19 @@
 <html lang="en">
 <head>
   <script>
-    // Anti crash boot: pick the main build or the low-memory one in /lite/ BEFORE any heavy download starts.
+    // Anti crash boot: pick the main build, the low-memory one in /lite/ or the big-heap one in /max/ BEFORE any heavy download starts.
     // iOS Safari kills the tab ("A problem repeatedly occurred") when the big shared wasm heap is reserved, so with Anti crash on
-    // (default) iPhones/iPads go to /lite/. Any device whose last two loads never reached the first frame is moved there too.
-    // Overrides: ?lite=1 / ?lite=0 force a build; ?anticrash=0 turns the whole thing off. Flags live in localStorage (shared by both builds).
+    // (default) iPhones/iPads go to /lite/. Any device whose last two loads never reached the first frame is moved there too (also from /max/).
+    // /max/ has a 4 GB wasm heap for devices with plenty of RAM; it is never chosen automatically: open /max/ or add ?max=1.
+    // Overrides: ?lite=1 / ?max=1 / ?lite=0 / ?max=0 force a build; ?anticrash=0 turns the automatic part off. Flags live in localStorage (shared by all builds).
     (function () {
       var L = location;
-      // "/lite" (no slash) would resolve Build/... against the site root and hang on the loader: always use "/lite/".
-      if (/\/lite$/.test(L.pathname)) { window.rwRedirecting = true; L.replace(L.pathname + '/' + L.search + L.hash); return; }
+      // "/lite" or "/max" (no slash) would resolve Build/... against the site root and hang on the loader: always use "/lite/" and "/max/".
+      if (/\/(lite|max)$/.test(L.pathname)) { window.rwRedirecting = true; L.replace(L.pathname + '/' + L.search + L.hash); return; }
       var inLite = /\/lite\/(index\.html)?$/.test(L.pathname);
+      var inMax = /\/max\/(index\.html)?$/.test(L.pathname);
       function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { } return null; }
-      var qs = new URLSearchParams(L.search), qAC = qs.get('anticrash'), qLite = qs.get('lite');
+      var qs = new URLSearchParams(L.search), qAC = qs.get('anticrash'), qLite = qs.get('lite'), qMax = qs.get('max');
       var ac = qAC !== null ? qAC !== '0' : ls('rw_anticrash') !== '0';
       var ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
       // Safe mode: set after a memory crash (see rwCrash below). It is kept in the URL because the game reads its options from the query string.
@@ -24,11 +26,20 @@
       }
       var tries = parseInt(ls('rw_boot') || '0', 10) || 0;          // loads that never reached the first frame (cleared by RW_HideLoading)
       if (!inLite && ac && tries >= 2) ls('rw_lite', '1');
-      var want = qLite !== null ? qLite === '1' : (ac && (ios || ls('rw_lite') === '1'));
-      window.rwLite = inLite;
-      if (want !== inLite) {
+      var here = inLite ? 'lite' : inMax ? 'max' : 'main';
+      var crashLoop = ac && tries >= 2;
+      var want;
+      if (qLite === '1') want = 'lite';
+      // /max/ (or ?max=1) is honoured unless this device is an iPhone/iPad or keeps crashing: those cannot reserve a 4 GB heap, so /lite/.
+      else if (qMax === '1' || (inMax && qMax !== '0' && qLite !== '0')) want = (ac && (ios || crashLoop)) ? 'lite' : 'max';
+      else if (qLite === '0' || qMax === '0') want = 'main';
+      else want = (ac && (ios || ls('rw_lite') === '1')) ? 'lite' : 'main';
+      window.rwLite = here === 'lite';
+      window.rwMax = here === 'max';
+      if (want !== here) {
         window.rwRedirecting = true;
-        L.replace((want ? 'lite/' : '../') + L.search + L.hash);
+        var up = here === 'main' ? '' : '../';
+        L.replace(up + (want === 'main' ? '' : want + '/') + L.search + L.hash);
         return;
       }
       if (!ac) ls('rw_lite', '0');

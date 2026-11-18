@@ -578,6 +578,7 @@ namespace RocketWorld
             bool ac = UiKit.Toggle(s.antiCrash, "Anti-crash mode", "Adapts quality to hold 30+ FPS; your sliders are the maximum. iPhone / iPad use the low-memory build (reload after changing).");
             if (ac != s.antiCrash) { s.antiCrash = ac; WebBridge.SetAntiCrash(ac); changed = true; }
             if (WebBridge.IsLiteBuild()) GUILayout.Label("Low-memory build active", UiTheme.Muted);
+            else if (DeviceProfile.IsMax) GUILayout.Label("Max-memory build active (heap up to 4 GB)", UiTheme.Muted);
 
             UiKit.Section("Camera and effects");
             if (UiKit.Button("Open camera menu")) { SetOpen(false); root.camMenu.OpenMenu(); }

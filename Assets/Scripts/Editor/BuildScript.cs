@@ -154,8 +154,11 @@ namespace RocketWorld.Editor
             // ("A problem repeatedly occurred") when a shared wasm heap this big is reserved at startup; threads stay on (Cesium needs them).
             bool lite = Arg("-rwLite") == "1";
             if (lite) PlayerSettings.WebGL.dataCaching = false;   // no second in-memory copy of the .data file
+            // `-rwMax 1`: the big-heap build served at /max/ for devices with lots of RAM (12 GB phones, desktops). Same player, but the wasm heap may
+            // grow to 4 GB instead of 2 GB; DeviceProfile raises MemoryGuard's soft limit accordingly so "Low memory" does not fire early.
+            bool max = Arg("-rwMax") == "1" && !lite;
             TrySet(typeof(PlayerSettings.WebGL), "initialMemorySize", lite ? 256 : 512);
-            TrySet(typeof(PlayerSettings.WebGL), "maximumMemorySize", lite ? 1024 : 2048);
+            TrySet(typeof(PlayerSettings.WebGL), "maximumMemorySize", lite ? 1024 : max ? 4096 : 2048);
         }
 
         // Throw-away CI builds (pull requests): "Build Times" code optimization skips wasm-opt/LTO, the slowest part of the emscripten link.

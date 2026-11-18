@@ -74,3 +74,12 @@ switches (quality + fps) largely cancel. Fast load: coarse-first start at SSE 64
 full-detail ring x0.85. Quality: SSE x0.7, culled x0.75, distant quality x1.3, ring x1.15. Fps: SSE x1.4, render scale x0.75, view distance x0.7, ring x0.75, effects x0.4.
 Realism: SSE x0.8, scale x1.15, view x1.15, ring x1.1, distant quality x1.2, DOF/motion blur at least 100 %. Phones never get a larger ring than their default and keep SSE >= 12;
 render scale is capped at the device maximum, and AntiCrash / MemoryGuard still work below these values.
+
+## `/max/`: big-heap build (devices with lots of RAM)
+
+Browsers report at most 8 GB in `navigator.deviceMemory`, so a 12 GB phone looks like an 8 GB one and gets the same `MemoryGuard` soft limit (1200 MB on mobile) as a 6 GB phone; the main player also caps the wasm heap at 2 GB. The "Low memory: reducing detail" toast appears at level 2 (85 % of the soft limit).
+
+CI therefore builds a third player with `-rwMax 1` (initial 512 MB, **max 4 GB**) into `/max/`. It is never picked automatically: open `/max/` (or `?max=1` on any build). In it `DeviceProfile` raises the soft limit to 3000 MB on phones with >= 6 GB (3200 MB desktop, 1800 MB phones below that) and the tile cache to 384 MB (phones) / 768 MB (desktop >= 8 GB). `index.html` still sends iPhone/iPad and crash-looping devices (last two loads never reached the first frame) to `/lite/`; `?max=0` / `?lite=0` go back to the main build.
+
+For testing any build, `?heaplimit=<MB>` overrides the soft limit; the HUD shows `heap limit` in the device line.
+

@@ -13,8 +13,11 @@ namespace RocketWorld
         public static bool CrossOriginIsolated { get; private set; } = true;
         /// <summary>"Safe mode" (?safe=1, set automatically by index.html after a memory crash): the smallest budgets of all.</summary>
         public static bool Safe { get; private set; }
+        /// <summary>True on the big-heap build served at /max/ (wasm heap up to 4 GB instead of 2 GB).</summary>
+        public static bool IsMax { get; private set; }
 
         static bool _loaded;
+        static int _heapLimitOverride;
 
         public static void Load()
         {
@@ -31,6 +34,9 @@ namespace RocketWorld
                 CrossOriginIsolated = p[4] == "1";
             }
             Safe = WebBridge.Query("safe") == "1";
+            IsMax = !Safe && WebBridge.IsMaxBuild();
+            // ?heaplimit=<MB> overrides MemoryGuard's soft limit (testing: lets you see how far a device really goes).
+            if (int.TryParse(WebBridge.Query("heaplimit"), out var hl) && hl >= 256) _heapLimitOverride = hl;
         }
 
         const long MB = 1024 * 1024;
@@ -40,6 +46,7 @@ namespace RocketWorld
         /// bill: decoded tile images, meshes and collider cooking live on top of it, so these numbers are deliberately small.
         /// </summary>
         public static long TileCacheBytes => Safe ? 64L * MB
+                                           : IsMax ? (IsMobile ? (MemoryGB >= 6f ? 384L : 192L) : (MemoryGB >= 8f ? 768L : 512L)) * MB   // /max/: the heap can reach 4 GB
                                            : IsMobile ? (MemoryGB <= 3f ? 96L : MemoryGB >= 6f ? 192L : 128L) * MB
                                            : MemoryGB <= 4f ? 256L * MB
                                            : MemoryGB >= 8f ? 512L * MB : 384L * MB;
@@ -57,7 +64,11 @@ namespace RocketWorld
         public static float MaxRenderScale => Safe ? 0.75f : IsMobile ? 1f : 2f;
 
         /// <summary>Wasm heap size (MB) at which MemoryGuard starts to shed load. Browsers refuse to grow the heap well before the 2 GB build limit on phones.</summary>
-        public static int HeapSoftLimitMB => Safe ? 600 : IsMobile ? (MemoryGB <= 3f ? 700 : MemoryGB >= 6f ? 1200 : 900) : 1700;
+        public static int HeapSoftLimitMB => _heapLimitOverride > 0 ? _heapLimitOverride
+                                           : Safe ? 600
+                                           // /max/ (4 GB heap): ~75 % of it on phones/desktops with plenty of RAM, so "Low memory" only appears near the real ceiling
+                                           : IsMax ? (IsMobile ? (MemoryGB >= 6f ? 3000 : 1800) : 3200)
+                                           : IsMobile ? (MemoryGB <= 3f ? 700 : MemoryGB >= 6f ? 1200 : 900) : 1700;
 
         /// <summary>First-run defaults (only used when the user has no saved settings).</summary>
         public static void ApplyFirstRunDefaults(GameSettings s)
@@ -66,6 +77,6 @@ namespace RocketWorld
         }
 
         public static string Describe() =>
-            $"{(IsMobile ? "mobile" : "desktop")}{(Safe ? " (safe)" : "")} · {MemoryGB:0.#} GB · {Cores} cores · dpr {Dpr:0.##} · cache {TileCacheBytes / MB} MB · isolated {(CrossOriginIsolated ? "yes" : "NO")}";
+            $"{(IsMobile ? "mobile" : "desktop")}{(Safe ? " (safe)" : "")} · {MemoryGB:0.#} GB · {Cores} cores · dpr {Dpr:0.##} · cache {TileCacheBytes / MB} MB · isolated {(CrossOriginIsolated ? "yes" : "NO")}{(IsMax ? " · max build" : "")} · heap limit {HeapSoftLimitMB} MB";
     }
 }

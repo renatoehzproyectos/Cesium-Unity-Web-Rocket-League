@@ -30,7 +30,7 @@ env:
   UNITY_IMAGE: unityci/editor:ubuntu-6000.0.62f1-webgl-3   # keep in sync with unityVersion + containerRegistryImageVersion below
 
 jobs:
-  # Main player and low-memory /lite/ player build IN PARALLEL (wall time = the slower one, not the sum).
+  # Main player, low-memory /lite/ player and big-heap /max/ player (4 GB wasm heap) build IN PARALLEL (wall time = the slower one, not the sum).
   # Pull requests only build the main one, uncompressed, and skip wasm-opt (nothing is deployed from them).
   #
   # Where the time goes (measured on 3 runs): the old Unity Brotli pass was 55-85 % of the job and the first build attempt
@@ -44,12 +44,13 @@ jobs:
       ok: ${{ steps.lic.outputs.ok }}
     strategy:
       matrix:
-        variant: ${{ fromJSON(github.event_name == 'pull_request' && '["main"]' || '["main","lite"]') }}
+        variant: ${{ fromJSON(github.event_name == 'pull_request' && '["main"]' || '["main","lite","max"]') }}
       fail-fast: true
     env:
-      BUILD_NAME: ${{ matrix.variant == 'lite' && 'lite' || 'WebGL' }}
+      BUILD_NAME: ${{ matrix.variant == 'lite' && 'lite' || matrix.variant == 'max' && 'max' || 'WebGL' }}
       BUILD_ARGS: >-
         -rwLite ${{ matrix.variant == 'lite' && '1' || '0' }}
+        -rwMax ${{ matrix.variant == 'max' && '1' || '0' }}
         -rwGfx ${{ inputs.graphics == 'webgpu' && 'webgpu' || 'webgl2' }}
         -rwFast ${{ github.event_name == 'pull_request' && '1' || '0' }}
         -rwSpeed ${{ inputs.optimize_speed == true && '1' || '0' }}
@@ -191,13 +192,15 @@ jobs:
         with: { name: rocketworld-main, path: webgl }
       - uses: actions/download-artifact@v4
         with: { name: rocketworld-lite, path: webgl/lite }
+      - uses: actions/download-artifact@v4
+        with: { name: rocketworld-max, path: webgl/max }
       - name: Add Vercel config and check the layout
         run: |
           cp deploy/vercel.json webgl/vercel.json
           cp deploy/cesiumjs-compare.html webgl/cesiumjs-compare.html   # CesiumJS reference page: /cesiumjs-compare.html
-          test -f webgl/index.html && test -d webgl/Build && test -f webgl/lite/index.html && test -d webgl/lite/Build
-          ls webgl/Build | grep -q '\.br$' && ls webgl/lite/Build | grep -q '\.br$'   # both players must be Brotli-compressed
-          du -sh webgl webgl/lite
+          test -f webgl/index.html && test -d webgl/Build && test -f webgl/lite/index.html && test -d webgl/lite/Build && test -f webgl/max/index.html && test -d webgl/max/Build
+          ls webgl/Build | grep -q '\.br$' && ls webgl/lite/Build | grep -q '\.br$' && ls webgl/max/Build | grep -q '\.br$'   # all players must be Brotli-compressed
+          du -sh webgl webgl/lite webgl/max
       - name: Push to renatoehzproyectos/op-test
         uses: peaceiris/actions-gh-pages@v4
         with:
