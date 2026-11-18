@@ -294,7 +294,15 @@ namespace RocketWorld
                         if (Event.current.type == EventType.Repaint)
                         {
                             GUI.color = new Color(UiTheme.Accent.r, UiTheme.Accent.g, UiTheme.Accent.b, touched ? 0.60f : 0.38f);
-                            if (w.kind == WidgetKind.SliderSticky) { float hh = r.height * Mathf.Clamp01(v); GUI.DrawTexture(new Rect(r.x + 4, r.yMax - hh - 3, r.width - 8, Mathf.Max(hh, 3)), Texture2D.whiteTexture); }
+                            if (w.kind == WidgetKind.SliderSticky)
+                            {
+                                float top = r.y + 12f, uh = r.height - 24f, lv = Mathf.Clamp01(v), ly = top + uh * (1f - lv), tx = r.center.x - 3f;
+                                GUI.color = new Color(1, 1, 1, 0.16f); GUI.DrawTexture(new Rect(tx, top, 6f, uh), Texture2D.whiteTexture);
+                                GUI.color = lv > 0.85f ? UiTheme.Hot : UiTheme.Accent; GUI.DrawTexture(new Rect(tx, ly, 6f, top + uh - ly), Texture2D.whiteTexture);
+                                GUI.color = new Color(1, 1, 1, 0.35f);
+                                for (int ti = 0; ti <= 4; ti++) GUI.DrawTexture(new Rect(r.x + 10f, top + uh * ti / 4f - 0.5f, 10f, 1f), Texture2D.whiteTexture);
+                                GUI.color = Color.white; GUI.DrawTexture(new Rect(r.x + 8f, ly - 2f, r.width - 16f, 4f), Texture2D.whiteTexture);
+                            }
                             else if (w.kind == WidgetKind.SliderSpring) { float cy = r.center.y, hy = -v * r.height * 0.5f; GUI.DrawTexture(new Rect(r.x + 4, Mathf.Min(cy, cy + hy), r.width - 8, Mathf.Max(Mathf.Abs(hy), 3)), Texture2D.whiteTexture); GUI.color = new Color(1, 1, 1, 0.5f); GUI.DrawTexture(new Rect(r.x, cy - 1, r.width, 2), Texture2D.whiteTexture); }
                             else { float cx = r.center.x, hx = v * r.width * 0.5f; GUI.DrawTexture(new Rect(Mathf.Min(cx, cx + hx), r.y + 4, Mathf.Max(Mathf.Abs(hx), 3), r.height - 8), Texture2D.whiteTexture); GUI.color = new Color(1, 1, 1, 0.5f); GUI.DrawTexture(new Rect(cx - 1, r.y, 2, r.height), Texture2D.whiteTexture); }
                             GUI.color = oc;
@@ -348,6 +356,8 @@ namespace RocketWorld
             _shownSpeed = Mathf.Lerp(_shownSpeed, cc.SpeedMS, 1f - Mathf.Exp(-Time.unscaledDeltaTime * 12f));
             float frac = Mathf.Clamp01(_shownSpeed / 46f);
             bool boosting = cc.IsBoosting;
+            if (Event.current.type == EventType.Repaint && (cc.InPlane || cc.InVehicle))      // one soft plate behind the cluster: readable over any scenery
+                GUI.DrawTexture(new Rect(W * 0.5f - 235f, B - 166f, 470f, 140f), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(0.03f, 0.05f, 0.09f, 0.38f), 0f, 16f);
             if (cc.InBoat) Shadowed(new Rect(W * 0.5f - 120, B - 150, 240, 20), "BOAT", UiTheme.Unit);
             if (cc.InPlane) DrawFlightInstruments(cc, W, B);
             else if (cc.InVehicle) DrawVehicleInstruments(cc, W, B);
@@ -392,8 +402,8 @@ namespace RocketWorld
                 if (root.minimap != null && root.roads != null && root.roads.Enabled)      // manual road-height sampling, right beside the minimap
                 {
                     var mr = root.minimap.Rect; float bw = UiLayout.Compact ? 84f : 96f, bh = UiLayout.Compact ? 52f : 56f;
-                    var br = new Rect(mr.xMax + 12f, mr.y + 4f, bw, bh); _hit.Add(br);
-                    if (GUI.Button(br, "Sample\nroads", UiTheme.Primary))
+                    var br = new Rect(mr.xMax + 12f, mr.y + 4f, 72f, 36f); _hit.Add(br);
+                    if (GUI.Button(br, "Roads", UiTheme.Chip))
                     {
                         int n = root.roads.ResampleHeights();
                         Toast(n > 0 ? "Sampling road heights (" + n + " chunks)..." : "No roads loaded to sample");

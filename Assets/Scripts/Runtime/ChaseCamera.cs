@@ -35,7 +35,7 @@ namespace RocketWorld
             float sp = Mathf.Clamp01(car.SpeedMS / 46f);   // (plane speeds exceed this: the clamp keeps the car-tuned FOV / distance bounded)
             bool plane = car.InPlane || car.InVehicle;                                      // the airplane is bigger and faster: sit further back and higher
             bool veh = car.InVehicle; var vs = veh ? car.vehicle.Spec : null;
-            float back = veh ? vs.camBack : plane ? 17f : 7.6f + sp * 2.2f, upD = veh ? vs.camUp : plane ? 4.8f : 2.9f + sp * 0.5f, ahead = veh ? vs.camLook : plane ? 12f : 5f;
+            float back = veh ? vs.camBack : plane ? 22f : 7.6f + sp * 2.2f, upD = veh ? vs.camUp : plane ? 9.5f : 2.9f + sp * 0.5f, ahead = veh ? vs.camLook : plane ? 12f : 5f;
             bool full = CamTuning.fullAxis;                                  // Camera menu: follow the vehicle's roll as well (default: yaw + pitch only)
             var camUp = Vector3.up;
             Vector3 want;
@@ -50,7 +50,7 @@ namespace RocketWorld
             else { want = carPos - _heading * back; want.y = carPos.y + upD; }   // pulls back a little with speed
             if (Physics.Linecast(carPos + Vector3.up * 0.8f, want, out var hit, PhysicsSetup.WorldMask, QueryTriggerInteraction.Ignore))
                 want = hit.point + hit.normal * 0.4f;
-            float lookUp = plane ? 4.5f : 1f;                                // aircraft: aim above the plane so it sits lower in the frame, with more sky and horizon
+            float lookUp = plane ? 2.5f : 1f;                                // aircraft: aim above the plane so it sits lower in the frame, with more sky and horizon
             var tgt = full ? carPos + _rot * new Vector3(0f, lookUp, ahead) : carPos + _heading * ahead + Vector3.up * lookUp;
             var pos = transform.position;                                  // camera has a CesiumGlobeAnchor: valid across origin shifts
             if (!_ready) { pos = want; _lookOffset = tgt - carPos; _ready = true; }

@@ -94,16 +94,16 @@ namespace RocketWorld
             bool air = car.InPlane || car.InVehicle;                      // aircraft fly far above the ground: far-blur would smear all of it
             if ((flags & 2) != 0)
             {
-                _dof.active = !air;
                 float start = CinematicPolicy.DofStart(Vector3.Distance(camPos, car.transform.position));
                 _dof.gaussianStart.value = start;
                 _dof.gaussianEnd.value = CinematicPolicy.DofEnd(start);
                 _dof.gaussianMaxRadius.value = CinematicPolicy.DofMaxRadius(aDof);
+                _dof.active = !air;                                       // aircraft: no depth of field at all (it blurred the whole ground)
             }
             if ((flags & 4) != 0)
             {
                 float target = _suppress > 0f ? 0f : CinematicPolicy.MotionBlurIntensity(speed, boosting, aMotion);
-                if (air) target *= 0.5f;
+                if (air) target = 0f;                                         // aircraft: no motion blur either, the image stays sharp
                 _mbCur = _suppress > 0f ? 0f : Mathf.MoveTowards(_mbCur, target, dt * 2f);
                 _mb.intensity.value = _mbCur;
             }
