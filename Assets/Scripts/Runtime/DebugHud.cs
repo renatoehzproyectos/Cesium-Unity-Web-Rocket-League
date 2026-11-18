@@ -214,21 +214,55 @@ namespace RocketWorld
 
         // ------------------------------------------------------------------------------------------------ in-game readouts
 
-        /// <summary>Plane mode: airspeed (kt), altitude (ft), vertical speed, throttle lever, stall warning.</summary>
+        // ---- instrument cluster (v3): no boxes, thin hairlines, ONE value style (big number, dim label) ----
+        GUIStyle _insVal, _insValL, _insLab;
+        void EnsureInsStyles()
+        {
+            if (_insVal != null) return;
+            _insVal = new GUIStyle(UiTheme.Big) { fontSize = 30, alignment = TextAnchor.MiddleRight };
+            _insValL = new GUIStyle(_insVal) { alignment = TextAnchor.MiddleLeft };
+            _insLab = new GUIStyle(UiTheme.Unit) { fontSize = 12, alignment = TextAnchor.MiddleCenter };
+        }
+
+        /// <summary>One instrument: small dim label above a big value, unit under it. <paramref name="left"/> aligns the group to the speed number.</summary>
+        void Gauge(Rect r, string label, string value, string unit, bool left, Color tint)
+        {
+            EnsureInsStyles();
+            Shadowed(new Rect(r.x, r.y, r.width, 14), label, _insLab);
+            var old = GUI.color; GUI.color = tint;
+            Shadowed(new Rect(r.x, r.y + 12, r.width, 34), value, left ? _insValL : _insVal);
+            GUI.color = old;
+            Shadowed(new Rect(r.x, r.y + 44, r.width, 14), unit, _insLab);
+        }
+
+        /// <summary>Plane mode: IAS (kt) | ground speed (centre, drawn by DrawSpeed) | ALT (ft), vertical speed chip, throttle scale, stall warning.</summary>
         void DrawFlightInstruments(RocketCar cc, float W, float B)
         {
             var p = cc.plane; if (p == null) return;
-            Shadowed(new Rect(W * 0.5f - 160, B - 176, 320, 22), $"PLANE   IAS {p.AirspeedKt:0} kt   ALT {p.AltitudeFt:0} ft   VS {p.VerticalSpeedFpm:+0;-0;0} fpm", UiTheme.Unit);
+            float cx = W * 0.5f;
+            Gauge(new Rect(cx - 215f, B - 112f, 90f, 60f), "IAS", p.AirspeedKt.ToString("0"), "KT", false, UiTheme.Text);
+            Gauge(new Rect(cx + 125f, B - 112f, 90f, 60f), "ALT", p.AltitudeFt.ToString("0"), "FT", true, UiTheme.Text);
+            float vs = p.VerticalSpeedFpm;
+            var vsCol = Mathf.Abs(vs) < 150f ? UiTheme.TextDim : vs > 0f ? UiTheme.Good : UiTheme.Hot;
+            var old = GUI.color; GUI.color = vsCol;
+            Shadowed(new Rect(cx - 110f, B - 140f, 220f, 20f), "VS " + vs.ToString("+0;-0;0") + " fpm", UiTheme.Unit);
+            GUI.color = old;
             LeverBar(W, B, p.ThrottleLever);
-            if (p.Stalled) Shadowed(new Rect(W * 0.5f - 120, UiLayout.TopBlockBottom + 60f, 240, 30), "STALL", UiTheme.Unit);
+            if (p.Stalled) Shadowed(new Rect(cx - 120, UiLayout.TopBlockBottom + 60f, 240, 30), "STALL", UiTheme.Unit);
         }
 
+        /// <summary>Throttle: hairline scale with 25 % ticks, fill turns amber above 85 %, percentage at the end.</summary>
         void LeverBar(float W, float B, float lever)
         {
+            float cx = W * 0.5f, x = cx - 110f, y = B - 152f, w = 220f;
+            lever = Mathf.Clamp01(lever);
+            Shadowed(new Rect(x + w + 6f, y - 8f, 44f, 18f), Mathf.RoundToInt(lever * 100f) + "%", UiTheme.Unit);
             if (Event.current.type != EventType.Repaint) return;
-            var oc = GUI.color; float x = W * 0.5f - 160, y = B - 152;
-            GUI.color = new Color(0, 0, 0, 0.45f); GUI.DrawTexture(new Rect(x, y, 320, 6), Texture2D.whiteTexture);
-            GUI.color = lever > 0.85f ? UiTheme.Hot : UiTheme.Good; GUI.DrawTexture(new Rect(x, y, 320 * lever, 6), Texture2D.whiteTexture);
+            var oc = GUI.color;
+            GUI.color = new Color(1, 1, 1, 0.16f); GUI.DrawTexture(new Rect(x, y, w, 3), Texture2D.whiteTexture);
+            GUI.color = lever > 0.85f ? UiTheme.Hot : UiTheme.Accent; GUI.DrawTexture(new Rect(x, y - 1, Mathf.Max(2f, w * lever), 5), Texture2D.whiteTexture);
+            GUI.color = new Color(1, 1, 1, 0.35f);
+            for (int i = 0; i <= 4; i++) GUI.DrawTexture(new Rect(x + w * i / 4f - 0.5f, y - 5f, 1f, 4f), Texture2D.whiteTexture);
             GUI.color = oc;
         }
 
@@ -281,7 +315,8 @@ namespace RocketWorld
         void DrawVehicleInstruments(RocketCar cc, float W, float B)
         {
             var d = cc.vehicle; if (d == null || !d.Active) return;
-            Shadowed(new Rect(W * 0.5f - 200, B - 176, 400, 22), $"{d.Spec.name.ToUpperInvariant()}   ALT {d.AltM:0} m   VS {d.VsMs:+0.0;-0.0;0.0} m/s", UiTheme.Unit);
+            Gauge(new Rect(W * 0.5f + 125f, B - 112f, 90f, 60f), "ALT", d.AltM.ToString("0"), "M", true, UiTheme.Text);
+            Shadowed(new Rect(W * 0.5f - 200, B - 176, 400, 22), $"{d.Spec.name.ToUpperInvariant()}   VS {d.VsMs:+0.0;-0.0;0.0} m/s", UiTheme.Unit);
             if (!string.IsNullOrEmpty(d.Status)) Shadowed(new Rect(W * 0.5f - 200, B - 198, 400, 22), d.Status, UiTheme.Unit);
             LeverBar(W, B, d.Lever);
             if (d.Stalled) Shadowed(new Rect(W * 0.5f - 120, UiLayout.TopBlockBottom + 60f, 240, 30), "STALL", UiTheme.Unit);
@@ -345,6 +380,7 @@ namespace RocketWorld
             if (running && _runStart < 0f) _runStart = Time.unscaledTime;
             bool touch = root.carInput != null && root.carInput.TouchControlsActive;
             bool camOpen = root.camMenu != null && root.camMenu.Open;
+            if (Event.current.type == EventType.Layout && Cursor.visible == touch) Cursor.visible = !touch;     // no stray pointer over the touch pads
             bool sheet = UiLayout.Compact && (_open || _ctlOpen || camOpen);     // full-screen panels hide everything under them
 
             if (Event.current.type == EventType.Repaint)

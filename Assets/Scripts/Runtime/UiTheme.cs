@@ -111,7 +111,7 @@ namespace RocketWorld
             Pill = new GUIStyle(b) { fontSize = 14, padding = new RectOffset(14, 14, 6, 6), wordWrap = true, normal = { background = panel, textColor = TextDim } };
             Touch = new GUIStyle(b)
             {
-                normal = { background = Round(new Color(1, 1, 1, 0.08f), new Color(1, 1, 1, 0.24f), 18, 1.5f), textColor = new Color(1, 1, 1, 0.82f) },
+                normal = { background = Round(new Color(0.04f, 0.07f, 0.12f, 0.30f), new Color(1, 1, 1, 0.14f), 18, 1f), textColor = new Color(1, 1, 1, 0.78f) },
                 border = new RectOffset(18, 18, 18, 18), fontSize = 16, padding = new RectOffset(4, 4, 4, 4),
             };
             BtnListen = new GUIStyle(bt) { normal = { background = Round(new Color(1f, 0.74f, 0.2f, 0.95f), new Color(1, 1, 1, 0.5f), 11, 1.2f), textColor = Ink } };

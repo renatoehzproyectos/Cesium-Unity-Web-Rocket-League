@@ -36,7 +36,7 @@ namespace RocketWorld
         public bool bench;                           // ?bench=1 runs the benchmark right after the world is ready
         public int carColor = 0;
         public float camYaw = 200f, camPitch = 14f, camDist = 7.5f;
-        public float fxDof = 2f, fxMotion = 0.75f;                  // cinematic effect sliders: 0 = off, 1 = designed look, 2 = twice as strong; ?dof= ?mblur= (?cine=0 turns all off)
+        public float fxDof = 1f, fxMotion = 0.75f;                  // cinematic effect sliders: 0 = off, 1 = designed look, 2 = twice as strong; ?dof= ?mblur= (?cine=0 turns all off)
         public Priority priorities = Priority.None;   // fast load / tile quality / fps / realism (any combination); ?prio=fps,realism
         public int camMode = 0;                      // driving camera: 0 chase, 1 orbit, 2 helicopter (?cam=chase|orbit|heli)
 
@@ -95,7 +95,7 @@ namespace RocketWorld
             s.roadPavement = PlayerPrefs.GetInt(P + "pave", 1) == 1;
             s.antiCrash = WebBridge.AntiCrashSync(PlayerPrefs.GetInt(P + "anticrash", 1) == 1);   // browser flag wins: it also picks the build in index.html
             s.roadHeight = Mathf.Clamp(PlayerPrefs.GetFloat(P + "rh", 0f), 0f, MaxRoadHeight);
-            s.fxDof = PlayerPrefs.GetFloat(P + "fxd", 2f);
+            s.fxDof = PlayerPrefs.GetFloat(P + "fxd", 1f);
             s.fxMotion = PlayerPrefs.GetFloat(P + "fxm", 0.75f);
             // Terrain beauty pass: browsers that saved the old coarse default (32) move once to the sharper one; later custom values are respected.
             if (PlayerPrefs.GetInt(P + "tv", 0) < TerrainVersion) s.sse = DeviceProfile.IsMobile ? 28f : 20f;

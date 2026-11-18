@@ -56,7 +56,7 @@ namespace RocketWorld
             _cam.nearClipPlane = 1f;
             _cam.farClipPlane = Height + 2200f;                // also reaches the ground from the cargo plane (1 km up)
             _cam.clearFlags = CameraClearFlags.SolidColor;
-            _cam.backgroundColor = new Color(0.06f, 0.09f, 0.13f, 1f);
+            _cam.backgroundColor = new Color(0.13f, 0.19f, 0.27f, 1f);
             _cam.cullingMask = ~((1 << PhysicsSetup.CarLayer) | (1 << PhysicsSetup.PlaneLayer));   // never show the intro plane
             _cam.allowHDR = false; _cam.allowMSAA = false;
             _cam.useOcclusionCulling = false;
@@ -134,7 +134,7 @@ namespace RocketWorld
             // drop shadow, map, rim
             GUI.DrawTexture(new Rect(r.x - 5, r.y - 3, Size + 10, Size + 10), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(0, 0, 0, 0.35f), 0f, rad + 5f);
             GUI.DrawTexture(r, _rt, ScaleMode.StretchToFill, false, 0f, Color.white, 0f, rad);
-            GUI.DrawTexture(new Rect(r.x - 2, r.y - 2, Size + 4, Size + 4), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(UiTheme.Text.r, UiTheme.Text.g, UiTheme.Text.b, 0.80f), 3f, rad + 2f);
+            GUI.DrawTexture(new Rect(r.x - 2, r.y - 2, Size + 4, Size + 4), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(UiTheme.Text.r, UiTheme.Text.g, UiTheme.Text.b, 0.55f), 1.5f, rad + 2f);
 
             // car arrow (always the centre; points up when the map rotates, otherwise follows the heading)
             var m = GUI.matrix;
