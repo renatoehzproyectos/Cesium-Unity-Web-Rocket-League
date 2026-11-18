@@ -492,6 +492,14 @@ namespace RocketWorld
             _sun.shadows = LightShadows.None;                          // photorealistic tiles carry baked shadows
             RenderSettings.sun = _sun;
             _skyMat = Resources.Load<Material>("Materials/Sky");
+            if (_skyMat != null)
+            {
+                _skyMat = new Material(_skyMat);                                   // own copy: never edit the shared asset
+                if (_skyMat.HasProperty("_AtmosphereThickness")) _skyMat.SetFloat("_AtmosphereThickness", 1.12f);
+                if (_skyMat.HasProperty("_Exposure")) _skyMat.SetFloat("_Exposure", 1.25f);
+                if (_skyMat.HasProperty("_SunSize")) _skyMat.SetFloat("_SunSize", 0.06f);
+                if (_skyMat.HasProperty("_SkyTint")) _skyMat.SetColor("_SkyTint", new Color(0.42f, 0.55f, 0.80f));
+            }
         }
 
         void ApplyTimeOfDay()

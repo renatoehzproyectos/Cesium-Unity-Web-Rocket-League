@@ -91,8 +91,10 @@ namespace RocketWorld
             float speed = car.SpeedMS;
             bool boosting = car.IsBoosting;
 
+            bool air = car.InPlane || car.InVehicle;                      // aircraft fly far above the ground: far-blur would smear all of it
             if ((flags & 2) != 0)
             {
+                _dof.active = !air;
                 float start = CinematicPolicy.DofStart(Vector3.Distance(camPos, car.transform.position));
                 _dof.gaussianStart.value = start;
                 _dof.gaussianEnd.value = CinematicPolicy.DofEnd(start);
@@ -101,6 +103,7 @@ namespace RocketWorld
             if ((flags & 4) != 0)
             {
                 float target = _suppress > 0f ? 0f : CinematicPolicy.MotionBlurIntensity(speed, boosting, aMotion);
+                if (air) target *= 0.5f;
                 _mbCur = _suppress > 0f ? 0f : Mathf.MoveTowards(_mbCur, target, dt * 2f);
                 _mb.intensity.value = _mbCur;
             }

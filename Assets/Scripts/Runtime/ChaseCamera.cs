@@ -50,7 +50,8 @@ namespace RocketWorld
             else { want = carPos - _heading * back; want.y = carPos.y + upD; }   // pulls back a little with speed
             if (Physics.Linecast(carPos + Vector3.up * 0.8f, want, out var hit, PhysicsSetup.WorldMask, QueryTriggerInteraction.Ignore))
                 want = hit.point + hit.normal * 0.4f;
-            var tgt = full ? carPos + _rot * new Vector3(0f, 1f, ahead) : carPos + _heading * ahead + Vector3.up;
+            float lookUp = plane ? 4.5f : 1f;                                // aircraft: aim above the plane so it sits lower in the frame, with more sky and horizon
+            var tgt = full ? carPos + _rot * new Vector3(0f, lookUp, ahead) : carPos + _heading * ahead + Vector3.up * lookUp;
             var pos = transform.position;                                  // camera has a CesiumGlobeAnchor: valid across origin shifts
             if (!_ready) { pos = want; _lookOffset = tgt - carPos; _ready = true; }
             pos = Vector3.Lerp(pos, want, CamTuning.Blend(6.5f, dt));
@@ -60,6 +61,7 @@ namespace RocketWorld
 
             transform.SetPositionAndRotation(pos, Quaternion.LookRotation((carPos + _lookOffset) - pos, camUp));
             float f = 72f + Mathf.SmoothStep(0f, 1f, Mathf.Min(car.SpeedMS / 46f, 1f)) * 16f + car.HyperT * 18f;   // Hyper Boost widens the view
+            if (plane) f = 64f + Mathf.SmoothStep(0f, 1f, Mathf.Min(car.SpeedMS / 80f, 1f)) * 12f + car.HyperT * 14f;   // aircraft: narrower view = bigger plane, FOV still rises with speed
             _fov += (f - _fov) * Mathf.Min(1f, dt * 2.5f);
             if (_cam != null) _cam.fieldOfView = _fov;
         }

@@ -326,9 +326,9 @@ namespace RocketWorld
         float ReadoutBase(float H, bool touch)
         {
             float lift = 0f;
-            if (touch && UiLayout.Compact)
+            if (touch)
             {
-                float k = UiLayout.K, lo = (UiLayout.W * 0.5f - 130f) * k, hi = (UiLayout.W * 0.5f + 130f) * k;
+                float k = UiLayout.K, half = UiLayout.Compact ? 130f : 235f, lo = (UiLayout.W * 0.5f - half) * k, hi = (UiLayout.W * 0.5f + half) * k;
                 var sr = CarInput.StickRect;
                 if (sr.xMax > lo && sr.xMin < hi) lift = Mathf.Max(lift, sr.yMax / k);
                 var ws = CarInput.Widgets;
@@ -391,9 +391,9 @@ namespace RocketWorld
                 if (root.minimap != null) root.minimap.Draw(_mapN);
                 if (root.minimap != null && root.roads != null && root.roads.Enabled)      // manual road-height sampling, right beside the minimap
                 {
-                    var mr = root.minimap.Rect; float bw = UiLayout.Compact ? 76f : 92f, bh = UiLayout.Compact ? 40f : 46f;
+                    var mr = root.minimap.Rect; float bw = UiLayout.Compact ? 84f : 96f, bh = UiLayout.Compact ? 52f : 56f;
                     var br = new Rect(mr.xMax + 12f, mr.y + 4f, bw, bh); _hit.Add(br);
-                    if (GUI.Button(br, "Sample\nroad height", UiTheme.Primary))
+                    if (GUI.Button(br, "Sample\nroads", UiTheme.Primary))
                     {
                         int n = root.roads.ResampleHeights();
                         Toast(n > 0 ? "Sampling road heights (" + n + " chunks)..." : "No roads loaded to sample");
