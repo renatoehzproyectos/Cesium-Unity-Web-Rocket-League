@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <script>
+    // Anti-crash boot: elige el build principal, el de poca memoria en /lite/ o el de gran heap en /max/ ANTES de que empiece cualquier descarga pesada.
+    // En iOS Safari el heap grande de wasm compartido puede cerrar la pestaña, por eso con Anti-crash activo (por defecto)
+    // los iPhone/iPad van a /lite/. Cualquier dispositivo cuyas dos últimas cargas no llegaron al primer frame también se mueve allí.
+    // /max/ tiene un heap de 4 GB para dispositivos con mucha RAM; nunca se elige automáticamente: ábrelo a mano o con ?max=1.
+    // Overrides: ?lite=1 / ?max=1 / ?lite=0 / ?max=0 fuerzan un build; ?anticrash=0 desactiva la parte automática.
+    // Ahora, si el juego quiere ir a Lite, PRIMERO pregunta al usuario (salvo que ya esté en crash-loop o sea iOS y el usuario no haya elegido).
+    (function () {
+      var L = location;
+      // "/lite" o "/max" (sin barra) haría que Build/... se resuelva contra la raíz y se cuelgue el loader: siempre usamos "/lite/" y "/max/".
+      if (/\/(lite|max)$/.test(L.pathname)) { window.rwRedirecting = true; L.replace(L.pathname + '/' + L.search + L.hash); return; }
+      var inLite = /\/lite\/(index\.html)?$/.test(L.pathname);
+      var inMax = /\/max\/(index\.html)?$/.test(L.pathname);
+      function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { } return null; }
+      var qs = new URLSearchParams(L.search), qAC = qs.get('anticrash'), qLite = qs.get('lite'), qMax = qs.get('max');
+      var ac = qAC !== null ? qAC !== '0' : ls('rw_anticrash') !== '0';
+      var ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+      // Modo seguro: se activa tras un crash de memoria. Se mantiene en la URL porque el juego lee opciones del query string.
+      if (qs.get('safe') === '0') ls('rw_safe', '0');
+      if (qs.get('safe') === null && ls('rw_safe') === '1') {
+        qs.set('safe', '1');
+        try { history.replaceState(null, '', L.pathname + '?' + qs.toString() + L.hash); } catch (e) { }
+        L = { pathname: L.pathname, search: '?' + qs.toString(), hash: L.hash, replace: function (u) { location.replace(u); } };
+      }
+      var tries = parseInt(ls('rw_boot') || '0', 10) || 0;          // cargas que nunca llegaron al primer frame (se limpia en RW_HideLoading)
+      if (!inLite && ac && tries >= 2) ls('rw_lite', '1');
+      var here = inLite ? 'lite' : inMax ? 'max' : 'main';
+      var crashLoop = ac && tries >= 2;
+      var want;
+      if (qLite === '1') want = 'lite';
+      // /max/ (o ?max=1) se respeta salvo que sea iPhone/iPad o esté en crash-loop: esos no pueden reservar 4 GB, van a /lite/.
+      else if (qMax === '1' || (inMax && qMax !== '0' && qLite !== '0')) want = (ac && (ios || crashLoop)) ? 'lite' : 'max';
+      else if (qLite === '0' || qMax === '0') want = 'main';
+      else want = (ac && (ios || ls('rw_lite') === '1')) ? 'lite' : 'main';
+      window.rwLite = here === 'lite';
+      window.rwMax = here === 'max';
+      window.rwWant = want;
+      window.rwHere = here;
+      window.rwCrashLoop = crashLoop;
+      window.rwIos = ios;
+      window.rwAc = ac;
+
+      // Si queremos ir a Lite (o salir) y no es un forzado por query ni un crash-loop grave, preguntamos primero.
+      var forceByQuery = (qLite === '1' || qLite === '0' || qMax === '1' || qMax === '0');
+      if (want !== here && !forceByQuery && !crashLoop) {
+        window.rwNeedConfirm = true;   // se mostrará el diálogo más abajo
+        // No redirigimos todavía.
+      } else if (want !== here) {
+        window.rwRedirecting = true;
+        var up = here === 'main' ? '' : '../';
+        L.replace(up + (want === 'main' ? '' : want + '/') + L.search + L.hash);
+        return;
+      }
+      if (!ac) ls('rw_lite', '0');
+      ls('rw_boot', String(tries + 1));
+    })();
+  </script>
+  <script src="TemplateData/peerjs.min.js"></script>
+  <script>
+    // Unity WebGL with threads: HEAPU8.buffer is a SharedArrayBuffer, and browsers refuse to send one over a WebSocket
+    // ("parameter 1 is not of type 'ArrayBuffer'"). Netcode / Relay over wss goes through that call, so copy the bytes first.
+    (function () {
+      if (typeof SharedArrayBuffer === 'undefined' || !window.WebSocket) return;
+      var orig = WebSocket.prototype.send;
+      WebSocket.prototype.send = function (d) {
+        try {
+          if (d instanceof SharedArrayBuffer) {
+            var c = new Uint8Array(d.byteLength); c.set(new Uint8Array(d)); d = c.buffer;
+          } else if (ArrayBuffer.isView(d) && d.buffer instanceof SharedArrayBuffer) {
+            d = new Uint8Array(d);   // copies into a regular ArrayBuffer
+          }
+        } catch (e) { }
+        return orig.call(this, d);
+      };
+      // Same problem for TextDecoder.decode: the Unity Transport WebSocket plugin decodes the URL straight out of the (shared) wasm heap.
+      var TD = window.TextDecoder && TextDecoder.prototype, od = TD && TD.decode;
+      if (od) TD.decode = function (d, o) {
+        try {
+          if (d instanceof SharedArrayBuffer) d = new Uint8Array(d.slice(0));
+          else if (ArrayBuffer.isView(d) && d.buffer instanceof SharedArrayBuffer) {
+            var c = new Uint8Array(d.byteLength); c.set(new Uint8Array(d.buffer, d.byteOffset, d.byteLength)); d = c;
+          }
+        } catch (e) { }
+        return od.call(this, d, o);
+      };
+    })();
+  </script>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>Rocket World</title>
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes, viewport-fit=cover">
+  <meta name="description" content="Conduce un coche de Rocket League en cualquier lugar de la Tierra.">
+  <meta name="theme-color" content="#070b12">
+  <meta name="application-name" content="Rocket World">
+  <meta name="apple-mobile-web-app-title" content="Rocket World">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta property="og:title" content="Rocket World">
+  <meta property="og:description" content="Conduce un coche de Rocket League en cualquier lugar de la Tierra.">
+  <link rel="icon" href="TemplateData/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="TemplateData/icon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="TemplateData/icon-16.png">
+  <link rel="apple-touch-icon" href="TemplateData/icon-180.png">
+  <link rel="manifest" href="TemplateData/manifest.webmanifest">
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #070b12; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; overscroll-behavior: none; }
+    #unity-container { position: fixed; inset: 0; }
+    #unity-canvas { width: 100%; height: 100%; display: block; background: #070b12; outline: none; }
+
+    #rw-loading { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 50% 40%, #12202f 0%, #070b12 70%); color: #e8f1f8;
+      font-family: "Segoe UI", "Helvetica Neue", Roboto, Arial, sans-serif; transition: opacity .6s ease; }
+    #rw-loading video.bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; background: #070b12; }
+    #rw-loading::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(180deg, rgba(7,11,18,0) 55%, rgba(7,11,18,.85) 100%); }
+    #rw-loading > :not(video) { position: relative; z-index: 2; }
+    #rw-loading .ui { position: absolute; left: 0; right: 0; bottom: max(28px, env(safe-area-inset-bottom)); z-index: 2; display: flex; flex-direction: column; align-items: center; }
+    #rw-loading .art { width: min(78vw, 420px); aspect-ratio: 1 / 1; border-radius: 28px; background: url(TemplateData/splash.jpg) center / cover; box-shadow: 0 24px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.08); }
+    #rw-loading h1 { margin: 26px 0 4px; font-size: 34px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    #rw-loading h1 span { color: #3dd6f5; }
+    #rw-loading .sub { font-size: 13px; opacity: .55; letter-spacing: .06em; margin-bottom: 22px; }
+    #rw-bar { width: min(70vw, 340px); height: 6px; border-radius: 6px; background: rgba(255,255,255,.12); overflow: hidden; }
+    #rw-bar > div { height: 100%; width: 4%; border-radius: 6px; background: linear-gradient(90deg, #3dd6f5, #8ceaff); transition: width .25s ease; }
+    #rw-msg { margin-top: 12px; font-size: 12px; opacity: .5; min-height: 16px; }
+    #rw-crash, #rw-lite-ask { display: none; position: fixed; inset: 0; z-index: 10001; align-items: center; justify-content: center; padding: 20px;
+      background: rgba(5,9,16,.82); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); font-family: "Segoe UI", "Helvetica Neue", Roboto, Arial, sans-serif; touch-action: manipulation; }
+    #rw-crash .card, #rw-lite-ask .card { width: min(92vw, 400px); box-sizing: border-box; padding: 26px 22px 20px; border-radius: 22px; text-align: center; color: #eaf2ff;
+      background: linear-gradient(180deg, #14213a 0%, #0c1424 100%); box-shadow: 0 24px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.09); }
+    #rw-crash .ico, #rw-lite-ask .ico { width: 46px; height: 46px; margin: 0 auto 12px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 24px; line-height: 1; color: #1b1100; background: #ffb020; }
+    #rw-lite-ask .ico { background: #3dd6f5; color: #04202a; }
+    #rw-crash h2, #rw-lite-ask h2 { margin: 0 0 8px; font-size: 20px; }
+    #rw-crash p, #rw-lite-ask p { margin: 0 0 18px; font-size: 14px; line-height: 1.45; color: #9fb1cc; }
+    #rw-crash button, #rw-lite-ask button { display: block; width: 100%; min-height: 48px; margin-top: 8px; border: 0; border-radius: 14px; font-weight: 700; font-size: 16px; font-family: inherit; cursor: pointer; color: #04202a; background: #3dd6f5; }
+    #rw-crash button.ghost, #rw-lite-ask button.ghost { color: #eaf2ff; background: rgba(255,255,255,.08); }
+    #rw-crash button:active, #rw-lite-ask button:active { transform: scale(.98); }
+    #rw-crash small, #rw-lite-ask small { display: block; margin-top: 12px; font-size: 11px; color: #6f819c; word-break: break-word; }
+    #rw-error { display: none; position: fixed; left: 50%; top: 22px; transform: translateX(-50%); max-width: min(90vw, 560px); z-index: 10000; padding: 12px 18px; border-radius: 12px;
+      background: #3a1515; color: #ffc9c9; font: 14px/1.4 "Segoe UI", system-ui, sans-serif; box-shadow: 0 8px 32px rgba(0,0,0,.5); text-align: center; }
+
+    /* Tutorial overlay */
+    #rw-tutorial { display: none; position: fixed; inset: 0; z-index: 10002; background: rgba(5,9,16,.88); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+      font-family: "Segoe UI", "Helvetica Neue", Roboto, Arial, sans-serif; color: #eaf2ff; align-items: center; justify-content: center; padding: 20px; }
+    #rw-tutorial .card { width: min(94vw, 480px); max-height: 90vh; overflow-y: auto; box-sizing: border-box; padding: 28px 24px 22px; border-radius: 24px;
+      background: linear-gradient(180deg, #14213a 0%, #0c1424 100%); box-shadow: 0 28px 90px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.09); text-align: center; }
+    #rw-tutorial .step { display: none; animation: rwFadeIn .45s ease; }
+    #rw-tutorial .step.active { display: block; }
+    @keyframes rwFadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    #rw-tutorial h2 { margin: 0 0 10px; font-size: 22px; font-weight: 800; }
+    #rw-tutorial p { margin: 0 0 16px; font-size: 15px; line-height: 1.5; color: #9fb1cc; }
+    #rw-tutorial .icon-big { font-size: 48px; margin-bottom: 12px; line-height: 1; }
+    #rw-tutorial .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0; text-align: left; }
+    #rw-tutorial .ctrl { background: rgba(255,255,255,.06); border-radius: 12px; padding: 10px 12px; font-size: 13px; }
+    #rw-tutorial .ctrl b { color: #3dd6f5; display: block; margin-bottom: 2px; }
+    #rw-tutorial .dots { display: flex; gap: 8px; justify-content: center; margin: 18px 0 12px; }
+    #rw-tutorial .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.25); transition: background .25s; }
+    #rw-tutorial .dot.on { background: #3dd6f5; }
+    #rw-tutorial .btns { display: flex; gap: 10px; margin-top: 8px; }
+    #rw-tutorial button { flex: 1; min-height: 48px; border: 0; border-radius: 14px; font-weight: 700; font-size: 15px; font-family: inherit; cursor: pointer; }
+    #rw-tutorial button.primary { color: #04202a; background: #3dd6f5; }
+    #rw-tutorial button.ghost { color: #eaf2ff; background: rgba(255,255,255,.08); }
+    #rw-tutorial button:active { transform: scale(.98); }
+  </style>
+</head>
+<body>
+  <div id="unity-container">
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+  </div>
+
+  <div id="rw-loading">
+    <video class="bg" src="TemplateData/loading.mp4" poster="TemplateData/splash.jpg" autoplay muted loop playsinline webkit-playsinline preload="auto" disablepictureinpicture></video>
+    <div class="ui">
+      <h1>Rocket <span>World</span></h1>
+      <div class="sub">CONDUCE EN CUALQUIER LUGAR DE LA TIERRA</div>
+      <div id="rw-bar"><div id="rw-fill"></div></div>
+      <div id="rw-msg">Arrancando el motor…</div>
+    </div>
+  </div>
+  <div id="rw-error"></div>
+
+  <!-- Diálogo de confirmación para modo Lite -->
+  <div id="rw-lite-ask" role="alertdialog" aria-labelledby="rw-lite-title">
+    <div class="card">
+      <div class="ico">i</div>
+      <h2 id="rw-lite-title">Modo Lite recomendado</h2>
+      <p id="rw-lite-desc">Este dispositivo funciona mejor con el <b>modo Lite</b> (menos memoria, más estable). ¿Quieres cambiar ahora?</p>
+      <button id="rw-lite-yes" type="button">Sí, ir a modo Lite</button>
+      <button id="rw-lite-no" type="button" class="ghost">No, quedarme aquí</button>
+      <small id="rw-lite-hint">Puedes cambiar de opinión cuando quieras desde Ajustes.</small>
+    </div>
+  </div>
+
+  <div id="rw-crash" role="alertdialog" aria-labelledby="rw-crash-title">
+    <div class="card">
+      <div class="ico">!</div>
+      <h2 id="rw-crash-title">El juego se quedó sin memoria</h2>
+      <p>Este dispositivo no pudo darle más memoria al juego y se detuvo. Recargar en <b>modo seguro</b> usa cachés más pequeñas, menor resolución y menos colisionadores de física.</p>
+      <button id="rw-crash-go" type="button">Recargar en modo seguro</button>
+      <button id="rw-crash-plain" type="button" class="ghost">Recargar tal cual</button>
+      <small id="rw-crash-info"></small>
+    </div>
+  </div>
+
+  <!-- Tutorial para primera visita (skipeable) -->
+  <div id="rw-tutorial">
+    <div class="card">
+      <div class="step active" data-step="0">
+        <div class="icon-big">🌍</div>
+        <h2>¡Bienvenido a Rocket World!</h2>
+        <p>Conduce un coche de Rocket League sobre el mundo real en 3D. Explora ciudades, salta, haz boost y juega con la pelota en cualquier lugar de la Tierra.</p>
+      </div>
+      <div class="step" data-step="1">
+        <div class="icon-big">🎮</div>
+        <h2>Controles básicos</h2>
+        <div class="controls-grid">
+          <div class="ctrl"><b>WASD / Flechas</b>Conducir</div>
+          <div class="ctrl"><b>Espacio</b>Saltar / Flip</div>
+          <div class="ctrl"><b>Shift</b>Boost</div>
+          <div class="ctrl"><b>Ctrl / X</b>Derrapar</div>
+          <div class="ctrl"><b>C</b>Cambiar cámara</div>
+          <div class="ctrl"><b>R</b>Rescatar el coche</div>
+          <div class="ctrl"><b>B</b>Invocar pelota</div>
+          <div class="ctrl"><b>Esc</b>Ajustes</div>
+        </div>
+        <p>También puedes usar mando o los pads táctiles en el móvil.</p>
+      </div>
+      <div class="step" data-step="2">
+        <div class="icon-big">⚙️</div>
+        <h2>Qué hay en la interfaz</h2>
+        <p><b>Engranaje (⚙️)</b> — Ajustes: calidad, anti-crash, efectos, tecla API de Google…</p>
+        <p><b>Cámara</b> — Cambia entre persecución, helicóptero y órbita. Puedes ajustar distancias y retraso.</p>
+        <p><b>Vehículo</b> — Cambia de coche, avión o modo FPV (dron).</p>
+        <p><b>Controles</b> — Reasigna teclas y botones del mando.</p>
+        <p>El minimapa está arriba a la izquierda.</p>
+      </div>
+      <div class="step" data-step="3">
+        <div class="icon-big">🛡️</div>
+        <h2>Modo Lite y Anti-crash</h2>
+        <p>El <b>modo Anti-crash</b> adapta la calidad para mantener fluido el juego. En móviles (sobre todo iPhone/iPad) se recomienda el <b>modo Lite</b>, que usa menos memoria.</p>
+        <p>Si el juego te ofrece cambiar a Lite, puedes aceptar o quedarte. También puedes entrar o salir de Lite cuando quieras desde Ajustes o con <code>?lite=1</code> / <code>?lite=0</code> en la URL.</p>
+      </div>
+      <div class="step" data-step="4">
+        <div class="icon-big">🚀</div>
+        <h2>¡Listo para volar!</h2>
+        <p>Explora, salta edificios, juega con amigos (multijugador) o simplemente pasea por tu ciudad. Si algo no carga, prueba el modo Lite o recarga la página.</p>
+        <p style="margin-top:12px;color:#3dd6f5;font-weight:600;">¡Que lo pases genial!</p>
+      </div>
+
+      <div class="dots" id="rw-tut-dots"></div>
+      <div class="btns">
+        <button type="button" class="ghost" id="rw-tut-skip">Saltar tutorial</button>
+        <button type="button" class="primary" id="rw-tut-next">Siguiente</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var buildUrl = "Build";
+    var loaderUrl = buildUrl + "/{{{ LOADER_FILENAME }}}";
+    var config = {
+      arguments: [],
+      dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}",
+      frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_THREADS
+      workerUrl: buildUrl + "/{{{ WORKER_FILENAME }}}",
+#endif
+#if USE_WASM
+      codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}",
+#endif
+#if MEMORY_FILENAME
+      memoryUrl: buildUrl + "/{{{ MEMORY_FILENAME }}}",
+#endif
+#if SYMBOLS_FILENAME
+      symbolsUrl: buildUrl + "/{{{ SYMBOLS_FILENAME }}}",
+#endif
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: "Rocket World",
+      productName: "Rocket World",
+      productVersion: "1.0",
+      showBanner: function (msg, type) { if (type === "error") showError(msg); else console.warn(msg); },
+      // Unity calls this for fatal runtime errors before it falls back to a raw alert(). Returning true means "handled".
+      errorHandler: function (message) { return rwCrash(String(message)); },
+    };
+
+    // ---- crash handling -------------------------------------------------------------------------------------------------------
+    var rwCrashed = false;
+    function rwIsMemoryError(m) { return /memory access out of bounds|out of memory|cannot enlarge memory|array buffer allocation failed|Aborted\(OOM|RangeError: .*(allocation|buffer)/i.test(m || ""); }
+    function rwCrash(m) {
+      if (!rwIsMemoryError(m)) return false;
+      if (rwCrashed) return true;
+      rwCrashed = true;
+      try { localStorage.setItem("rw_safe", "1"); } catch (e) { }
+      var info = document.getElementById("rw-crash-info");
+      var heap = (performance && performance.memory) ? (" · heap " + Math.round(performance.memory.usedJSHeapSize / 1048576) + " MB") : "";
+      info.textContent = String(m).split("\n")[0].slice(0, 120) + heap;
+      document.getElementById("rw-crash").style.display = "flex";
+      function reload() { location.reload(); }
+      function bind(id, fn) {
+        var el = document.getElementById(id), done = false;
+        el.onclick = function () { if (done) return; done = true; fn(); };
+      }
+      bind("rw-crash-go", reload);
+      bind("rw-crash-plain", function () { try { localStorage.setItem("rw_safe", "0"); } catch (e) { } reload(); });
+      return true;
+    }
+    var oa = window.alert;
+    window.alert = function (t) { if (rwIsMemoryError(String(t))) { rwCrash(String(t)); return; } return oa.apply(window, arguments); };
+    window.addEventListener("unhandledrejection", function (e) { rwCrash(String(e.reason && (e.reason.message || e.reason))); });
+
+    var fill = document.getElementById("rw-fill"), msg = document.getElementById("rw-msg");
+    function showError(text) {
+      var e = document.getElementById("rw-error");
+      e.textContent = text; e.style.display = "block";
+    }
+
+    // ---- Diálogo de confirmación Lite ---------------------------------------------------------------------------------------
+    function showLiteAsk() {
+      var ask = document.getElementById("rw-lite-ask");
+      var title = document.getElementById("rw-lite-title");
+      var desc = document.getElementById("rw-lite-desc");
+      var yes = document.getElementById("rw-lite-yes");
+      var no = document.getElementById("rw-lite-no");
+      var hint = document.getElementById("rw-lite-hint");
+
+      var goingToLite = window.rwWant === 'lite';
+      if (goingToLite) {
+        title.textContent = "Modo Lite recomendado";
+        desc.innerHTML = "Este dispositivo funciona mejor con el <b>modo Lite</b> (menos memoria, más estable y fluido). ¿Quieres cambiar ahora?";
+        yes.textContent = "Sí, ir a modo Lite";
+        no.textContent = "No, quedarme en el modo normal";
+        hint.textContent = "Puedes cambiar de opinión cuando quieras desde Ajustes o con ?lite=0 en la URL.";
+      } else {
+        title.textContent = "Salir del modo Lite";
+        desc.innerHTML = "Estás en el <b>modo Lite</b> (optimizado para poca memoria). ¿Quieres volver al modo normal completo?";
+        yes.textContent = "Sí, salir de Lite";
+        no.textContent = "No, quedarme en Lite";
+        hint.textContent = "El modo normal necesita más memoria. Si el juego se cuelga, vuelve a Lite.";
+      }
+
+      ask.style.display = "flex";
+
+      yes.onclick = function () {
+        ask.style.display = "none";
+        try {
+          if (goingToLite) localStorage.setItem("rw_lite", "1");
+          else localStorage.setItem("rw_lite", "0");
+        } catch (e) { }
+        var up = window.rwHere === 'main' ? '' : '../';
+        var target = goingToLite ? 'lite/' : '';
+        location.replace(up + target + location.search + location.hash);
+      };
+      no.onclick = function () {
+        ask.style.display = "none";
+        try {
+          // El usuario eligió no seguir la recomendación automática
+          if (goingToLite) localStorage.setItem("rw_lite", "0");
+          // Si estaba en Lite y no quiere salir, dejamos rw_lite=1
+        } catch (e) { }
+        // Continuamos cargando el build actual
+        startUnity();
+      };
+    }
+
+    // ---- Tutorial primera visita --------------------------------------------------------------------------------------------
+    function maybeShowTutorial() {
+      try {
+        if (localStorage.getItem("rw_tutorial_done") === "1") return;
+      } catch (e) { return; }
+
+      var tut = document.getElementById("rw-tutorial");
+      var steps = tut.querySelectorAll(".step");
+      var dotsEl = document.getElementById("rw-tut-dots");
+      var nextBtn = document.getElementById("rw-tut-next");
+      var skipBtn = document.getElementById("rw-tut-skip");
+      var current = 0;
+
+      // crear dots
+      dotsEl.innerHTML = "";
+      for (var i = 0; i < steps.length; i++) {
+        var d = document.createElement("div");
+        d.className = "dot" + (i === 0 ? " on" : "");
+        dotsEl.appendChild(d);
+      }
+
+      function showStep(n) {
+        current = n;
+        for (var i = 0; i < steps.length; i++) {
+          steps[i].classList.toggle("active", i === n);
+          dotsEl.children[i].classList.toggle("on", i === n);
+        }
+        nextBtn.textContent = (n === steps.length - 1) ? "¡Empezar a jugar!" : "Siguiente";
+      }
+
+      nextBtn.onclick = function () {
+        if (current < steps.length - 1) showStep(current + 1);
+        else finishTutorial();
+      };
+      skipBtn.onclick = finishTutorial;
+
+      function finishTutorial() {
+        try { localStorage.setItem("rw_tutorial_done", "1"); } catch (e) { }
+        tut.style.display = "none";
+      }
+
+      tut.style.display = "flex";
+      showStep(0);
+    }
+
+    // Exponer para que Unity pueda llamar si quiere (opcional)
+    window.RW_ShowTutorial = function () {
+      try { localStorage.removeItem("rw_tutorial_done"); } catch (e) { }
+      maybeShowTutorial();
+    };
+
+    var problem = null;
+    if (!window.crossOriginIsolated) problem = "Rocket World no puede arrancar aquí: esta página no está cross-origin isolated (faltan las cabeceras COOP/COEP en el servidor).";
+    else if (!window.WebGL2RenderingContext) problem = "Este navegador no soporta WebGL 2. Prueba con Chrome, Edge, Firefox o Safari actualizados.";
+
+    function startUnity() {
+      if (window.rwRedirecting) {
+        msg.textContent = "Cambiando al build de poca memoria…";
+        return;
+      }
+      if (problem) {
+        showError(problem); msg.textContent = "";
+        return;
+      }
+      var script = document.createElement("script");
+      script.src = loaderUrl;
+      script.onerror = function () { showError("No se pudieron cargar los archivos del juego (" + loaderUrl + "). Recarga la página; si sigue fallando, el despliegue está incompleto."); msg.textContent = ""; };
+      script.onload = function () {
+        createUnityInstance(document.querySelector("#unity-canvas"), config, function (p) {
+          fill.style.width = Math.max(4, Math.round(p * 92)) + "%";
+          msg.textContent = p < 0.9 ? "Cargando el motor…" : "Casi listo…";
+        }).then(function (instance) {
+          window.rwUnity = instance;
+          fill.style.width = "96%";
+          msg.textContent = "Cargando el mundo…";
+          // Cuando el juego esté listo, mostrar tutorial si es la primera vez
+          // (RW_HideLoading se llama desde Unity; aquí lo programamos un poco después por si acaso)
+          setTimeout(function () {
+            if (document.getElementById("rw-loading").style.display === "none" || window.rwUnity) {
+              maybeShowTutorial();
+            }
+          }, 2500);
+        }).catch(function (m) { showError(String(m)); });
+      };
+      document.body.appendChild(script);
+    }
+
+    if (window.rwNeedConfirm) {
+      msg.textContent = "Esperando tu decisión…";
+      showLiteAsk();
+    } else {
+      startUnity();
+    }
+
+    // Si el arranque se atasca o lanza error, avisar en lugar de quedarse eternamente en el loader.
+    window.addEventListener("error", function (e) { console.error(e.message); rwCrash(e.message); });
+    setTimeout(function () {
+      if (!window.rwUnity && document.getElementById("rw-loading").style.display !== "none" && !problem && !window.rwNeedConfirm)
+        msg.textContent = "Está tardando más de lo normal… comprueba tu conexión o recarga la página.";
+    }, 60000);
+
+    // El vídeo de carga hace loop (muted para que autoplay esté permitido) hasta que el juego llama a RW_HideLoading
+    // (cuando la rampa trasera del avión empieza a abrirse).
+    (function () { var v = document.querySelector("#rw-loading video"); if (v) { v.muted = true; var p = v.play(); if (p && p.catch) p.catch(function () {}); } })();
+    document.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+    window.addEventListener("pointerdown", function (e) { if (rwCrashed) return; try { document.getElementById("unity-canvas").focus(); } catch (e) {} });
+
+    // Función global que Unity puede llamar para ocultar el loading (ya existía en el original, se mantiene el contrato)
+    window.RW_HideLoading = function () {
+      var el = document.getElementById("rw-loading");
+      if (!el) return;
+      el.style.opacity = "0";
+      setTimeout(function () { el.style.display = "none"; }, 600);
+      try { localStorage.setItem("rw_boot", "0"); } catch (e) { }
+      // Mostrar tutorial justo después de ocultar el loading si aún no se ha mostrado
+      setTimeout(maybeShowTutorial, 400);
+    };
+  </script>
+</body>
+</html>
