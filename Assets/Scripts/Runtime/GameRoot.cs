@@ -91,6 +91,10 @@ namespace RocketWorld
         /// <summary>Radius loaded at full detail round a car. With view-driven streaming only the physics ring: the rest follows the camera.</summary>
         public float EffectiveRadius => settings.viewCull && viewPolicy != null ? Mathf.Min(PriorityLogic.Radius(settings.loadRadius, Mods), viewPolicy.Ring) : PriorityLogic.Radius(settings.loadRadius, Mods) * autoFarMul * RadiusMul;
         public TileViewPolicy viewPolicy;
+        public TotalLoad totalLoad;                            // created on first use from the settings panel
+
+        /// <summary>Ends the coarse-first SSE ramp now (Total load keeps the user's tile detail).</summary>
+        public void CancelTurbo() { if (!_turbo) return; _turbo = false; if (tileset != null) CommitSse(EffectiveSse, protectCar: false); }
         // Adaptive radius: if the demanded tiles do not fit the cache, loading stalls (tiles evicted as fast as they arrive).
         // The slider is the MAXIMUM; the radius shrinks while progress stagnates and grows back once everything is loaded.
         public float RadiusMul { get; private set; } = 1f;
@@ -398,7 +402,7 @@ namespace RocketWorld
             {
                 bool fastOn = (s.priorities & Priority.FastLoad) != 0 && (_prioSeen & Priority.FastLoad) == 0;
                 _prioSeen = s.priorities;
-                if (fastOn && tileset != null) { _turbo = true; _turboStart = _turboStep = Time.unscaledTime; _turboCur = Mods.turboSse; }   // coarse-first load again
+                if (fastOn && tileset != null && (totalLoad == null || !totalLoad.Active)) { _turbo = true; _turboStart = _turboStep = Time.unscaledTime; _turboCur = Mods.turboSse; }   // coarse-first load again
             }
 
             if (orbit != null) orbit.autoRotate = s.autoRotate;
@@ -499,6 +503,7 @@ namespace RocketWorld
                 if (_skyMat.HasProperty("_Exposure")) _skyMat.SetFloat("_Exposure", 1.1f);
                 if (_skyMat.HasProperty("_SunSize")) _skyMat.SetFloat("_SunSize", 0.04f);
                 if (_skyMat.HasProperty("_SkyTint")) _skyMat.SetColor("_SkyTint", new Color(0.5f, 0.5f, 0.5f));
+                if (WebBridge.Query("clouds") != "0" && !DeviceProfile.Safe && GetComponent<CloudLayer>() == null) gameObject.AddComponent<CloudLayer>();
             }
         }
 

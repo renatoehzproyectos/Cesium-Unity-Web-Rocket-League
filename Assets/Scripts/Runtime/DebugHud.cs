@@ -37,6 +37,7 @@ namespace RocketWorld
         int _selRow, _selCol = InputBindings.SlotPad;
         Edge _nUp, _nDown, _nLeft, _nRight, _nOk, _nClear, _nReset, _nBack;
 
+        bool _totalConfirm;
         string _searchQuery = "";
         string _searchStatus = "";
         bool _searching;
@@ -152,6 +153,7 @@ namespace RocketWorld
                 _vehOpen = false;
                 root.camMenu.Toggle();
             }
+            _fx -= 10f;                                                            // group gap: system | vehicle + play
             _vehStyle ??= new GUIStyle(UiTheme.Chip) { padding = new RectOffset(12, 30, 0, 0) };
             vehRect = Slot(TextW(curVeh, 70f, 12f + 30f));
             if (GUI.Button(vehRect, curVeh, _vehStyle)) _vehOpen = !_vehOpen;
@@ -163,6 +165,7 @@ namespace RocketWorld
             }
             if (GUI.Button(Slot(TextW("Ball", 56f, 22f)), "Ball", UiTheme.Chip)) root.RequestBall();
             if (GUI.Button(Slot(TextW("Controls", 76f, 22f)), "Controls", UiTheme.Chip)) { _vehOpen = false; SetControlsOpen(!_ctlOpen); }
+            _fx -= 10f;                                                            // group gap: play | bots + online
             DrawBotControls();
             for (int i = 0; i < Extra.Count; i++)
             {
@@ -240,8 +243,8 @@ namespace RocketWorld
         {
             var p = cc.plane; if (p == null) return;
             float cx = W * 0.5f;
-            Gauge(new Rect(cx - 215f, B - 112f, 90f, 60f), "IAS", p.AirspeedKt.ToString("0"), "KT", false, UiTheme.Text);
-            Gauge(new Rect(cx + 125f, B - 112f, 90f, 60f), "ALT", p.AltitudeFt.ToString("0"), "FT", true, UiTheme.Text);
+            Gauge(new Rect(cx - 250f, B - 112f, 90f, 60f), "IAS", p.AirspeedKt.ToString("0"), "KT", false, UiTheme.Text);
+            Gauge(new Rect(cx + 160f, B - 112f, 90f, 60f), "ALT", p.AltitudeFt.ToString("0"), "FT", true, UiTheme.Text);
             float vs = p.VerticalSpeedFpm;
             var vsCol = Mathf.Abs(vs) < 150f ? UiTheme.TextDim : vs > 0f ? UiTheme.Good : UiTheme.Hot;
             var old = GUI.color; GUI.color = vsCol;
@@ -304,10 +307,17 @@ namespace RocketWorld
                                 GUI.color = Color.white; GUI.DrawTexture(new Rect(r.x + 8f, ly - 2f, r.width - 16f, 4f), Texture2D.whiteTexture);
                             }
                             else if (w.kind == WidgetKind.SliderSpring) { float cy = r.center.y, hy = -v * r.height * 0.5f; GUI.DrawTexture(new Rect(r.x + 4, Mathf.Min(cy, cy + hy), r.width - 8, Mathf.Max(Mathf.Abs(hy), 3)), Texture2D.whiteTexture); GUI.color = new Color(1, 1, 1, 0.5f); GUI.DrawTexture(new Rect(r.x, cy - 1, r.width, 2), Texture2D.whiteTexture); }
-                            else { float cx = r.center.x, hx = v * r.width * 0.5f; GUI.DrawTexture(new Rect(Mathf.Min(cx, cx + hx), r.y + 4, Mathf.Max(Mathf.Abs(hx), 3), r.height - 8), Texture2D.whiteTexture); GUI.color = new Color(1, 1, 1, 0.5f); GUI.DrawTexture(new Rect(cx - 1, r.y, 2, r.height), Texture2D.whiteTexture); }
+                            else
+                            {   // rudder: hairline track, 5 ticks, one knob (no filled bar)
+                                float rcx = r.center.x, rty = r.center.y + 6f, span = r.width * 0.5f - 12f, kx = rcx + Mathf.Clamp(v, -1f, 1f) * span;
+                                GUI.color = new Color(1, 1, 1, 0.22f); GUI.DrawTexture(new Rect(r.x + 10f, rty - 1f, r.width - 20f, 2f), Texture2D.whiteTexture);
+                                GUI.color = new Color(1, 1, 1, 0.45f);
+                                for (int rt = -2; rt <= 2; rt++) GUI.DrawTexture(new Rect(rcx + rt * span / 2f - 0.5f, rty - (rt == 0 ? 8f : 5f), 1f, rt == 0 ? 16f : 10f), Texture2D.whiteTexture);
+                                GUI.color = touched ? UiTheme.Accent : Color.white; GUI.DrawTexture(new Rect(kx - 3f, rty - 11f, 6f, 22f), Texture2D.whiteTexture);
+                            }
                             GUI.color = oc;
                         }
-                        GUI.Label(new Rect(r.x - 12f, r.y + (w.kind == WidgetKind.SliderH ? 2 : -20), r.width + 24f, 18), w.label, UiTheme.Unit);
+                        GUI.Label(new Rect(r.x - 12f, r.y + (w.kind == WidgetKind.SliderH ? 2 : -16), r.width + 24f, 18), w.label, UiTheme.Unit);
                         break;
                     }
                     default:
@@ -323,7 +333,7 @@ namespace RocketWorld
         void DrawVehicleInstruments(RocketCar cc, float W, float B)
         {
             var d = cc.vehicle; if (d == null || !d.Active) return;
-            Gauge(new Rect(W * 0.5f + 125f, B - 112f, 90f, 60f), "ALT", d.AltM.ToString("0"), "M", true, UiTheme.Text);
+            Gauge(new Rect(W * 0.5f + 160f, B - 112f, 90f, 60f), "ALT", d.AltM.ToString("0"), "M", true, UiTheme.Text);
             Shadowed(new Rect(W * 0.5f - 200, B - 176, 400, 22), $"{d.Spec.name.ToUpperInvariant()}   VS {d.VsMs:+0.0;-0.0;0.0} m/s", UiTheme.Unit);
             if (!string.IsNullOrEmpty(d.Status)) Shadowed(new Rect(W * 0.5f - 200, B - 198, 400, 22), d.Status, UiTheme.Unit);
             LeverBar(W, B, d.Lever);
@@ -357,7 +367,7 @@ namespace RocketWorld
             float frac = Mathf.Clamp01(_shownSpeed / 46f);
             bool boosting = cc.IsBoosting;
             if (Event.current.type == EventType.Repaint && (cc.InPlane || cc.InVehicle))      // one soft plate behind the cluster: readable over any scenery
-                GUI.DrawTexture(new Rect(W * 0.5f - 235f, B - 166f, 470f, 140f), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(0.03f, 0.05f, 0.09f, 0.38f), 0f, 16f);
+                GUI.DrawTexture(new Rect(W * 0.5f - 275f, B - 166f, 550f, 140f), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, new Color(0.03f, 0.05f, 0.09f, 0.38f), 0f, 16f);
             if (cc.InBoat) Shadowed(new Rect(W * 0.5f - 120, B - 150, 240, 20), "BOAT", UiTheme.Unit);
             if (cc.InPlane) DrawFlightInstruments(cc, W, B);
             else if (cc.InVehicle) DrawVehicleInstruments(cc, W, B);
@@ -460,7 +470,7 @@ namespace RocketWorld
             var sr = CarInput.StickRect;
             var box = new Rect(sr.x / k, (Screen.height - sr.yMax) / k, sr.width / k, sr.height / k);
             DrawTouchWidgets(UiLayout.W, H);
-            GUI.Box(box, "", UiTheme.Touch);
+            var ocs = GUI.color; GUI.color = new Color(1, 1, 1, 0.45f); GUI.Box(box, "", UiTheme.Touch); GUI.color = ocs;      // big hit area, quiet look
             var v = root.carInput.StickValue;
             float ks = box.width * 0.30f;
             var kc = box.center + new Vector2(v.x * box.width * 0.5f, -v.y * box.height * 0.5f);
@@ -472,7 +482,7 @@ namespace RocketWorld
             // right stick (pitch / roll) and the throttle bar beside the left stick (the throttle stays where the thumb left it)
             var rr = CarInput.RightStickRect;
             var rbox = new Rect(rr.x / k, (Screen.height - rr.yMax) / k, rr.width / k, rr.height / k);
-            GUI.Box(rbox, "", UiTheme.Touch);
+            var ocr = GUI.color; GUI.color = new Color(1, 1, 1, 0.45f); GUI.Box(rbox, "", UiTheme.Touch); GUI.color = ocr;
             var rv = root.carInput.RightStickValue;
             var rkc = rbox.center + new Vector2(rv.x * rbox.width * 0.5f, -rv.y * rbox.height * 0.5f);
             GUI.Box(new Rect(rkc.x - ks * 0.5f, rkc.y - ks * 0.5f, ks, ks), "", UiTheme.Touch);
@@ -523,6 +533,34 @@ namespace RocketWorld
                 np = PrioToggle(np, Priority.Realism, "Realism", "Best of everything the device allows, effects at full strength.");
                 if (np != pr) { s.priorities = np; changed = true; }
                 GUILayout.Label(np == Priority.None ? "Off: only your sliders below apply." : "Applied on top of your sliders. Opposites (quality vs frame rate) partly cancel. Now: SSE " + root.UserSse.ToString("0") + ", scale " + root.UserScale.ToString("0.00") + "x, view " + (PriorityLogic.Far(s.viewDistance, root.Mods) / 1000f).ToString("0.#") + " km.", UiTheme.Muted);
+            }
+
+            UiKit.Gap(6);
+            {
+                var tlo = root.totalLoad;
+                if (tlo != null && tlo.Active)
+                {
+                    GUILayout.Label(tlo.Status, UiTheme.Muted);
+                    if (GUILayout.Button("Stop total load", UiTheme.Chip, GUILayout.Height(40))) tlo.End();
+                }
+                else if (!_totalConfirm)
+                {
+                    GUI.enabled = root.tileset != null;
+                    if (UiKit.PrimaryButton("Total load (clears tile cache)")) _totalConfirm = true;
+                    GUI.enabled = true;
+                    GUILayout.Label("Loads every tile around you, even behind you, as fast as the device allows at your chosen tile detail. When all of it is loaded, a zone is saved here automatically.", UiTheme.Muted);
+                }
+                else
+                {
+                    GUILayout.Label("This erases the whole tile cache now and cannot be undone. Saved zones are kept. Best done flying or standing still.", UiTheme.Muted);
+                    if (UiKit.PrimaryButton("Yes, clear the cache and load"))
+                    {
+                        _totalConfirm = false;
+                        if (root.totalLoad == null) { root.totalLoad = root.gameObject.AddComponent<TotalLoad>(); root.totalLoad.root = root; }
+                        root.totalLoad.Begin();
+                    }
+                    if (GUILayout.Button("Cancel", UiTheme.Chip, GUILayout.Height(40))) _totalConfirm = false;
+                }
             }
 
             UiKit.Section("Graphics");

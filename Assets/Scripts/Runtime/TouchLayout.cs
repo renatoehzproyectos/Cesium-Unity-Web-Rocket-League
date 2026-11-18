@@ -25,9 +25,9 @@ namespace RocketWorld
     public static class TouchLayout
     {
         const WidgetKind H = WidgetKind.Hold, T = WidgetKind.Tap, L = WidgetKind.Latch;
-        static readonly TouchWidget Throttle = new TouchWidget("throttle", "THROTTLE", WidgetKind.SliderSticky, 0.925f, 0.06f, 0.07f, 0.60f);
-        static readonly TouchWidget Collective = new TouchWidget("vert", "COLLECTIVE", WidgetKind.SliderSpring, 0.925f, 0.06f, 0.07f, 0.60f);
-        static readonly TouchWidget Rudder = new TouchWidget("rudder", "RUDDER   L  |  R", WidgetKind.SliderH, 0.40f, 0.04f, 0.24f, 0.13f);
+        static readonly TouchWidget Throttle = new TouchWidget("throttle", "THROTTLE", WidgetKind.SliderSticky, 0.905f, 0.06f, 0.065f, 0.60f);
+        static readonly TouchWidget Collective = new TouchWidget("vert", "COLLECTIVE", WidgetKind.SliderSpring, 0.905f, 0.06f, 0.065f, 0.60f);
+        static readonly TouchWidget Rudder = new TouchWidget("rudder", "RUDDER   L  |  R", WidgetKind.SliderH, 0.42f, 0.04f, 0.20f, 0.09f);
 
         static readonly TouchWidget[] Car =
         {
@@ -37,46 +37,46 @@ namespace RocketWorld
         };
         static readonly TouchWidget[] Cessna =
         {
-            Throttle, Rudder, new TouchWidget("brake", "BRAKE", H, 0.80f, 0.06f, 0.11f, 0.18f), new TouchWidget("hyper", "HYPER ×6", L, 0.80f, 0.27f, 0.11f, 0.18f),
+            Throttle, Rudder, new TouchWidget("brake", "BRAKE", H, 0.80f, 0.06f, 0.09f, 0.14f), new TouchWidget("hyper", "HYPER ×6", L, 0.80f, 0.23f, 0.09f, 0.14f),
         };
         static readonly TouchWidget[] Jet =
         {
             Throttle, Rudder,
-            new TouchWidget("boost", "AFTER-\nBURNER", H, 0.80f, 0.06f, 0.11f, 0.18f), new TouchWidget("brake", "BRAKE", H, 0.67f, 0.06f, 0.11f, 0.18f),
-            new TouchWidget("gear", "GEAR", T, 0.80f, 0.27f, 0.11f, 0.18f), new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.27f, 0.11f, 0.18f),
+            new TouchWidget("boost", "AFTER-\nBURNER", H, 0.80f, 0.06f, 0.09f, 0.14f), new TouchWidget("brake", "BRAKE", H, 0.67f, 0.06f, 0.09f, 0.14f),
+            new TouchWidget("gear", "GEAR", T, 0.80f, 0.23f, 0.09f, 0.14f), new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.23f, 0.09f, 0.14f),
         };
         static readonly TouchWidget[] Vtol =
         {
             Throttle, Rudder,
-            new TouchWidget("up", "LIFT UP", H, 0.80f, 0.46f, 0.11f, 0.16f), new TouchWidget("down", "LIFT DOWN", H, 0.80f, 0.27f, 0.11f, 0.16f),
-            new TouchWidget("boost", "AFTER-\nBURNER", H, 0.80f, 0.08f, 0.11f, 0.16f), new TouchWidget("mode", "VTOL", T, 0.67f, 0.46f, 0.11f, 0.16f),
-            new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.27f, 0.11f, 0.16f), new TouchWidget("brake", "BRAKE", H, 0.67f, 0.08f, 0.11f, 0.16f),
+            new TouchWidget("up", "LIFT UP", H, 0.80f, 0.40f, 0.09f, 0.13f), new TouchWidget("down", "LIFT DOWN", H, 0.80f, 0.24f, 0.09f, 0.13f),
+            new TouchWidget("boost", "AFTER-\nBURNER", H, 0.80f, 0.08f, 0.09f, 0.13f), new TouchWidget("mode", "VTOL", T, 0.67f, 0.40f, 0.09f, 0.13f),
+            new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.24f, 0.09f, 0.13f), new TouchWidget("brake", "BRAKE", H, 0.67f, 0.08f, 0.09f, 0.13f),
         };
         static readonly TouchWidget[] Heli =
         {
-            Collective, Rudder, new TouchWidget("hyper", "HYPER ×6", L, 0.80f, 0.06f, 0.11f, 0.18f), new TouchWidget("brake", "BRAKE", H, 0.67f, 0.06f, 0.11f, 0.18f),
+            Collective, Rudder, new TouchWidget("hyper", "HYPER ×6", L, 0.80f, 0.06f, 0.09f, 0.14f), new TouchWidget("brake", "BRAKE", H, 0.67f, 0.06f, 0.09f, 0.14f),
         };
         static readonly TouchWidget[] DeLorean =
         {
-            new TouchWidget("up", "UP", H, 0.80f, 0.46f, 0.11f, 0.16f), new TouchWidget("down", "DOWN", H, 0.80f, 0.27f, 0.11f, 0.16f),
-            new TouchWidget("boost", "BOOST", H, 0.80f, 0.08f, 0.11f, 0.16f), new TouchWidget("mode", "HOVER", T, 0.67f, 0.46f, 0.11f, 0.16f),
-            new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.27f, 0.11f, 0.16f), new TouchWidget("brake", "BRAKE", H, 0.67f, 0.08f, 0.11f, 0.16f),
+            new TouchWidget("up", "UP", H, 0.80f, 0.40f, 0.09f, 0.13f), new TouchWidget("down", "DOWN", H, 0.80f, 0.24f, 0.09f, 0.13f),
+            new TouchWidget("boost", "BOOST", H, 0.80f, 0.08f, 0.09f, 0.13f), new TouchWidget("mode", "HOVER", T, 0.67f, 0.40f, 0.09f, 0.13f),
+            new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.24f, 0.09f, 0.13f), new TouchWidget("brake", "BRAKE", H, 0.67f, 0.08f, 0.09f, 0.13f),
         };
 
         static readonly TouchWidget[] Rocket =
         {
-            Throttle, Rudder, new TouchWidget("gear", "LEGS", T, 0.80f, 0.27f, 0.11f, 0.18f), new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.27f, 0.11f, 0.18f),
+            Throttle, Rudder, new TouchWidget("gear", "LEGS", T, 0.80f, 0.23f, 0.09f, 0.14f), new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.23f, 0.09f, 0.14f),
         };
         static readonly TouchWidget[] Airliner =
         {
-            Throttle, Rudder, new TouchWidget("brake", "BRAKE\nREVERSE", H, 0.80f, 0.06f, 0.11f, 0.18f), new TouchWidget("flaps", "FLAPS", T, 0.67f, 0.06f, 0.11f, 0.18f),
-            new TouchWidget("mode", "SPOILER", T, 0.80f, 0.27f, 0.11f, 0.18f), new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.27f, 0.11f, 0.18f),
+            Throttle, Rudder, new TouchWidget("brake", "BRAKE\nREVERSE", H, 0.80f, 0.06f, 0.09f, 0.14f), new TouchWidget("flaps", "FLAPS", T, 0.67f, 0.06f, 0.09f, 0.14f),
+            new TouchWidget("mode", "SPOILER", T, 0.80f, 0.23f, 0.09f, 0.14f), new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.23f, 0.09f, 0.14f),
         };
         static readonly TouchWidget[] Cargo =
         {
-            Throttle, Rudder, new TouchWidget("brake", "BRAKE\nREVERSE", H, 0.80f, 0.06f, 0.11f, 0.18f), new TouchWidget("flaps", "FLAPS", T, 0.67f, 0.06f, 0.11f, 0.18f),
-            new TouchWidget("gear", "GEAR", T, 0.80f, 0.27f, 0.11f, 0.18f), new TouchWidget("door", "RAMP", T, 0.67f, 0.27f, 0.11f, 0.18f),
-            new TouchWidget("mode", "SPOILER", T, 0.80f, 0.48f, 0.11f, 0.14f), new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.48f, 0.11f, 0.14f),
+            Throttle, Rudder, new TouchWidget("brake", "BRAKE\nREVERSE", H, 0.80f, 0.06f, 0.09f, 0.14f), new TouchWidget("flaps", "FLAPS", T, 0.67f, 0.06f, 0.09f, 0.14f),
+            new TouchWidget("gear", "GEAR", T, 0.80f, 0.23f, 0.09f, 0.14f), new TouchWidget("door", "RAMP", T, 0.67f, 0.23f, 0.09f, 0.14f),
+            new TouchWidget("mode", "SPOILER", T, 0.80f, 0.48f, 0.09f, 0.14f), new TouchWidget("hyper", "HYPER ×6", L, 0.67f, 0.48f, 0.09f, 0.14f),
         };
 
         // ---- FPV drone: two sticks (left = throttle + yaw, right = pitch + roll, both drawn by DebugHud / read by CarInput) and a band of buttons between them.

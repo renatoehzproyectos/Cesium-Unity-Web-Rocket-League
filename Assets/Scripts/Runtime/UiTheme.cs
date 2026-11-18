@@ -118,7 +118,13 @@ namespace RocketWorld
             BtnSelect = new GUIStyle(bt) { normal = { background = slateOn, textColor = Text } };
             Primary = new GUIStyle(bt) { fontSize = 16, fontStyle = FontStyle.Normal, font = Bold, normal = { background = prim, textColor = Ink }, hover = { background = primHot, textColor = Ink }, active = { background = primDown, textColor = Ink }, focused = { background = prim, textColor = Ink } };
             DangerBtn = new GUIStyle(bt) { normal = { background = dng, textColor = Text }, hover = { background = dngHot, textColor = Text }, active = { background = dngHot, textColor = Text } };
-            Chip = new GUIStyle(bt) { fontSize = 15, padding = new RectOffset(10, 10, 0, 0), margin = new RectOffset(0, 0, 0, 0) };
+            Chip = new GUIStyle(bt)
+            {
+                fontSize = 15, padding = new RectOffset(10, 10, 0, 0), margin = new RectOffset(0, 0, 0, 0),
+                normal = { background = Round(new Color(0.05f, 0.08f, 0.13f, 0.58f), new Color(1, 1, 1, 0.16f), 11, 1f), textColor = Text },
+                hover = { background = Round(new Color(0.09f, 0.13f, 0.21f, 0.72f), new Color(1, 1, 1, 0.28f), 11, 1f), textColor = Text },
+                active = { background = Round(new Color(0.12f, 0.17f, 0.27f, 0.82f), new Color(1, 1, 1, 0.35f), 11, 1f), textColor = Text },
+            };
             ChipOn = new GUIStyle(Chip) { normal = { background = slateOn, textColor = Text }, hover = { background = slateOn, textColor = Text } };
             IconBtn = new GUIStyle(bt) { padding = new RectOffset(0, 0, 0, 0), margin = new RectOffset(0, 0, 0, 0) };
             Tab = new GUIStyle(bt) { fontSize = 15, padding = new RectOffset(8, 8, 6, 6), normal = { textColor = TextDim }, onNormal = { background = slateOn, textColor = Text }, onHover = { background = slateOn, textColor = Text } };

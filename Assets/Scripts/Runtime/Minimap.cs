@@ -82,7 +82,7 @@ namespace RocketWorld
 
             // zoom out a little at speed so you can see what is coming
             float speed01 = Mathf.Clamp01(root.carCtl.SpeedMS / 46f);
-            _range = Mathf.Lerp(_range, Mathf.Lerp(105f, 190f, speed01), 1f - Mathf.Exp(-Time.unscaledDeltaTime * 2f));
+            _range = Mathf.Lerp(_range, Mathf.Lerp(160f, 280f, speed01), 1f - Mathf.Exp(-Time.unscaledDeltaTime * 2f));
             _cam.orthographicSize = _range;
 
             var up = _rotate ? fwd : Vector3.forward;

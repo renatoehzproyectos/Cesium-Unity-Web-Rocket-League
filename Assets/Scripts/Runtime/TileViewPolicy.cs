@@ -51,5 +51,17 @@ namespace RocketWorld
         }
 
         void Apply() { if (tileset != null) tileset.maximumCachedBytes = Budget; }
+
+        /// <summary>Largest cache this device should try (same rule as Start): used by Total load.</summary>
+        public static long MaxBudgetForDevice()
+        {
+            long baseBytes = DeviceProfile.TileCacheBytes;
+            long heap = (long)(DeviceProfile.MemoryGB * 1024f * 1024f * 1024f * (DeviceProfile.IsMobile ? 0.30f : 0.40f));
+            long m = TileCachePolicy.MaxBudget(baseBytes, DeviceProfile.IsMobile, heap);
+            return m < baseBytes ? baseBytes : m;
+        }
+
+        /// <summary>Jump to the biggest budget now; the heap check in Update still shrinks it under memory pressure.</summary>
+        public void Boost() { Budget = MaxBudget; Apply(); }
     }
 }
