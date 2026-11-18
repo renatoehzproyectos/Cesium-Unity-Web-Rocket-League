@@ -31,6 +31,7 @@ namespace RocketWorld
         RenderTexture _rt;
         IList _list;
         float _appliedRadius = -1f, _appliedMult = 1f, _rtChanged;
+        bool _forced;
 
         void Start()
         {
@@ -103,6 +104,8 @@ namespace RocketWorld
         {
             if (_cams == null || follow == null || root == null) return;
             transform.position = follow.position + Vector3.up * 2f;
+            bool force = root.TotalLoadActive && follow == root.car;               // Total load: the cameras must really render, Cesium may ignore disabled ones
+            if (force != _forced) { _forced = force; if (!renderCameras) foreach (var c in _cams) c.enabled = force; }
             float dq = root.EffectiveDistantQuality;
             if (Mathf.Abs(dq - _appliedMult) > 0.04f && Time.unscaledTime - _rtChanged > 0.6f)   // live, but not on every slider tick
             {

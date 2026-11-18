@@ -27,11 +27,13 @@ namespace RocketWorld
         {
             "enableFrustumCulling", "enforceCulledScreenSpaceError", "enableFogCulling", "enableOcclusionCulling",
             "maximumSimultaneousTileLoads", "loadingDescendantLimit", "preloadSiblings", "maximumCachedBytes",
+            "culledScreenSpaceError", "enableFoveatedRendering",
         };
 
         Cesium3DTileset _ts;
         readonly Dictionary<string, object> _orig = new Dictionary<string, object>();
-        float _t0, _doneSince = -1f;
+        float _t0, _doneSince = -1f, _nextEnsure;
+        int _loads, _desc; string _diag = "";
         bool _finished;
         string _doneMsg = "";
 
@@ -58,18 +60,47 @@ namespace RocketWorld
             _ts = ts; _orig.Clear(); _finished = false; _doneSince = -1f; _doneMsg = ""; _t0 = Time.unscaledTime;
             foreach (var k in Keys) { var v = Get(ts, k); if (v != null) _orig[k] = v; }
 
-            Set(ts, "enableFrustumCulling", false);
-            Set(ts, "enforceCulledScreenSpaceError", false);
-            Set(ts, "enableFogCulling", false);
-            Set(ts, "enableOcclusionCulling", false);
-            Set(ts, "preloadSiblings", true);
-            Set(ts, "maximumSimultaneousTileLoads", Mathf.Clamp(Int(_orig, "maximumSimultaneousTileLoads", 12) * 3, 24, 48));
-            Set(ts, "loadingDescendantLimit", Mathf.Clamp(Int(_orig, "loadingDescendantLimit", 20) * 2, 40, 100));
+            _loads = Mathf.Clamp(Int(_orig, "maximumSimultaneousTileLoads", 12) * 3, 24, 48);
+            _desc = Mathf.Clamp(Int(_orig, "loadingDescendantLimit", 20) * 2, 40, 100);
+            Ensure(ts);
             if (root.viewPolicy != null) root.viewPolicy.Boost();                  // it still shrinks the budget if the heap gets tight
             else Set(ts, "maximumCachedBytes", TileViewPolicy.MaxBudgetForDevice());
 
             Recreate(ts);                                                          // empties the tile cache: new native tileset, nothing kept
+            Ensure(ts);                                                            // a new native tileset may have re-read the fields: assert again
+            Debug.Log("[RocketWorld] total load: " + Diag(ts));
             root.CancelTurbo();                                                    // no coarse-first SSE ramp: detail stays what the user chose
+        }
+
+        /// <summary>
+        /// Every detail the user chose must hold in ALL directions. Belt and braces: (1) no frustum / fog / occlusion culling, (2) no foveation
+        /// (it relaxes the detail away from the view centre), (3) if Cesium still treats a tile as culled, it must refine it to the SAME screen-space
+        /// error as the visible ones (culledScreenSpaceError = the real SSE). Only writes when a value differs, so it never re-triggers anything.
+        /// </summary>
+        void Ensure(Cesium3DTileset ts)
+        {
+            Want(ts, "enableFrustumCulling", false);
+            Want(ts, "enableFogCulling", false);
+            Want(ts, "enableOcclusionCulling", false);
+            Want(ts, "enableFoveatedRendering", false);
+            Want(ts, "enforceCulledScreenSpaceError", true);
+            Want(ts, "culledScreenSpaceError", root.EffectiveSse);
+            Want(ts, "preloadSiblings", true);
+            Want(ts, "maximumSimultaneousTileLoads", _loads);
+            Want(ts, "loadingDescendantLimit", _desc);
+        }
+
+        static void Want(object o, string name, object value)
+        {
+            var cur = Get(o, name); if (cur == null) return;                        // property does not exist in this Cesium version
+            try { if (cur.Equals(Convert.ChangeType(value, cur.GetType()))) return; } catch (Exception) { }
+            Set(o, name, value);
+        }
+
+        string Diag(Cesium3DTileset ts)
+        {
+            return "frustumCulling=" + Get(ts, "enableFrustumCulling") + " foveated=" + Get(ts, "enableFoveatedRendering") + " enforceCulled=" + Get(ts, "enforceCulledScreenSpaceError")
+                 + " culledSSE=" + Get(ts, "culledScreenSpaceError") + " SSE=" + Get(ts, "maximumScreenSpaceError") + " loads=" + Get(ts, "maximumSimultaneousTileLoads");
         }
 
         void Update()
@@ -79,12 +110,13 @@ namespace RocketWorld
             if (ts == null) { Status = "Waiting for the tileset..."; return; }
             if (ts != _ts) { Take(ts); return; }                                   // new place / new tileset: apply the mode again and save again once it is loaded
             root.CancelTurbo();
+            if (Time.unscaledTime >= _nextEnsure) { _nextEnsure = Time.unscaledTime + 1f; Ensure(ts); _diag = Diag(ts); }
             if (_finished) { Status = _doneMsg; return; }
 
             float p = ts.ComputeLoadProgress();
             bool settled = p >= 99.9f && Time.unscaledTime - _t0 > 6f;
             if (settled) { if (_doneSince < 0f) _doneSince = Time.unscaledTime; } else _doneSince = -1f;
-            Status = "Loading all around you: " + Mathf.Min(p, 99f).ToString("0") + " %";
+            Status = "Loading all around you: " + Mathf.Min(p, 99f).ToString("0") + " %\n" + _diag;
             if (_doneSince >= 0f && Time.unscaledTime - _doneSince >= 4f) Finish();
         }
 

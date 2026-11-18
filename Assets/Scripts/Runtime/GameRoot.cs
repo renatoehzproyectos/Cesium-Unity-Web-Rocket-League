@@ -72,10 +72,10 @@ namespace RocketWorld
         public float UserScale => Mathf.Min(PriorityLogic.Scale(settings.renderScale, Mods), DeviceProfile.MaxRenderScale);
         public float UserDof => PriorityLogic.Fx(settings.fxDof, Mods, false);
         public float UserMotion => PriorityLogic.Fx(settings.fxMotion, Mods, false);
-        public float EffectiveDistantQuality => PriorityLogic.DistantQ(settings.distantQuality, Mods);
+        public float EffectiveDistantQuality => TotalLoadActive ? Mathf.Max(1.25f, PriorityLogic.DistantQ(settings.distantQuality, Mods)) : PriorityLogic.DistantQ(settings.distantQuality, Mods);
         public float EffectiveDof => antiDof >= 0f ? antiDof : UserDof;
         public float EffectiveMotion => antiMotion >= 0f ? antiMotion : UserMotion;
-        public float EffectiveSse => Mathf.Max(UserSse + autoSseAdd, _turbo ? _turboCur : 0f);
+        public float EffectiveSse => Mathf.Max(UserSse + (TotalLoadActive ? 0f : autoSseAdd), _turbo ? _turboCur : 0f);
 
         // "Turbo load": until the first view is fully loaded (or 20 s), ask for coarser tiles so the whole picture arrives fast,
         // then drop to the user's SSE and let Cesium refine in place (ancestors are already cached, so refining is cheap).
@@ -89,7 +89,8 @@ namespace RocketWorld
         public int memLevel;
         public MemoryGuard memGuard;
         /// <summary>Radius loaded at full detail round a car. With view-driven streaming only the physics ring: the rest follows the camera.</summary>
-        public float EffectiveRadius => settings.viewCull && viewPolicy != null ? Mathf.Min(PriorityLogic.Radius(settings.loadRadius, Mods), viewPolicy.Ring) : PriorityLogic.Radius(settings.loadRadius, Mods) * autoFarMul * RadiusMul;
+        public bool TotalLoadActive => totalLoad != null && totalLoad.Active;
+        public float EffectiveRadius => TotalLoadActive ? Mathf.Max(PriorityLogic.Radius(settings.loadRadius, Mods), 1500f) : settings.viewCull && viewPolicy != null ? Mathf.Min(PriorityLogic.Radius(settings.loadRadius, Mods), viewPolicy.Ring) : PriorityLogic.Radius(settings.loadRadius, Mods) * autoFarMul * RadiusMul;
         public TileViewPolicy viewPolicy;
         public TotalLoad totalLoad;                            // created on first use from the settings panel
 
@@ -393,7 +394,7 @@ namespace RocketWorld
                 CommitSse(EffectiveSse, protectCar: false);
 
             SyncViewPolicy();
-            if (tileset != null && !settingsOpen)
+            if (tileset != null && !settingsOpen && !TotalLoadActive)
             {
                 float cs = PriorityLogic.CulledSse(Mods);
                 if (!Mathf.Approximately(cs, _appliedCulled)) { _appliedCulled = cs; TrySetTileset("culledScreenSpaceError", cs); }
