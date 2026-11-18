@@ -67,7 +67,7 @@ namespace RocketWorld
             if (ci != null) ci.Blocked = _ctlOpen || GameRoot.MenuBlocksInput;
         }
 
-        void SetOpen(bool open)
+        public void SetOpen(bool open)
         {
             if (_open && !open)
             {
@@ -142,11 +142,11 @@ namespace RocketWorld
         {
             BeginToolbar();
             bool inFpv = root.carCtl != null && root.carCtl.InFpv;
-            string curVeh = inFpv ? "FPV Drone" : root.carCtl != null ? Vehicles.NameOf(root.carCtl.CurrentVehicle) : "Car";
+            string curVeh = inFpv ? "Dron FPV" : root.carCtl != null ? Vehicles.NameOf(root.carCtl.CurrentVehicle) : "Coche";
             Rect vehRect = default;
 
             if (UiKit.IconButton(Slot(RowH + 4f), UiTheme.Gear, 26f)) SetOpen(!_open);
-            if (GUI.Button(Slot(TextW("Camera", 64f, 22f)), "Camera", UiTheme.Chip) && root.camMenu != null)
+            if (GUI.Button(Slot(TextW("Cámara", 64f, 22f)), "Cámara", UiTheme.Chip) && root.camMenu != null)
             {
                 if (_open) SetOpen(false);
                 if (_ctlOpen) SetControlsOpen(false);
@@ -163,8 +163,8 @@ namespace RocketWorld
                 GUI.DrawTexture(new Rect(vehRect.xMax - 26f, vehRect.center.y - 8f, 16f, 16f), UiTheme.Chevron);
                 GUI.color = old;
             }
-            if (GUI.Button(Slot(TextW("Ball", 56f, 22f)), "Ball", UiTheme.Chip)) root.RequestBall();
-            if (GUI.Button(Slot(TextW("Controls", 76f, 22f)), "Controls", UiTheme.Chip)) { _vehOpen = false; SetControlsOpen(!_ctlOpen); }
+            if (GUI.Button(Slot(TextW("Pelota", 56f, 22f)), "Pelota", UiTheme.Chip)) root.RequestBall();
+            if (GUI.Button(Slot(TextW("Controles", 76f, 22f)), "Controles", UiTheme.Chip)) { _vehOpen = false; SetControlsOpen(!_ctlOpen); }
             _fx -= 10f;                                                            // group gap: play | bots + online
             DrawBotControls();
             for (int i = 0; i < Extra.Count; i++)
@@ -183,7 +183,7 @@ namespace RocketWorld
         void DrawBotControls()
         {
             int n = root.BotCount; bool can = root.CanUseBots;
-            float wBot = TextW("Bot", 56f, 22f);
+            float wBot = TextW("Bot", 56f, 22f); // se deja "Bot" por ser corto y universal
             var g = Slot(wBot + 4f + 36f + 4f + 52f + 4f + 36f);
             var prev = GUI.enabled;
             var rb = new Rect(g.x, g.y, wBot, g.height);
@@ -416,7 +416,7 @@ namespace RocketWorld
                     if (GUI.Button(br, "Roads", UiTheme.Chip))
                     {
                         int n = root.roads.ResampleHeights();
-                        Toast(n > 0 ? "Sampling road heights (" + n + " chunks)..." : "No roads loaded to sample");
+                        Toast(n > 0 ? "Muestreando alturas de carreteras (" + n + " chunks)..." : "No hay carreteras cargadas para muestrear");
                     }
                 }
                 if (root.waterMap != null)       // OpenStreetMap's licence asks for attribution wherever its data is used
@@ -442,7 +442,7 @@ namespace RocketWorld
                     if (a > 0.01f)
                     {
                         var oc = GUI.color; GUI.color = new Color(1, 1, 1, a);
-                        GUI.Box(new Rect(W * 0.5f - 350, ny, 700, 36), "WASD drive  \u00b7  Space jump  \u00b7  Shift boost  \u00b7  Ctrl drift  \u00b7  C camera  \u00b7  R rescue  \u00b7  B ball", UiTheme.Pill);
+                        GUI.Box(new Rect(W * 0.5f - 350, ny, 700, 36), "WASD conducir  ·  Espacio saltar  ·  Shift boost  ·  Ctrl derrapar  ·  C cámara  ·  R rescatar  ·  B pelota", UiTheme.Pill);
                         GUI.color = oc; ny += 42f;
                     }
                 }
@@ -505,14 +505,14 @@ namespace RocketWorld
             var s = root.settings;
             bool changed = false;
             GUILayout.BeginArea(_panel, GUI.skin.box);
-            if (UiKit.Header("Settings")) { GUILayout.EndArea(); SetOpen(false); return; }
+            if (UiKit.Header("Ajustes")) { GUILayout.EndArea(); SetOpen(false); return; }
             _scroll = GUILayout.BeginScrollView(_scroll);
 
-            UiKit.Section("Location");
+            UiKit.Section("Ubicación");
             GUILayout.BeginHorizontal();
             GUI.SetNextControlName("rw_loc_search");
             _searchQuery = GUILayout.TextField(_searchQuery ?? "", GUILayout.MinWidth(120), GUILayout.Height(40));
-            bool go = GUILayout.Button(_searching ? "..." : "Go", UiTheme.Primary, GUILayout.Width(64), GUILayout.Height(40));
+            bool go = GUILayout.Button(_searching ? "..." : "Ir", UiTheme.Primary, GUILayout.Width(64), GUILayout.Height(40));
             GUILayout.EndHorizontal();
             if (go && !_searching && !string.IsNullOrWhiteSpace(_searchQuery)) StartCoroutine(SearchAndTeleport(_searchQuery.Trim()));
             // Enter key while the search field is focused
@@ -522,15 +522,15 @@ namespace RocketWorld
                 StartCoroutine(SearchAndTeleport(_searchQuery.Trim()));
                 Event.current.Use();
             }
-            GUILayout.Label(string.IsNullOrEmpty(_searchStatus) ? "Type a city, address or landmark." : _searchStatus, UiTheme.Muted);
+            GUILayout.Label(string.IsNullOrEmpty(_searchStatus) ? "Escribe una ciudad, dirección o lugar de interés." : _searchStatus, UiTheme.Muted);
 
-            UiKit.Section("Priorities");
+            UiKit.Section("Prioridades");
             {
                 var pr = s.priorities; var np = pr;
-                np = PrioToggle(np, Priority.FastLoad, "Fast tile loading", "Coarse tiles first, more downloads at once, a tighter full-detail ring.");
-                np = PrioToggle(np, Priority.TileQuality, "Tile quality", "Sharper tiles, near and far.");
-                np = PrioToggle(np, Priority.Fps, "Frame rate", "Lower resolution, view distance and effects.");
-                np = PrioToggle(np, Priority.Realism, "Realism", "Best of everything the device allows, effects at full strength.");
+                np = PrioToggle(np, Priority.FastLoad, "Carga rápida de tiles", "Tiles gruesos primero, más descargas a la vez, anillo de detalle completo más estrecho.");
+                np = PrioToggle(np, Priority.TileQuality, "Calidad de tiles", "Tiles más nítidos, cerca y lejos.");
+                np = PrioToggle(np, Priority.Fps, "Tasa de fotogramas", "Menor resolución, distancia de vista y efectos.");
+                np = PrioToggle(np, Priority.Realism, "Realismo", "Lo mejor que permite el dispositivo, efectos a máxima potencia.");
                 if (np != pr) { s.priorities = np; changed = true; }
                 GUILayout.Label(np == Priority.None ? "Off: only your sliders below apply." : "Applied on top of your sliders. Opposites (quality vs frame rate) partly cancel. Now: SSE " + root.UserSse.ToString("0") + ", scale " + root.UserScale.ToString("0.00") + "x, view " + (PriorityLogic.Far(s.viewDistance, root.Mods) / 1000f).ToString("0.#") + " km.", UiTheme.Muted);
             }
@@ -567,34 +567,34 @@ namespace RocketWorld
             s.sse = UiKit.Slider("Tile detail", "SSE " + s.sse.ToString("0"), s.sse, 4f, 64f);
             GUILayout.Label("Lower is sharper but needs more data.", UiTheme.Muted);
             UiKit.Gap(4);
-            bool keep = UiKit.Toggle(!s.viewCull, "Keep tiles loaded", "Tiles around you stay loaded even when you look away, so turning back never reloads them (uses more memory). The area kept is the load radius.");
+            bool keep = UiKit.Toggle(!s.viewCull, "Mantener tiles cargados", "Los tiles a tu alrededor se quedan cargados aunque mires a otro lado, así no se recargan al girar (usa más memoria). El área que se mantiene es el radio de carga.");
             if (keep == s.viewCull) { s.viewCull = !keep; changed = true; }
             UiKit.Gap(4);
-            s.viewDistance = UiKit.Slider("View distance", (s.viewDistance / 1000f).ToString("0.#") + " km", s.viewDistance, 400f, 20000f);
+            s.viewDistance = UiKit.Slider("Distancia de visión", (s.viewDistance / 1000f).ToString("0.#") + " km", s.viewDistance, 400f, 20000f);
             UiKit.Gap(4);
             float maxScale = DeviceProfile.MaxRenderScale;
-            s.renderScale = UiKit.Slider("Render scale", s.renderScale.ToString("0.00") + "x", Mathf.Min(s.renderScale, maxScale), 0.3f, maxScale);
+            s.renderScale = UiKit.Slider("Escala de render", s.renderScale.ToString("0.00") + "x", Mathf.Min(s.renderScale, maxScale), 0.3f, maxScale);
             UiKit.Gap(6);
-            bool ac = UiKit.Toggle(s.antiCrash, "Anti-crash mode", "Adapts quality to hold 30+ FPS; your sliders are the maximum. iPhone / iPad use the low-memory build (reload after changing).");
+            bool ac = UiKit.Toggle(s.antiCrash, "Modo Anti-crash", "Adapta la calidad para mantener 30+ FPS; tus deslizadores son el máximo. iPhone / iPad usan el build de poca memoria (recarga después de cambiar).");
             if (ac != s.antiCrash) { s.antiCrash = ac; WebBridge.SetAntiCrash(ac); changed = true; }
-            if (WebBridge.IsLiteBuild()) GUILayout.Label("Low-memory build active", UiTheme.Muted);
-            else if (DeviceProfile.IsMax) GUILayout.Label("Max-memory build active (heap up to 4 GB)", UiTheme.Muted);
+            if (WebBridge.IsLiteBuild()) GUILayout.Label("Build de poca memoria activo (Lite)", UiTheme.Muted);
+            else if (DeviceProfile.IsMax) GUILayout.Label("Build de máxima memoria activo (heap hasta 4 GB)", UiTheme.Muted);
 
-            UiKit.Section("Camera and effects");
-            if (UiKit.Button("Open camera menu")) { SetOpen(false); root.camMenu.OpenMenu(); }
+            UiKit.Section("Cámara y efectos");
+            if (UiKit.Button("Abrir menú de cámara")) { SetOpen(false); root.camMenu.OpenMenu(); }
             UiKit.Gap(6);
-            s.fxDof = UiKit.Slider("Depth of field", (s.fxDof * 100f).ToString("0") + "%", s.fxDof, 0f, 2f);
+            s.fxDof = UiKit.Slider("Profundidad de campo", (s.fxDof * 100f).ToString("0") + "%", s.fxDof, 0f, 2f);
             UiKit.Gap(4);
             s.fxMotion = UiKit.Slider("Motion blur", (s.fxMotion * 100f).ToString("0") + "%", s.fxMotion, 0f, 2f);
-            GUILayout.Label("0% = off, 100% = the designed look.", UiTheme.Muted);
+            GUILayout.Label("0% = desactivado, 100% = el aspecto diseñado.", UiTheme.Muted);
             if (root.cinematic != null && !string.IsNullOrEmpty(root.cinematic.Status)) GUILayout.Label(root.cinematic.Status, UiTheme.Muted);
 
-            UiKit.Section("Car colour");
+            UiKit.Section("Color del coche");
             if (DrawSwatches(s)) changed = true;
 
-            UiKit.Section("About");
-            GUILayout.Label("Settings are saved in this browser.", UiTheme.Muted);
-            GUILayout.Label("Aircraft model: \"YC-130\" by KOG_THORNS, CC BY 4.0.", UiTheme.Muted);
+            UiKit.Section("Acerca de");
+            GUILayout.Label("Los ajustes se guardan en este navegador.", UiTheme.Muted);
+            GUILayout.Label("Modelo de avión: \"YC-130\" por KOG_THORNS, CC BY 4.0.", UiTheme.Muted);
             GUILayout.Label(DeviceProfile.Describe() + (root.memGuard != null && root.memGuard.HeapMB > 0 ? " · heap " + root.memGuard.HeapMB + " MB" + (root.memLevel > 0 ? " (reducing detail, level " + root.memLevel + ")" : "") : ""), UiTheme.Muted);
             if (root.roads != null && root.roads.Enabled)
             {
@@ -660,7 +660,7 @@ namespace RocketWorld
         }
 
         // =================================================== controls panel ===================================================
-        void SetControlsOpen(bool open)
+        public void SetControlsOpen(bool open)
         {
             if (open == _ctlOpen) return;
             if (open && _open) SetOpen(false);
@@ -738,7 +738,7 @@ namespace RocketWorld
             if (InputBindings.KeyboardLocked(sel)) _selCol = InputBindings.SlotPad;
             if (ok && !(InputBindings.KeyboardLocked(sel) && _selCol < InputBindings.KeySlots)) StartListening(_selRow, _selCol);
             if (clear) { ib.Clear(sel, _selCol); ib.Save(); }
-            if (reset) { ib.ResetAll(); ib.Save(); Toast("Controls reset to defaults"); }
+            if (reset) { ib.ResetAll(); ib.Save(); Toast("Controles restablecidos a los valores por defecto"); }
         }
 
         void DrawControls()
@@ -750,15 +750,15 @@ namespace RocketWorld
             float lw = Mathf.Clamp(aw * 0.28f, 84f, 150f), kw = Mathf.Max(52f, (aw - lw - 12f) / 3.3f), pw = kw * 1.3f;
 
             GUILayout.BeginArea(_ctlPanel, GUI.skin.box);
-            if (UiKit.Header("Controls")) { GUILayout.EndArea(); SetControlsOpen(false); return; }
+            if (UiKit.Header("Controles")) { GUILayout.EndArea(); SetControlsOpen(false); return; }
             string pad = InputDevices.PadName();
-            GUILayout.Label(pad != null ? "Gamepad: " + pad : "No gamepad detected. Connect one and press any button.", UiTheme.Muted);
-            if (pad != null) GUILayout.Label("Pressing now: " + (InputDevices.ActivePadInputs() is var act && act.Length > 0 ? act : "none"), UiTheme.Muted);
-            GUILayout.Label("Tap a slot, then press the key or button you want. Esc cancels, Backspace clears. Right stick orbits the camera; left stick up/down pitches in the air.", UiTheme.Muted);
+            GUILayout.Label(pad != null ? "Mando: " + pad : "No se detectó ningún mando. Conecta uno y pulsa cualquier botón.", UiTheme.Muted);
+            if (pad != null) GUILayout.Label("Pulsando ahora: " + (InputDevices.ActivePadInputs() is var act && act.Length > 0 ? act : "ninguno"), UiTheme.Muted);
+            GUILayout.Label("Toca un hueco y luego pulsa la tecla o botón que quieras. Esc cancela, Retroceso borra. El stick derecho orbita la cámara; el stick izquierdo arriba/abajo inclina en el aire.", UiTheme.Muted);
             _ctlScroll = GUILayout.BeginScrollView(_ctlScroll);
             GUILayout.BeginHorizontal();
             GUILayout.Label("", GUILayout.Width(lw));
-            GUILayout.Label("Key", UiTheme.Hint, GUILayout.Width(kw)); GUILayout.Label("Alt key", UiTheme.Hint, GUILayout.Width(kw)); GUILayout.Label("Gamepad", UiTheme.Hint, GUILayout.Width(pw));
+            GUILayout.Label("Tecla", UiTheme.Hint, GUILayout.Width(kw)); GUILayout.Label("Alt", UiTheme.Hint, GUILayout.Width(kw)); GUILayout.Label("Mando", UiTheme.Hint, GUILayout.Width(pw));
             GUILayout.EndHorizontal();
             for (int i = 0; i < InputBindings.Actions.Length; i++)
             {
@@ -769,7 +769,7 @@ namespace RocketWorld
                 {
                     bool locked = slot < InputBindings.KeySlots && InputBindings.KeyboardLocked(a);
                     bool listening = _listenAction == i && _listenSlot == slot;
-                    string text = listening ? "press..." : locked ? (slot == 0 ? "Esc" : "Tab")
+                    string text = listening ? "pulsa..." : locked ? (slot == 0 ? "Esc" : "Tab")
                         : slot == InputBindings.SlotPad ? InputBindings.PadLabel(ib.GetPad(a)) : InputBindings.KeyLabel(ib.GetKey(a, slot));
                     var slotStyle = listening ? UiTheme.BtnListen : (i == _selRow && slot == _selCol && InputDevices.HasGamepad) ? UiTheme.BtnSelect : GUI.skin.button;
                     GUI.enabled = !locked;
@@ -781,11 +781,11 @@ namespace RocketWorld
             GUILayout.EndScrollView();
             GUILayout.Space(6);
             GUILayout.BeginHorizontal();
-            if (UiKit.Button("Reset to defaults")) { ib.ResetAll(); ib.Save(); _listenAction = -1; Toast("Controls reset to defaults"); }
-            if (UiKit.PrimaryButton("Done")) SetControlsOpen(false);
+            if (UiKit.Button("Restablecer por defecto")) { ib.ResetAll(); ib.Save(); _listenAction = -1; Toast("Controles restablecidos a los valores por defecto"); }
+            if (UiKit.PrimaryButton("Listo")) SetControlsOpen(false);
             GUILayout.EndHorizontal();
             if (InputDevices.HasGamepad)
-                GUILayout.Label("Gamepad: D-pad / left stick move · A bind · X clear · Y reset all · B / Menu close", UiTheme.Muted);
+                GUILayout.Label("Mando: D-pad / stick izq. mueve · A asignar · X borrar · Y restablecer todo · B / Menú cerrar", UiTheme.Muted);
             GUILayout.EndArea();
             UiKit.TouchScroll(_ctlPanel, ref _ctlScroll);
         }
@@ -795,7 +795,7 @@ namespace RocketWorld
         IEnumerator SearchAndTeleport(string query)
         {
             _searching = true;
-            _searchStatus = "Searching...";
+            _searchStatus = "Buscando...";
             // Nominatim (OpenStreetMap): free, no API key. Identify the app per their usage policy.
             string url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + UnityWebRequest.EscapeURL(query);
             using (var req = UnityWebRequest.Get(url))
@@ -805,14 +805,14 @@ namespace RocketWorld
                 yield return req.SendWebRequest();
                 if (req.result != UnityWebRequest.Result.Success)
                 {
-                    _searchStatus = "Search failed: " + req.error;
+                    _searchStatus = "Búsqueda fallida: " + req.error;
                     _searching = false;
                     yield break;
                 }
                 var json = req.downloadHandler.text;
                 if (string.IsNullOrEmpty(json) || json == "[]")
                 {
-                    _searchStatus = "No results for \"" + query + "\"";
+                    _searchStatus = "Sin resultados para \"" + query + "\"";
                     _searching = false;
                     yield break;
                 }
@@ -820,7 +820,7 @@ namespace RocketWorld
                 var list = JsonUtility.FromJson<NominatimList>("{\"items\":" + json + "}");
                 if (list == null || list.items == null || list.items.Length == 0)
                 {
-                    _searchStatus = "No results for \"" + query + "\"";
+                    _searchStatus = "Sin resultados para \"" + query + "\"";
                     _searching = false;
                     yield break;
                 }
@@ -828,13 +828,13 @@ namespace RocketWorld
                 if (!double.TryParse(hit.lat, NumberStyles.Float, CultureInfo.InvariantCulture, out var lat)
                     || !double.TryParse(hit.lon, NumberStyles.Float, CultureInfo.InvariantCulture, out var lon))
                 {
-                    _searchStatus = "Bad coordinates in result";
+                    _searchStatus = "Coordenadas incorrectas en el resultado";
                     _searching = false;
                     yield break;
                 }
 
                 float gh = root.settings.groundHeight;
-                _searchStatus = "Looking up elevation...";
+                _searchStatus = "Consultando elevación...";
                 string elevUrl = string.Format(CultureInfo.InvariantCulture,
                     "https://api.open-meteo.com/v1/elevation?latitude={0:0.#####}&longitude={1:0.#####}", lat, lon);
                 using (var elevReq = UnityWebRequest.Get(elevUrl))
@@ -850,9 +850,9 @@ namespace RocketWorld
 
                 string name = string.IsNullOrEmpty(hit.display_name) ? query : hit.display_name;
                 if (name.Length > 60) name = name.Substring(0, 57) + "...";
-                _searchStatus = "Going to " + name;
+                _searchStatus = "Yendo a " + name;
                 root.TeleportTo(lat, lon, gh);
-                Toast("Teleported");
+                Toast("Teletransportado");
             }
             _searching = false;
         }

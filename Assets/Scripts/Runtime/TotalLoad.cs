@@ -107,7 +107,7 @@ namespace RocketWorld
         {
             if (!Active) return;
             var ts = root != null ? root.tileset : null;
-            if (ts == null) { Status = "Waiting for the tileset..."; return; }
+            if (ts == null) { Status = "Esperando el tileset..."; return; }
             if (ts != _ts) { Take(ts); return; }                                   // new place / new tileset: apply the mode again and save again once it is loaded
             root.CancelTurbo();
             if (Time.unscaledTime >= _nextEnsure) { _nextEnsure = Time.unscaledTime + 1f; Ensure(ts); _diag = Diag(ts); }
@@ -116,7 +116,7 @@ namespace RocketWorld
             float p = ts.ComputeLoadProgress();
             bool settled = p >= 99.9f && Time.unscaledTime - _t0 > 6f;
             if (settled) { if (_doneSince < 0f) _doneSince = Time.unscaledTime; } else _doneSince = -1f;
-            Status = "Loading all around you: " + Mathf.Min(p, 99f).ToString("0") + " %\n" + _diag;
+            Status = "Cargando todo a tu alrededor: " + Mathf.Min(p, 99f).ToString("0") + " %\n" + _diag;
             if (_doneSince >= 0f && Time.unscaledTime - _doneSince >= 4f) Finish();
         }
 

@@ -39,27 +39,27 @@ namespace RocketWorld
         {
             switch (a)
             {
-                case CarAction.Accelerate: return "Accelerate";
-                case CarAction.Brake: return "Brake / reverse";
-                case CarAction.SteerLeft: return "Steer left";
-                case CarAction.SteerRight: return "Steer right";
-                case CarAction.RollLeft: return "Air roll left";
-                case CarAction.RollRight: return "Air roll right";
-                case CarAction.Jump: return "Jump / flip";
+                case CarAction.Accelerate: return "Acelerar";
+                case CarAction.Brake: return "Frenar / marcha atrás";
+                case CarAction.SteerLeft: return "Girar a la izquierda";
+                case CarAction.SteerRight: return "Girar a la derecha";
+                case CarAction.RollLeft: return "Rotar en el aire (izq.)";
+                case CarAction.RollRight: return "Rotar en el aire (der.)";
+                case CarAction.Jump: return "Saltar / Flip";
                 case CarAction.Boost: return "Boost";
-                case CarAction.Handbrake: return "Handbrake (powerslide)";
-                case CarAction.CameraToggle: return "Switch camera";
-                case CarAction.Reset: return "Reset car";
-                case CarAction.Ball: return "Summon ball";
-                case CarAction.Plane: return "Plane mode on / off";
-                case CarAction.Vehicle: return "Next vehicle";
-                case CarAction.HyperBoost: return "Hyper Boost (+500% speed)";
-                case CarAction.VehicleMode: return "VTOL / hover mode";
-                case CarAction.Gear: return "Landing gear";
+                case CarAction.Handbrake: return "Freno de mano (derrape)";
+                case CarAction.CameraToggle: return "Cambiar cámara";
+                case CarAction.Reset: return "Rescatar el coche";
+                case CarAction.Ball: return "Invocar pelota";
+                case CarAction.Plane: return "Modo avión (activar/desactivar)";
+                case CarAction.Vehicle: return "Siguiente vehículo";
+                case CarAction.HyperBoost: return "Hyper Boost (+500% velocidad)";
+                case CarAction.VehicleMode: return "Modo VTOL / hover";
+                case CarAction.Gear: return "Tren de aterrizaje";
                 case CarAction.Flaps: return "Flaps";
-                case CarAction.Fpv: return "FPV drone mode on / off";
-                case CarAction.Door: return "Cargo ramp open / close (Antonov)";
-                default: return "Settings menu";
+                case CarAction.Fpv: return "Modo dron FPV (activar/desactivar)";
+                case CarAction.Door: return "Rampa de carga (abrir/cerrar)";
+                default: return "Menú de ajustes";
             }
         }
 

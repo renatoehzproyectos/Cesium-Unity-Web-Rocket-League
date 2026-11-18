@@ -300,7 +300,7 @@ namespace RocketWorld
             netVelocity = vel;
             Vehicle.state.isOnGround = onGround; Vehicle.state.isBoosting = boosting;
             CurrentPhase = running ? Phase.Running : Phase.WaitingForGround;
-            Status = running ? "" : "Waiting for the host…";
+            Status = running ? "" : "Esperando al anfitrión…";
             if (_boostFx != null) _boostFx.SetBoosting(boosting && running);
         }
         void OnGeoChanged() { _resync = true; }
@@ -552,7 +552,7 @@ namespace RocketWorld
             else if (_rescue) { origin = transform.position + Vector3.up * 60f; range = 400f; }
             else { origin = new Vector3(0f, 2500f, 0f); range = 5000f; }
             bool ground = Physics.Raycast(origin, Vector3.down, out var hit, range, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore) && hit.normal.y > 0.5f;
-            Status = ground ? $"Loading city… {progress:0}%" : $"Waiting for terrain… {progress:0}%";
+            Status = ground ? $"Cargando ciudad… {progress:0}%" : $"Esperando terreno… {progress:0}%";
             if (!ground) { _stableSince = -1f; return; }
             if (progress >= 99.9f) { if (_stableSince < 0) _stableSince = Time.realtimeSinceStartup; } else _stableSince = -1f;
             bool settled = _stableSince > 0 && Time.realtimeSinceStartup - _stableSince > 0.6f;

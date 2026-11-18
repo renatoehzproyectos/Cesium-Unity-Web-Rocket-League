@@ -482,7 +482,8 @@ namespace RocketWorld
             if (tileset != null) tileset.maximumCachedBytes = (long)(DeviceProfile.TileCacheBytes * MemoryGuardLogic.CacheMul(level));
             if (budget != null) budget.radiusMul = MemoryGuardLogic.ColliderMul(level);
             if (roads != null) roads.memLevel = level;
-            if (hud != null && level >= 2) hud.ShowToast("Low memory: reducing detail to keep the game running");
+            if (hud != null && level >= 2) hud.ShowToast("Poca memoria: reduciendo detalle para mantener el juego en marcha");
+
             ApplyLive();
         }
 
