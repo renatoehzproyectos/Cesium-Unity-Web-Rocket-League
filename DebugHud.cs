@@ -67,7 +67,7 @@ namespace RocketWorld
             if (ci != null) ci.Blocked = _ctlOpen || GameRoot.MenuBlocksInput;
         }
 
-        void SetOpen(bool open)
+        public void SetOpen(bool open)
         {
             if (_open && !open)
             {
@@ -660,7 +660,7 @@ namespace RocketWorld
         }
 
         // =================================================== controls panel ===================================================
-        void SetControlsOpen(bool open)
+        public void SetControlsOpen(bool open)
         {
             if (open == _ctlOpen) return;
             if (open && _open) SetOpen(false);
