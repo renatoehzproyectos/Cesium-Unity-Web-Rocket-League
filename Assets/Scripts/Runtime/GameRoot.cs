@@ -174,7 +174,7 @@ namespace RocketWorld
             orbit.padBlocked = () => carInput != null && carInput.Blocked;
         }
 
-        void Start() { WebBridge.HideLoading(); }
+        void Start() { /* loader is hidden by PlaneIntro when the ramp opens (or when the intro ends/aborts) */ }
 
         void Update()
         {

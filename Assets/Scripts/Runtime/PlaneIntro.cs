@@ -238,9 +238,11 @@ namespace RocketWorld
             return true;
         }
 
+        bool _loaderLifted;
+
         void Update()
         {
-            if (_visualOnly) return;
+            if (_visualOnly) { if (!_loaderLifted) { _loaderLifted = true; WebBridge.HideLoading(); } return; }
             if (_plane == null) { if (CurrentStage != Stage.Done) Finish(); return; }
             float now = Time.unscaledTime, dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
 
@@ -257,6 +259,7 @@ namespace RocketWorld
                     bool ready = (t >= MinWait && _loadedSince > 0f && now - _loadedSince > 0.8f) || t >= Timeout;
                     if (!ready) { _car.SetStatus(t < MinWait && progress >= 99.9f ? "Approaching the drop zone…" : $"Approaching the drop zone… {progress:0}%"); break; }
                     _openT0 = now; CurrentStage = Stage.Opening;
+                    WebBridge.HideLoading();   // map is loaded: the looping loading video ends as the ramp opens
                     _car.SetStatus("Rear ramp opening…");
                     if (_car.colliderBudget != null) _car.colliderBudget.burst = true;
                     break;
@@ -302,6 +305,7 @@ namespace RocketWorld
         void Finish()
         {
             CurrentStage = Stage.Done;
+            WebBridge.HideLoading();   // safety net: no plane / aborted intro still lifts the loading video
             if (_car != null)
             {
                 _car.SetStatus("");
