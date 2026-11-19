@@ -257,10 +257,10 @@ namespace RocketWorld
                     float progress = _car.tileset != null ? _car.tileset.ComputeLoadProgress() : 100f;
                     if (progress >= 99.9f) { if (_loadedSince < 0f) _loadedSince = now; } else _loadedSince = -1f;
                     bool ready = (t >= MinWait && _loadedSince > 0f && now - _loadedSince > 0.8f) || t >= Timeout;
-                    if (!ready) { _car.SetStatus(t < MinWait && progress >= 99.9f ? "Approaching the drop zone…" : $"Approaching the drop zone… {progress:0}%"); break; }
+                    if (!ready) { _car.SetStatus(t < MinWait && progress >= 99.9f ? "Acercándonos a la zona de salto…" : $"Acercándonos a la zona de salto… {progress:0}%"); break; }
                     _openT0 = now; CurrentStage = Stage.Opening;
                     WebBridge.HideLoading();   // map is loaded: the looping loading video ends as the ramp opens
-                    _car.SetStatus("Rear ramp opening…");
+                    _car.SetStatus("Abriendo la rampa trasera…");
                     if (_car.colliderBudget != null) _car.colliderBudget.burst = true;
                     break;
                 }
@@ -268,7 +268,7 @@ namespace RocketWorld
                 {
                     float e = Mathf.Clamp01((now - _openT0) / OpenSeconds);
                     _hinge.localRotation = Quaternion.Euler((SlopeDeg + DropDeg) * Mathf.SmoothStep(0f, 1f, e), 0f, 0f);
-                    if (e >= 1f) { CurrentStage = Stage.Open; _car.SetStatus("Drop zone - go!"); _openT0 = now; }
+                    if (e >= 1f) { CurrentStage = Stage.Open; _car.SetStatus("¡Zona de salto: adelante!"); _openT0 = now; }
                     break;
                 }
                 case Stage.Open:

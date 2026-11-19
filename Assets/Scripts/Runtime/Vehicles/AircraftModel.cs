@@ -61,11 +61,11 @@ namespace RocketWorld
         {
             get
             {
-                string t = s.hasGear ? (_gearDown ? "GEAR DN" : "GEAR UP") : "";
+                string t = s.hasGear ? (_gearDown ? "TREN ABAJO" : "TREN ARRIBA") : "";
                 if (s.flaps) t += "  FLAPS " + _flaps;
-                if (s.vtol) t += _modeOn ? "  VTOL" : "  CRUISE";
-                if (s.hoverCar) t += _modeOn ? "  HOVER" : "  WHEELS";
-                return (t + "  [placeholder physics]").Trim();
+                if (s.vtol) t += _modeOn ? "  VTOL" : "  CRUCERO";
+                if (s.hoverCar) t += _modeOn ? "  FLOTANDO" : "  RUEDAS";
+                return t.Trim();
             }
         }
 

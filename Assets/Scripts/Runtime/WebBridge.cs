@@ -18,6 +18,12 @@ namespace RocketWorld
         [DllImport("__Internal")] static extern int RW_IsMaxBuild();
         [DllImport("__Internal")] static extern int RW_HeapMB();
         [DllImport("__Internal")] static extern void RW_FlushFS();
+        [DllImport("__Internal")] static extern void RW_AskSwitchBuild(int toLite);
+        [DllImport("__Internal")] static extern void RW_ShowTutorial();
+        /// <summary>Asks (in the page, with a confirmation dialog) whether to switch to the Lite build (true) or back to the full one (false).</summary>
+        public static void AskSwitchBuild(bool toLite) => RW_AskSwitchBuild(toLite ? 1 : 0);
+        /// <summary>Opens the first-visit tutorial again.</summary>
+        public static void ShowTutorial() => RW_ShowTutorial();
         /// <summary>Writes the persistent file system (IndexedDB) now: the road cache lives in persistentDataPath.</summary>
         public static void FlushFS() => RW_FlushFS();
         /// <summary>Current wasm heap size in MB (0 when unknown).</summary>
@@ -43,6 +49,8 @@ namespace RocketWorld
         public static bool IsMaxBuild() => System.Environment.GetEnvironmentVariable("RW_MAXBUILD") == "1";
         public static int HeapMB() => 0;
         public static void FlushFS() { }
+        public static void AskSwitchBuild(bool toLite) { }
+        public static void ShowTutorial() { }
         public static string Query(string name) => System.Environment.GetEnvironmentVariable("RW_" + name.ToUpperInvariant()) ?? "";
         public static string Prompt(string message, string def) => def;   // Editor/desktop: use the RW_KEY env var
         public static string BaseUrl() => "http://localhost/";

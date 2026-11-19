@@ -67,16 +67,16 @@ namespace RocketWorld
         {
             switch (k)
             {
-                case VehicleKind.Car: return "Car";
+                case VehicleKind.Car: return "Coche";
                 case VehicleKind.Cessna: return "Cessna";
                 case VehicleKind.F35B: return "F-35B";
                 case VehicleKind.F15E: return "F-15E";
-                case VehicleKind.Helicopter: return "Helicopter";
+                case VehicleKind.Helicopter: return "Helicóptero";
                 case VehicleKind.DeLorean: return "DeLorean";
                 case VehicleKind.Starship: return "Starship";
                 case VehicleKind.Megaliner: return "Megaliner";
                 case VehicleKind.Antonov: return "Antonov An-124";
-                default: return "Vehicle";
+                default: return "Vehículo";
             }
         }
 
@@ -137,7 +137,7 @@ namespace RocketWorld
 
         static VehicleSpec MakeHeli() => new VehicleSpec
         {
-            kind = VehicleKind.Helicopter, name = "Helicopter", model = "Models/Vehicles/Heli", mass = 2800f, inertia = new Vector3(3200f, 2400f, 1600f), com = new Vector3(0, 0, 2.2f),
+            kind = VehicleKind.Helicopter, name = "Helicóptero", model = "Models/Vehicles/Heli", mass = 2800f, inertia = new Vector3(3200f, 2400f, 1600f), com = new Vector3(0, 0, 2.2f),
             boxes = new[] { new BoxDef(0, -0.2f, 1.0f, 2.1f, 2.6f, 5.4f), new BoxDef(0, 0.3f, -3.8f, 0.5f, 0.9f, 5.4f), new BoxDef(0, 0.5f, -6.0f, 0.3f, 2.2f, 1.2f) },
             wheels = new[] { new WheelDef(1.44f, -2.5f, 0.9f, 0.06f), new WheelDef(-1.44f, -2.5f, 0.9f, 0.06f), new WheelDef(1.44f, -2.5f, 4.6f, 0.06f), new WheelDef(-1.44f, -2.5f, 4.6f, 0.06f) },
             vMax = 85f, camBack = 22f, camUp = 6.5f, camLook = 8f, profile = TouchProfile.Helicopter, rotors = true,

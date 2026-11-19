@@ -156,7 +156,7 @@ namespace RocketWorld
             if (_fociLL.Count == 0) return null;
             if (radiusM <= 0f) radiusM = SavedZones.DefaultRadius;
             var z = SavedZones.Add(name, _fociLL[0].lat, _fociLL[0].lon, radiusM);
-            if (root != null && root.hud != null) root.hud.ShowToast("Zone saved: " + z.name + (Enabled ? " (roads downloading)" : ""));
+            if (root != null && root.hud != null) root.hud.ShowToast("Zona guardada: " + z.name + (Enabled ? " (descargando carreteras)" : ""));
             return z;
         }
 

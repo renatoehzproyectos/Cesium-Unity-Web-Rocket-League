@@ -21,10 +21,10 @@ namespace RocketWorld
         {
             new Row { label = "Giro horizontal", unit = "°", tap = 2f,   perSec = 30f, limit = CamTunePolicy.MaxTurnH },
             new Row { label = "Giro vertical",   unit = "°", tap = 2f,   perSec = 30f, limit = CamTunePolicy.MaxTurnV },
-            new Row { label = "Arriba/Abajo",    unit = " m", tap = 0.5f, perSec = 8f,  limit = CamTunePolicy.MaxMove },
-            new Row { label = "Posición lateral",unit = " m", tap = 0.5f, perSec = 8f,  limit = CamTunePolicy.MaxMove },
-            new Row { label = "Campo de visión", unit = "°", tap = 1f,   perSec = 20f, limit = CamTunePolicy.MaxFov },
-            new Row { label = "Delante/Detrás",  unit = " m", tap = 0.5f, perSec = 8f,  limit = CamTunePolicy.MaxMove },
+            new Row { label = "Arriba/Abajo",         unit = " m", tap = 0.5f, perSec = 8f,  limit = CamTunePolicy.MaxMove },
+            new Row { label = "Posición lateral",   unit = " m", tap = 0.5f, perSec = 8f,  limit = CamTunePolicy.MaxMove },
+            new Row { label = "Campo de visión",   unit = "°", tap = 1f,   perSec = 20f, limit = CamTunePolicy.MaxFov },
+            new Row { label = "Adelante/Atrás",      unit = " m", tap = 0.5f, perSec = 8f,  limit = CamTunePolicy.MaxMove },
         };
 
         float Get(int i)
@@ -111,7 +111,7 @@ namespace RocketWorld
             if (RoundBtn(new Rect(PW - 52, 8, 38, 34), "X", UiTheme.Danger)) Close();
 
             // camera mode
-            string[] names = { "Persecución", "Helicóptero", "Órbita" }; int[] modes = { 0, 2, 1 };
+            string[] names = { "Seguir", "Helicóptero", "Órbita" }; int[] modes = { 0, 2, 1 };
             for (int i = 0; i < 3; i++)
             {
                 bool cur = root.cameraMode == modes[i];
@@ -131,16 +131,16 @@ namespace RocketWorld
             }
 
             // follow mode + delay
-            CamTuning.fullAxis = GUI.Toggle(new Rect(30, 322, 540, 26), CamTuning.fullAxis, "Seguir también el roll (yaw + pitch + roll). Desactivado = solo yaw y pitch", _toggle);
-            GUI.Label(new Rect(30, 352, 540, 24), CamTuning.delay <= 0.02f ? "Retraso de seguimiento: ninguno (rígido)" : $"Retraso de seguimiento: {CamTuning.delay:0.00}x  (1.00 = por defecto)", _label);
+            CamTuning.fullAxis = GUI.Toggle(new Rect(30, 322, 540, 26), CamTuning.fullAxis, "Seguir también los giros del coche. Apagado = solo gira y cabecea", _toggle);
+            GUI.Label(new Rect(30, 352, 540, 24), CamTuning.delay <= 0.02f ? "Retraso de seguimiento: ninguno (rígido)" : $"Retraso de seguimiento: {CamTuning.delay:0.00}x  (1.00 = normal)", _label);
             CamTuning.delay = CamTunePolicy.ClampDelay(GUI.HorizontalSlider(new Rect(40, 382, 520, 20), CamTuning.delay, 0f, CamTunePolicy.MaxDelay));
 
             // bottom buttons
             var white = new Color(0.78f, 0.84f, 0.92f);
             if (RoundBtn(new Rect(24, 416, 124, 40), "OK", UiTheme.Accent)) Close();
-            if (RoundBtn(new Rect(160, 416, 124, 40), "Guardar", white)) { CamTuning.Save(); Msg("Guardado"); }
-            if (RoundBtn(new Rect(296, 416, 140, 40), "Último guardado", white)) { CamTuning.LoadSaved(); Msg(CamTuning.HasSaved ? "Último guardado cargado" : "Nada guardado aún - valores por defecto"); }
-            if (RoundBtn(new Rect(448, 416, 130, 40), "Restablecer", white)) { CamTuning.ResetDefaults(); Msg("Valores por defecto"); }
+            if (RoundBtn(new Rect(160, 416, 124, 40), "Guardar", white)) { CamTuning.Save(); Msg("¡Guardado!"); }
+            if (RoundBtn(new Rect(296, 416, 140, 40), "Cargar guardado", white)) { CamTuning.LoadSaved(); Msg(CamTuning.HasSaved ? "Guardado cargado" : "Aún no hay nada guardado: valores originales"); }
+            if (RoundBtn(new Rect(448, 416, 130, 40), "Restablecer", white)) { CamTuning.ResetDefaults(); Msg("Valores originales"); }
             if (Time.unscaledTime < _msgUntil) GUI.Label(new Rect(24, 398, PW - 48, 18), _msg, _value);
 
             // swallow clicks on the empty panel so they never reach the HUD / game below

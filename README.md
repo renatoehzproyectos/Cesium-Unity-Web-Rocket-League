@@ -98,3 +98,9 @@ Local builds are uncompressed. If you have a real `ProjectSettings.asset` from t
 The toolbar wraps instead of overlapping; panels are full-screen sheets on narrow screens. The font has no arrows/triangles/dots: use icons or words, never those characters.
 `MemoryGuard` watches the wasm heap and shrinks tile cache, colliders and render scale before the browser refuses to grow it ("memory access out of bounds").
 After such a crash `index.html` shows a recovery screen and the next load starts in safe mode (`?safe=1`, `?safe=0` turns it off).
+
+## Interfaz en español, tutorial y cambio Lite (nuevo)
+
+- Todo el texto del juego (menús, HUD, controles táctiles, avisos) está en español y sin jerga técnica. La información técnica (memoria, caché, carreteras) queda oculta tras **Ajustes → Ayuda y acerca de → Mostrar información técnica**.
+- Tutorial animado y saltable en la primera visita: `TemplateData/rw-ui.js` + `rw-ui.css`. Se repite desde Ajustes, o con `?tutorial=1` (`?tutorial=0` lo desactiva).
+- El juego **nunca** cambia solo entre la versión completa y `/lite/`: antes pregunta. Abrir `/lite/` a propósito, `?lite=1` / `?lite=0`, o responder «Sí» en el diálogo se respeta sin preguntas. En Ajustes → Gráficos hay un botón para entrar o salir de Lite (con confirmación).

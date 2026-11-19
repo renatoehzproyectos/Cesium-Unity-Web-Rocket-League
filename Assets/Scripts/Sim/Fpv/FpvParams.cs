@@ -13,7 +13,7 @@ namespace RocketWorld.Sim.Fpv
     {
         public static double Channel(FlightMode m) => m == FlightMode.Acro ? -1 : m == FlightMode.Horizon ? 0 : 1;
         public static FlightMode FromChannel(double v) => v > 0.5 ? FlightMode.Angle : v > -0.5 ? FlightMode.Horizon : FlightMode.Acro;
-        public static string Name(FlightMode m) => m == FlightMode.Acro ? "ACRO" : m == FlightMode.Horizon ? "HORIZON" : "ANGLE";
+        public static string Name(FlightMode m) => m == FlightMode.Acro ? "ACRO" : m == FlightMode.Horizon ? "HORIZONTE" : "ÁNGULO";
     }
 
     /// <summary>Betaflight 4.5.1 self-level tuning (angle / horizon).</summary>

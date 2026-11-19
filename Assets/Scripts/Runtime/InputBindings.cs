@@ -43,22 +43,22 @@ namespace RocketWorld
                 case CarAction.Brake: return "Frenar / marcha atrás";
                 case CarAction.SteerLeft: return "Girar a la izquierda";
                 case CarAction.SteerRight: return "Girar a la derecha";
-                case CarAction.RollLeft: return "Rotar en el aire (izq.)";
-                case CarAction.RollRight: return "Rotar en el aire (der.)";
-                case CarAction.Jump: return "Saltar / Flip";
-                case CarAction.Boost: return "Boost";
-                case CarAction.Handbrake: return "Freno de mano (derrape)";
-                case CarAction.CameraToggle: return "Cambiar cámara";
+                case CarAction.RollLeft: return "Rodar en el aire (izq.)";
+                case CarAction.RollRight: return "Rodar en el aire (der.)";
+                case CarAction.Jump: return "Saltar / voltereta";
+                case CarAction.Boost: return "Turbo";
+                case CarAction.Handbrake: return "Freno de mano (derrapar)";
+                case CarAction.CameraToggle: return "Cambiar de cámara";
                 case CarAction.Reset: return "Rescatar el coche";
-                case CarAction.Ball: return "Invocar pelota";
-                case CarAction.Plane: return "Modo avión (activar/desactivar)";
+                case CarAction.Ball: return "Invocar la pelota";
+                case CarAction.Plane: return "Modo avión: sí / no";
                 case CarAction.Vehicle: return "Siguiente vehículo";
-                case CarAction.HyperBoost: return "Hyper Boost (+500% velocidad)";
-                case CarAction.VehicleMode: return "Modo VTOL / hover";
+                case CarAction.HyperBoost: return "Hiper turbo (+500 % de velocidad)";
+                case CarAction.VehicleMode: return "Modo VTOL / flotar";
                 case CarAction.Gear: return "Tren de aterrizaje";
-                case CarAction.Flaps: return "Flaps";
-                case CarAction.Fpv: return "Modo dron FPV (activar/desactivar)";
-                case CarAction.Door: return "Rampa de carga (abrir/cerrar)";
+                case CarAction.Flaps: return "Flaps (alerones de aterrizaje)";
+                case CarAction.Fpv: return "Dron FPV: sí / no";
+                case CarAction.Door: return "Abrir / cerrar rampa (Antonov)";
                 default: return "Menú de ajustes";
             }
         }
@@ -165,15 +165,17 @@ namespace RocketWorld
             if (string.IsNullOrEmpty(key)) return "—";
             switch (key)
             {
-                case "UpArrow": return "Up"; case "DownArrow": return "Down"; case "LeftArrow": return "Left"; case "RightArrow": return "Right";
-                case "LeftShift": return "L-Shift"; case "RightShift": return "R-Shift";
-                case "LeftCtrl": case "LeftControl": return "L-Ctrl"; case "RightCtrl": case "RightControl": return "R-Ctrl";
-                case "LeftAlt": return "L-Alt"; case "RightAlt": return "R-Alt";
+                case "UpArrow": return "Flecha arriba"; case "DownArrow": return "Flecha abajo"; case "LeftArrow": return "Flecha izq."; case "RightArrow": return "Flecha der.";
+                case "Space": return "Espacio"; case "Enter": case "Return": return "Intro"; case "Backspace": return "Retroceso"; case "Escape": return "Esc";
+                case "Delete": return "Supr"; case "CapsLock": return "Bloq Mayús"; case "PageUp": return "Re Pág"; case "PageDown": return "Av Pág"; case "Home": return "Inicio"; case "End": return "Fin";
+                case "LeftShift": return "Shift izq."; case "RightShift": return "Shift der.";
+                case "LeftCtrl": case "LeftControl": return "Ctrl izq."; case "RightCtrl": case "RightControl": return "Ctrl der.";
+                case "LeftAlt": return "Alt izq."; case "RightAlt": return "Alt der.";
                 case "Backquote": return "`"; case "Minus": return "-"; case "Equals": return "=";
                 case "Comma": return ","; case "Period": return "."; case "Slash": return "/"; case "Semicolon": return ";";
             }
             if (key.Length == 6 && key.StartsWith("Digit")) return key.Substring(5);
-            if (key.StartsWith("Numpad")) return "Num " + key.Substring(6);
+            if (key.StartsWith("Numpad")) return "Teclado num. " + key.Substring(6);
             var sb = new StringBuilder();
             for (int i = 0; i < key.Length; i++) { if (i > 0 && char.IsUpper(key[i]) && !char.IsUpper(key[i - 1])) sb.Append(' '); sb.Append(key[i]); }
             return sb.ToString();
@@ -195,13 +197,13 @@ namespace RocketWorld
                 case PadInput.LeftStickPress: return "L3";
                 case PadInput.RightStickPress: return "R3";
                 case PadInput.Start: return "Start";
-                case PadInput.Select: return "Back / Select";
-                case PadInput.DpadUp: return "D-pad Up"; case PadInput.DpadDown: return "D-pad Down";
-                case PadInput.DpadLeft: return "D-pad Left"; case PadInput.DpadRight: return "D-pad Right";
-                case PadInput.LeftStickUp: return "L-stick Up"; case PadInput.LeftStickDown: return "L-stick Down";
-                case PadInput.LeftStickLeft: return "L-stick Left"; case PadInput.LeftStickRight: return "L-stick Right";
-                case PadInput.RightStickUp: return "R-stick Up"; case PadInput.RightStickDown: return "R-stick Down";
-                case PadInput.RightStickLeft: return "R-stick Left"; default: return "R-stick Right";
+                case PadInput.Select: return "Atrás / Select";
+                case PadInput.DpadUp: return "Cruceta arriba"; case PadInput.DpadDown: return "Cruceta abajo";
+                case PadInput.DpadLeft: return "Cruceta izq."; case PadInput.DpadRight: return "Cruceta der.";
+                case PadInput.LeftStickUp: return "Stick izq. arriba"; case PadInput.LeftStickDown: return "Stick izq. abajo";
+                case PadInput.LeftStickLeft: return "Stick izq. izq."; case PadInput.LeftStickRight: return "Stick izq. der.";
+                case PadInput.RightStickUp: return "Stick der. arriba"; case PadInput.RightStickDown: return "Stick der. abajo";
+                case PadInput.RightStickLeft: return "Stick der. izq."; default: return "Stick der. der.";
             }
         }
     }

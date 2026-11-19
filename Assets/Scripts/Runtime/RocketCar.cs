@@ -552,7 +552,7 @@ namespace RocketWorld
             else if (_rescue) { origin = transform.position + Vector3.up * 60f; range = 400f; }
             else { origin = new Vector3(0f, 2500f, 0f); range = 5000f; }
             bool ground = Physics.Raycast(origin, Vector3.down, out var hit, range, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore) && hit.normal.y > 0.5f;
-            Status = ground ? $"Cargando ciudad… {progress:0}%" : $"Esperando terreno… {progress:0}%";
+            Status = ground ? $"Cargando la ciudad… {progress:0}%" : $"Esperando el terreno… {progress:0}%";
             if (!ground) { _stableSince = -1f; return; }
             if (progress >= 99.9f) { if (_stableSince < 0) _stableSince = Time.realtimeSinceStartup; } else _stableSince = -1f;
             bool settled = _stableSince > 0 && Time.realtimeSinceStartup - _stableSince > 0.6f;

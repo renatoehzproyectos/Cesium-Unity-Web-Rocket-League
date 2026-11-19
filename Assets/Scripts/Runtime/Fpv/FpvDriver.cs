@@ -86,7 +86,7 @@ namespace RocketWorld
             Active = true;
             PlaceAt(pos, yaw, true);
             _input.Reset(); _uptiltAdd = 0f; _hasSafe = false;
-            SetStatus(car.input != null && car.input.TouchControlsActive ? "FPV  —  throttle down, then tap ARM" : "FPV  —  lower the throttle, then arm (Space / A)", 8f);
+            SetStatus(car.input != null && car.input.TouchControlsActive ? "DRON FPV  —  baja la potencia y toca ARRANCAR" : "DRON FPV  —  baja la potencia y arranca (Espacio / A)", 8f);
             Debug.Log("[RocketWorld] FPV drone ON (" + Preset.name + ")");
         }
 
@@ -133,9 +133,9 @@ namespace RocketWorld
             {
                 Vector3 p = rb.position + Vector3.up * 0.3f;
                 float yaw; { FpvSim.Attitude(_sim.s, out _, out _, out double yw); yaw = (float)yw; }
-                PlaceAt(p, yaw, false); SetStatus("respawned here", 2f);
+                PlaceAt(p, yaw, false); SetStatus("has reaparecido aquí", 2f);
             }
-            else { PlaceAt(_home, _homeYaw, false); SetStatus("back at the launch point", 2f); }
+            else { PlaceAt(_home, _homeYaw, false); SetStatus("de vuelta en el punto de salida", 2f); }
         }
 
         public void NextPreset()
@@ -164,8 +164,8 @@ namespace RocketWorld
             }
             bool eq = InputDevices.KeyValue("Equals") > 0, mn = InputDevices.KeyValue("Minus") > 0;
             bool tUp = ci != null && !blocked && ci.TiltUpPressed, tDn = ci != null && !blocked && ci.TiltDownPressed;
-            if ((eq && !_prevEq) || tUp) { _uptiltAdd += 5f; SetStatus($"camera tilt {UptiltDeg:0}°", 1.5f); }
-            if ((mn && !_prevMinus) || tDn) { _uptiltAdd -= 5f; SetStatus($"camera tilt {UptiltDeg:0}°", 1.5f); }
+            if ((eq && !_prevEq) || tUp) { _uptiltAdd += 5f; SetStatus($"inclinación de la cámara {UptiltDeg:0}°", 1.5f); }
+            if ((mn && !_prevMinus) || tDn) { _uptiltAdd -= 5f; SetStatus($"inclinación de la cámara {UptiltDeg:0}°", 1.5f); }
             _prevEq = eq; _prevMinus = mn;
 
             if (_vis != null)
@@ -189,7 +189,7 @@ namespace RocketWorld
                 {
                     HeightAgl = -1f;
                     // nothing solid below for a long way and well under the last safe spot: the tiles under us are gone, go back to it
-                    if (_hasSafe && p.y < _safePos.y - 30f) { _voidT += 0.2f; if (_voidT > 0.6f) { PlaceAt(_safePos + Vector3.up * 1f, car.Body.rotation.eulerAngles.y, false); SetStatus("terrain was missing — put back", 3f); _voidT = 0f; } }
+                    if (_hasSafe && p.y < _safePos.y - 30f) { _voidT += 0.2f; if (_voidT > 0.6f) { PlaceAt(_safePos + Vector3.up * 1f, car.Body.rotation.eulerAngles.y, false); SetStatus("faltaba el terreno: te devolvimos a un sitio seguro", 3f); _voidT = 0f; } }
                 }
             }
         }
@@ -209,7 +209,7 @@ namespace RocketWorld
             Drain();
             // the model refuses to arm with the throttle up: let the switch go, so the next press is a fresh edge
             if (_input.armSwitch && !_sim.Armed && !_sim.Crashed && _input.ch[2] > -0.9)
-            { _input.armSwitch = false; SetStatus("lower the throttle to arm", 2f); }
+            { _input.armSwitch = false; SetStatus("baja la potencia para arrancar", 2f); }
         }
 
         public void PostStep() { if (Active && _sim != null) WritePose(car.Body); }
@@ -220,9 +220,9 @@ namespace RocketWorld
             for (int i = 0; i < ev.Count; i++)
             {
                 var e = ev[i];
-                if (e.type == FpvEventType.Crash) { _input.armSwitch = false; SetStatus($"CRASH {e.speed:0.0} m/s — press R", 6f); }
-                else if (e.type == FpvEventType.Arm) SetStatus("ARMED", 1.2f);
-                else if (e.type == FpvEventType.Disarm && e.reason == "switch") SetStatus("DISARMED", 1.2f);
+                if (e.type == FpvEventType.Crash) { _input.armSwitch = false; SetStatus($"CHOQUE a {e.speed:0.0} m/s — pulsa R", 6f); }
+                else if (e.type == FpvEventType.Arm) SetStatus("MOTORES ENCENDIDOS", 1.2f);
+                else if (e.type == FpvEventType.Disarm && e.reason == "switch") SetStatus("MOTORES APAGADOS", 1.2f);
             }
             ev.Clear();
         }
@@ -261,23 +261,23 @@ namespace RocketWorld
             var s = _sim.s;
             FpvSim.Attitude(s, out double roll, out double pitch, out double yaw);
             double volts = s[FpvS.volt], cell = volts / _prm.cells;
-            string arm = _sim.Armed ? "ARMED" : _sim.Crashed ? "CRASHED" : "DISARMED";
+            string arm = _sim.Armed ? "ENCENDIDO" : _sim.Crashed ? "CHOCADO" : "APAGADO";
             Color cc = cell < 3.3 ? Color.red : cell < 3.5 ? new Color(1f, 0.7f, 0.1f) : Color.white;
-            string line = $"{FpvModes.Name(Mode)}   {arm}   {SpeedMs * 3.6f:0} km/h   AGL {(HeightAgl >= 0 ? HeightAgl.ToString("0.0") + " m" : "--")}   {volts:0.0} V ({cell:0.00}/cell)   BAT {s[FpvS.soc] * 100:0}%";
+            string line = $"{FpvModes.Name(Mode)}   {arm}   {SpeedMs * 3.6f:0} km/h   ALTURA {(HeightAgl >= 0 ? HeightAgl.ToString("0.0") + " m" : "--")}   {volts:0.0} V ({cell:0.00}/celda)   BAT {s[FpvS.soc] * 100:0}%";
             bool touch = car.input != null && car.input.TouchControlsActive;
             if (touch)      // phones: the bottom is taken by the sticks and buttons, so a short telemetry line goes under the top bar
             {
                 _osdS ??= new GUIStyle(_osd) { fontSize = 14 };
-                string shortLine = $"{FpvModes.Name(Mode)} · {arm} · {SpeedMs * 3.6f:0} km/h · AGL {(HeightAgl >= 0 ? HeightAgl.ToString("0") + " m" : "--")} · BAT {s[FpvS.soc] * 100:0}%";
+                string shortLine = $"{FpvModes.Name(Mode)} · {arm} · {SpeedMs * 3.6f:0} km/h · ALTURA {(HeightAgl >= 0 ? HeightAgl.ToString("0") + " m" : "--")} · BAT {s[FpvS.soc] * 100:0}%";
                 { float lw = UiLayout.BannerWidth(420f); Outline(new Rect((W - lw) * 0.5f, UiLayout.TopBlockBottom + UiLayout.ExtraTop, lw, 24), shortLine, _osdS, cc); }
             }
             else Outline(new Rect(W * 0.5f - 420, H - 54, 840, 28), line, _osd, cc);
-            if (_sim.washNow > 0.25) Outline(new Rect(W * 0.5f - 200, H * 0.30f, 400, 32), "PROP WASH", _big, new Color(1f, 0.6f, 0.15f));
+            if (_sim.washNow > 0.25) Outline(new Rect(W * 0.5f - 200, H * 0.30f, 400, 32), "TURBULENCIA DE HÉLICES", _big, new Color(1f, 0.6f, 0.15f));
             if (!string.IsNullOrEmpty(Status)) { float sw = UiLayout.BannerWidth(800f); Outline(new Rect((W - sw) * 0.5f, H * 0.40f, sw, 40), Status, _big, Color.white); }
             if (!_sim.Armed && !_sim.Crashed && touch)
-                { float hw = UiLayout.BannerWidth(600f); Outline(new Rect((W - hw) * 0.5f, H * 0.28f, hw, 24), UiLayout.Compact ? "Left: throttle / yaw   Right: pitch / roll   Tap ARM" : "Left stick: up/down throttle (stays), left/right yaw   |   Right stick: pitch / roll   |   tap ARM", _osdS, new Color(1, 1, 1, 0.8f)); }
+                { float hw = UiLayout.BannerWidth(600f); Outline(new Rect((W - hw) * 0.5f, H * 0.28f, hw, 24), UiLayout.Compact ? "Izq.: potencia y giro   Der.: inclinación   Toca ARRANCAR" : "Stick izq.: arriba/abajo = potencia (se queda), izq./der. = giro   |   Stick der.: inclinación   |   toca ARRANCAR", _osdS, new Color(1, 1, 1, 0.8f)); }
             else if (!_sim.Armed && !_sim.Crashed)
-                Outline(new Rect(W * 0.5f - 460, H - 90, 920, 24), "W/S throttle · A/D yaw · arrows pitch/roll · Space arm · M mode · G drone · -/= cam tilt · C camera · R reset · K exit   |   pad: sticks (Mode 2), A arm", _osd, new Color(1, 1, 1, 0.75f));
+                Outline(new Rect(W * 0.5f - 460, H - 90, 920, 24), "W/S potencia · A/D giro · flechas inclinación · Espacio arrancar · M modo · G dron · -/= inclinar cámara · C cámara · R reiniciar · K salir   |   mando: sticks (Modo 2), A arrancar", _osd, new Color(1, 1, 1, 0.75f));
             GUI.matrix = oldMatrix;
         }
 

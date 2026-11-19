@@ -43,14 +43,14 @@ namespace RocketWorld
         // name, lat, lon, approximate ground height above the ellipsoid (geoid + terrain). Adjust with the slider if the car floats/sinks.
         public static readonly (string name, double lat, double lon, float h)[] Presets =
         {
-            ("Malaga", 36.7213, -4.4214, 61f), ("Barcelona", 41.3874, 2.1686, 62f), ("Valencia", 39.4699, -0.3763, 65f), ("Monaco", 43.7384, 7.4246, 78f),
-            ("Dubrovnik", 42.6507, 18.0944, 64f), ("Santorini", 36.4166, 25.4313, 133f), ("New York", 40.758, -73.9855, -23f), ("Dubai", 25.1972, 55.2744, -15f),
+            ("Málaga", 36.7213, -4.4214, 61f), ("Barcelona", 41.3874, 2.1686, 62f), ("Valencia", 39.4699, -0.3763, 65f), ("Mónaco", 43.7384, 7.4246, 78f),
+            ("Dubrovnik", 42.6507, 18.0944, 64f), ("Santorini", 36.4166, 25.4313, 133f), ("Nueva York", 40.758, -73.9855, -23f), ("Dubái", 25.1972, 55.2744, -15f),
         };
 
         public static readonly (string name, Color color)[] CarColors =
         {
-            ("Orange", new Color(1f, 0.353f, 0.063f)), ("Blue", new Color(0.1f, 0.38f, 1f)), ("Red", new Color(0.86f, 0.1f, 0.1f)),
-            ("White", new Color(0.92f, 0.93f, 0.95f)), ("Black", new Color(0.06f, 0.06f, 0.07f)), ("Green", new Color(0.1f, 0.7f, 0.25f)),
+            ("Naranja", new Color(1f, 0.353f, 0.063f)), ("Azul", new Color(0.1f, 0.38f, 1f)), ("Rojo", new Color(0.86f, 0.1f, 0.1f)),
+            ("Blanco", new Color(0.92f, 0.93f, 0.95f)), ("Negro", new Color(0.06f, 0.06f, 0.07f)), ("Verde", new Color(0.1f, 0.7f, 0.25f)),
         };
 
         const string P = "rw2.";

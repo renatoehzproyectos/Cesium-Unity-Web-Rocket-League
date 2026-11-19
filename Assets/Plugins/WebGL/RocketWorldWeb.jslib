@@ -49,7 +49,11 @@ mergeInto(LibraryManager.library, {
   RW_HideLoading: function () {
     try { localStorage.setItem('rw_boot', '0'); } catch (e) {}   // first frame reached: this load did not crash
     try { var l = document.getElementById('rw-loading'); if (l) { l.style.opacity = '0'; setTimeout(function () { l.style.display = 'none'; }, 500); } } catch (e) {}
+    try { if (window.rwOnGameReady) window.rwOnGameReady(); } catch (e) {}   // the page starts the first-visit tutorial from here
   },
+  // The page owns the "switch build" dialog (it also asks before an automatic switch): toLite = 1 asks to go to /lite/, 0 asks to go back to the full build.
+  RW_AskSwitchBuild: function (toLite) { try { if (window.rwAskSwitch) window.rwAskSwitch(!!toLite); } catch (e) {} },
+  RW_ShowTutorial: function () { try { if (window.rwTutorial) window.rwTutorial.open(true); } catch (e) {} },
   // Baked by BuildScript from the ION_TOKEN GitHub secret (window.RW_DEFAULT_ION_TOKEN).
   RW_GetDefaultIonToken: function () {
     var v = '';

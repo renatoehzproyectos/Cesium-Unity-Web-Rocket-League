@@ -3,21 +3,21 @@ using UnityEngine;
 namespace RocketWorld.Net
 {
     /// <summary>
-    /// Menú de inicio inspirado en Rocket League (panel vertical izquierdo) + código de partida, marcador y etiquetas de nombre.
-    /// IMGUI como el resto del HUD, dibujado por encima (GUI.depth).
+    /// Start menu in the style of Rocket League's main menu (Jugar solo / Crear partida / Unirse a partida / Ver tutorial), the join code in the ceiling of the screen, scoreboard and name tags.
+    /// IMGUI like the rest of the HUD, drawn above it (GUI.depth).
     /// </summary>
     [DefaultExecutionOrder(1000)]
     public class NetUi : MonoBehaviour
     {
         public static string LocalName = "Jugador";
 
-        enum Scr { Main, Play, Create, Join }
+        enum Scr { Main, Create, Join }
         NetSession _ns;
         bool _menu = true;
         Scr _scr = Scr.Main;
         string _code = "";
         float _toast; string _toastText = "";
-        GUIStyle _tag, _err, _menuTitle, _menuItem, _menuItemSel, _menuSub, _bigBtn, _smallBtn;
+        GUIStyle _tag, _err;
         bool _registered;
         GameRoot Root() { return _ns.Root; }
 
@@ -37,55 +37,6 @@ namespace RocketWorld.Net
 
         static string Hex(int colorIdx) => ColorUtility.ToHtmlStringRGB(GameSettings.CarColors[Mathf.Clamp(colorIdx, 0, GameSettings.CarColors.Length - 1)].color);
 
-        void EnsureStyles()
-        {
-            if (_menuTitle != null) return;
-            var font = UiTheme.Bold != null ? UiTheme.Bold : GUI.skin.label.font;
-            _menuTitle = new GUIStyle(GUI.skin.label)
-            {
-                font = font,
-                fontSize = 28,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleLeft,
-                normal = { textColor = Color.white }
-            };
-            _menuItem = new GUIStyle(GUI.skin.label)
-            {
-                font = font,
-                fontSize = 20,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleLeft,
-                padding = new RectOffset(18, 12, 0, 0),
-                normal = { textColor = new Color(0.92f, 0.95f, 1f, 0.92f) }
-            };
-            _menuItemSel = new GUIStyle(_menuItem)
-            {
-                normal = { textColor = new Color(0.15f, 0.85f, 1f, 1f) }
-            };
-            _menuSub = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 13,
-                wordWrap = true,
-                normal = { textColor = new Color(0.65f, 0.72f, 0.82f, 0.95f) }
-            };
-            _bigBtn = new GUIStyle(GUI.skin.button)
-            {
-                font = font,
-                fontSize = 17,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter,
-                fixedHeight = 48
-            };
-            _smallBtn = new GUIStyle(GUI.skin.button)
-            {
-                fontSize = 15,
-                alignment = TextAnchor.MiddleCenter,
-                fixedHeight = 40
-            };
-            _tag ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 15, wordWrap = false };
-            _err ??= new GUIStyle(GUI.skin.label) { fontSize = 14, wordWrap = true };
-        }
-
         void OnGUI()
         {
             if (_ns == null || _ns.Root == null) return;
@@ -93,19 +44,10 @@ namespace RocketWorld.Net
             GUI.skin = UiTheme.Skin;
             UiLayout.Begin();
             float k = UiLayout.K, W = UiLayout.W, H = UiLayout.H;
-            EnsureStyles();
+            _tag ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 15, wordWrap = false };
+            _err ??= new GUIStyle(GUI.skin.label) { fontSize = 14, wordWrap = true };
 
-            if (!_registered)
-            {
-                _registered = true;
-                DebugHud.Extra.Add(new DebugHud.ToolItem
-                {
-                    label = "Online",
-                    onClick = () => { _menu = true; _scr = Scr.Main; },
-                    visible = () => !_menu && _ns != null && _ns.State == NetState.Offline
-                });
-            }
-
+            if (!_registered) { _registered = true; DebugHud.Extra.Add(new DebugHud.ToolItem { label = "Multijugador", onClick = () => { _menu = true; _scr = Scr.Main; }, visible = () => !_menu && _ns != null && _ns.State == NetState.Offline }); }
             bool inGame = _ns.State == NetState.Host || _ns.State == NetState.Client;
             bool sheet = UiLayout.Compact && Root().settingsOpen;
             float y = UiLayout.TopBlockBottom;
@@ -154,7 +96,7 @@ namespace RocketWorld.Net
                 {
                     _tpIdx = (_tpIdx + 1) % others.Count;
                     var t = others[_tpIdx];
-                    if (me != null) me.TeleportTo(t);
+                    me.TeleportTo(t);
                     _toast = Time.unscaledTime + 1.6f; _toastText = "Ir a " + t.DisplayName;
                 }
             }
@@ -176,7 +118,7 @@ namespace RocketWorld.Net
             {
                 var p = list[i];
                 string me = p.IsOwner ? " (tú)" : "";
-                string state = p.Alive.Value ? "<color=#4DDE85>vivo</color>" : "<color=#9fb3cc>fuera</color>";
+                string state = p.Alive.Value ? "<color=#4DDE85>live</color>" : "<color=#9fb3cc>out</color>";
                 GUI.Label(new Rect(UiLayout.Left + 10, y + 34 + i * 24, 214, 24), $"<color=#{Hex(p.ColorIdx.Value)}><b>|</b></color> {p.DisplayName}{me}   <b>{p.Score.Value}</b> {state}");
             }
         }
@@ -199,184 +141,180 @@ namespace RocketWorld.Net
             }
         }
 
-        // ------------------------------------------------------------------------------------------------ menú estilo Rocket League
+        // ------------------------------------------------------------------------------------------------ menu (Rocket League style)
+        // Left column of big dark rows (the hovered / selected one turns white with an amber marker), logo on top, player card at the bottom-left,
+        // tips panel on the right. The 3D world stays visible behind it. Mouse, touch and keyboard (up / down / Enter / Esc) all work.
+
+        static Texture2D _grad;
+        static Texture2D Grad()
+        {
+            if (_grad != null) return _grad;
+            _grad = new Texture2D(64, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            for (int i = 0; i < 64; i++) _grad.SetPixel(i, 0, new Color(0.01f, 0.03f, 0.07f, Mathf.Pow(1f - i / 63f, 1.5f) * 0.92f));
+            _grad.Apply();
+            return _grad;
+        }
+
+        GUIStyle _mRow, _mHead, _mSec, _mSub, _mCap, _mName, _mCode, _mTip, _mAv, _mAttr, _mHdr, _mKey;
+        readonly float[] _hl = new float[8];
+        int _sel, _rows;
+        bool _enter, _mouseMoved;
+        float _menuT0 = -10f, _lastDraw = -10f;
+        Vector2 _lastMouse;
+        Scr _lastScr = (Scr)(-1);
+        bool _lastConn;
+
+        void EnsureMenuStyles()
+        {
+            if (_mRow != null) return;
+            var lab = GUI.skin.label;
+            _mRow = new GUIStyle(lab) { font = UiTheme.Bold, fontSize = 21, alignment = TextAnchor.MiddleLeft, wordWrap = false, richText = false, padding = new RectOffset(20, 0, 0, 0) };
+            _mHead = new GUIStyle(lab) { font = UiTheme.Bold, fontSize = 46, alignment = TextAnchor.MiddleLeft, wordWrap = false, richText = true, padding = new RectOffset(0, 0, 0, 0) };
+            _mHead.normal.textColor = UiTheme.Text;
+            _mSec = new GUIStyle(_mHead) { fontSize = 24 };
+            _mSec.normal.textColor = UiTheme.Accent;
+            _mSub = new GUIStyle(lab) { font = UiTheme.Semi, fontSize = 16, alignment = TextAnchor.UpperLeft, wordWrap = true, richText = true, padding = new RectOffset(0, 0, 0, 0) };
+            _mSub.normal.textColor = UiTheme.TextDim;
+            _mCap = new GUIStyle(lab) { font = UiTheme.Bold, fontSize = 12, alignment = TextAnchor.MiddleLeft, wordWrap = false, padding = new RectOffset(0, 0, 0, 0) };
+            _mCap.normal.textColor = UiTheme.TextDim;
+            _mName = new GUIStyle(GUI.skin.textField) { font = UiTheme.Bold, fontSize = 19, alignment = TextAnchor.MiddleLeft };
+            _mCode = new GUIStyle(GUI.skin.textField) { font = UiTheme.Bold, fontSize = 36, alignment = TextAnchor.MiddleCenter };
+            _mTip = new GUIStyle(lab) { font = UiTheme.Semi, fontSize = 14, alignment = TextAnchor.UpperLeft, wordWrap = true, padding = new RectOffset(0, 0, 0, 0) };
+            _mTip.normal.textColor = UiTheme.Text;
+            _mAv = new GUIStyle(lab) { font = UiTheme.Bold, fontSize = 28, alignment = TextAnchor.MiddleCenter, padding = new RectOffset(0, 0, 0, 0) };
+            _mAttr = new GUIStyle(lab) { fontSize = 11, alignment = TextAnchor.LowerCenter, wordWrap = false };
+            _mHdr = new GUIStyle(_mCap) { fontSize = 13, padding = new RectOffset(14, 0, 0, 0) };
+            _mHdr.normal.textColor = Color.white;
+            _mKey = new GUIStyle(_mCap) { alignment = TextAnchor.MiddleCenter };
+            _mKey.normal.textColor = UiTheme.Ink;
+        }
+
+        static void Fill(Rect r, Color c, float radius = 0f)
+        {
+            if (Event.current.type == EventType.Repaint) GUI.DrawTexture(r, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, c, 0f, radius);
+        }
+
+        static float Ease(float t) { t = Mathf.Clamp01(t); return 1f - (1f - t) * (1f - t) * (1f - t); }
+
+        /// <summary>One big menu row. True when it was clicked / tapped (or Enter pressed while it is the selected row).</summary>
+        bool MenuRow(int idx, Rect r, string text, bool enabled = true)
+        {
+            var ev = Event.current;
+            float e = Ease((Time.unscaledTime - _menuT0 - idx * 0.06f) / 0.32f);
+            if (ev.type == EventType.Repaint)
+            {
+                if (enabled && _mouseMoved && r.Contains(ev.mousePosition)) _sel = idx;
+                _hl[idx] = Mathf.MoveTowards(_hl[idx], (enabled && _sel == idx) ? 1f : 0f, Time.unscaledDeltaTime * 9f);
+                float h = _hl[idx];
+                var rr = new Rect(r.x - (1f - e) * 80f + h * 10f, r.y, r.width, r.height);
+                var bg = Color.Lerp(new Color(0.04f, 0.07f, 0.13f, 0.84f), new Color(0.97f, 0.98f, 1f, 0.98f), h);
+                bg.a *= e * (enabled ? 1f : 0.5f);
+                Fill(rr, bg, 3f);
+                if (h > 0.01f) Fill(new Rect(rr.x, rr.y, 6f, rr.height), new Color(UiTheme.Hot.r, UiTheme.Hot.g, UiTheme.Hot.b, h * e));
+                var old = GUI.color; GUI.color = new Color(1f, 1f, 1f, e);
+                _mRow.normal.textColor = enabled ? Color.Lerp(UiTheme.Text, UiTheme.Ink, h) : UiTheme.TextDim;
+                GUI.Label(rr, text, _mRow);
+                if (h > 0.05f)
+                {
+                    var m = GUI.matrix; var c = new Vector2(rr.xMax - 30f, rr.center.y);
+                    GUIUtility.RotateAroundPivot(45f, c);
+                    GUI.color = new Color(UiTheme.Hot.r, UiTheme.Hot.g, UiTheme.Hot.b, h * e);
+                    GUI.DrawTexture(new Rect(c.x - 6f, c.y - 6f, 12f, 12f), Texture2D.whiteTexture);
+                    GUI.matrix = m;
+                }
+                GUI.color = old;
+            }
+            bool click = enabled && GUI.Button(r, GUIContent.none, GUIStyle.none);
+            if (_enter && enabled && _sel == idx) { click = true; _enter = false; }
+            if (click) _sel = idx;
+            return click;
+        }
 
         void DrawMenu(float W, float H)
         {
-            // Fondo semitransparente oscuro (deja ver el coche / mundo detrás, como en RL)
-            if (Event.current.type == EventType.Repaint)
+            EnsureMenuStyles();
+            var ev = Event.current;
+            bool conn = _ns.State == NetState.Connecting;
+            if (Time.unscaledTime - _lastDraw > 0.4f || _lastScr != _scr || _lastConn != conn)
+            {   // menu just opened, or the screen changed: replay the slide-in
+                _menuT0 = Time.unscaledTime; _sel = 0;
+                for (int i = 0; i < _hl.Length; i++) _hl[i] = 0f;
+            }
+            if (ev.type == EventType.Repaint) _lastDraw = Time.unscaledTime;
+            _lastScr = _scr; _lastConn = conn;
+            _mouseMoved = ev.type == EventType.Repaint && (ev.mousePosition - _lastMouse).sqrMagnitude > 0.25f;
+
+            // keyboard: up / down choose, Enter accepts, Esc goes back
+            _enter = false;
+            if (ev.type == EventType.KeyDown && !conn)
             {
-                GUI.DrawTexture(new Rect(0, 0, W, H), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f,
-                    new Color(0.02f, 0.04f, 0.08f, 0.55f), 0f, 0f);
+                string focus = GUI.GetNameOfFocusedControl();
+                if (ev.keyCode == KeyCode.DownArrow) { _sel = (_sel + 1) % Mathf.Max(1, _rows); ev.Use(); }
+                else if (ev.keyCode == KeyCode.UpArrow) { _sel = (_sel + Mathf.Max(1, _rows) - 1) % Mathf.Max(1, _rows); ev.Use(); }
+                else if (ev.keyCode == KeyCode.Return || ev.keyCode == KeyCode.KeypadEnter)
+                {
+                    if (focus == "rw_name") GUI.FocusControl("");
+                    else _enter = true;
+                    ev.Use();
+                }
+                else if (ev.keyCode == KeyCode.Escape && _scr != Scr.Main) { _ns.Error = ""; _scr = Scr.Main; ev.Use(); }
             }
 
-            // Panel izquierdo estilo Rocket League
-            float panelW = Mathf.Clamp(W * 0.32f, 280f, 380f);
-            float panelH = H;
-            var panel = new Rect(0, 0, panelW, panelH);
-
-            if (Event.current.type == EventType.Repaint)
+            float fade = Mathf.Clamp01((Time.unscaledTime - _menuT0) / 0.4f);
+            bool narrow = W < 760f, shortScr = H < 470f;
+            if (ev.type == EventType.Repaint)
             {
-                // Gradiente lateral oscuro
-                GUI.DrawTexture(panel, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f,
-                    new Color(0.04f, 0.07f, 0.12f, 0.92f), 0f, 0f);
-                // Línea de acento a la derecha del panel
-                GUI.DrawTexture(new Rect(panelW - 2, 0, 2, H), Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f,
-                    new Color(0.24f, 0.85f, 1f, 0.35f), 0f, 0f);
+                var old = GUI.color; GUI.color = new Color(1f, 1f, 1f, fade);
+                GUI.DrawTexture(new Rect(0, 0, W * (narrow ? 1f : 0.62f), H), Grad(), ScaleMode.StretchToFill, true);
+                GUI.color = old;
+                Fill(new Rect(0, 0, W, H), new Color(0f, 0.02f, 0.05f, 0.2f * fade));
             }
 
-            GUILayout.BeginArea(new Rect(18, 28, panelW - 36, H - 56));
+            float pad = narrow ? 16f : 44f;
+            float colW = Mathf.Min(narrow ? W - pad * 2f : 340f, W - pad * 2f);
+            float x = pad, y = 16f + (shortScr ? 0f : 34f);
+            float rowH = shortScr ? 38f : 48f, gap = 5f;
+            _mHead.fontSize = shortScr ? 30 : narrow ? 36 : 46;
 
-            // Título
-            GUILayout.Label("ROCKET", _menuTitle);
-            var old = GUI.color;
-            GUI.color = new Color(0.24f, 0.85f, 1f);
-            GUILayout.Label("WORLD", _menuTitle);
-            GUI.color = old;
+            // logo
+            float eh = Ease((Time.unscaledTime - _menuT0) / 0.4f);
+            var oc = GUI.color; GUI.color = new Color(1f, 1f, 1f, eh);
+            GUI.Label(new Rect(x - (1f - eh) * 40f, y, colW + 200f, shortScr ? 38f : 58f), "ROCKET <color=#3DD6F5>WORLD</color>", _mHead);
+            GUI.color = oc;
+            float cy = y + (shortScr ? 40f : 60f);
 
-            GUILayout.Space(6);
-            GUILayout.Label("Conduce en cualquier lugar de la Tierra", _menuSub);
-            GUILayout.Space(28);
-
-            if (_ns.State == NetState.Connecting)
+            if (conn)
             {
-                GUILayout.Space(20);
-                GUILayout.Label(_ns.Info, UiTheme.Hint);
+                GUI.Label(new Rect(x, cy, colW, 34f), "CONECTANDO", _mSec); cy += 42f;
+                GUI.Label(new Rect(x, cy, colW + 60f, 140f), _ns.Info + new string('.', (int)(Time.unscaledTime * 2.5f) % 4), _mSub);
+                _rows = 0;
             }
             else
             {
+                if (_scr == Scr.Main) { GUI.Label(new Rect(x, cy - 4f, colW, 20f), "CONDUCE POR CUALQUIER LUGAR DEL MUNDO", _mCap); cy += shortScr ? 14f : 26f; }
+                else { GUI.Label(new Rect(x, cy, colW, 34f), _scr == Scr.Create ? "CREAR PARTIDA" : "UNIRSE A PARTIDA", _mSec); cy += 40f; }
                 if (!string.IsNullOrEmpty(_ns.Error))
-                    GUILayout.Label("<color=#ff7b7b>" + _ns.Error + "</color>", _err);
-
+                {
+                    var c = new GUIContent("<color=#ff7b7b>" + _ns.Error + "</color>");
+                    float eh2 = _mSub.CalcHeight(c, colW + 40f);
+                    GUI.Label(new Rect(x, cy, colW + 40f, eh2), c, _mSub); cy += eh2 + 10f;
+                }
                 switch (_scr)
                 {
-                    case Scr.Main: MainMenuItems(panelW); break;
-                    case Scr.Play: PlayScreen(); break;
-                    case Scr.Create: CreateScreen(); break;
-                    case Scr.Join: JoinScreen(); break;
+                    case Scr.Main: MainScreen(x, cy, colW, rowH, gap, W, H, narrow, shortScr); break;
+                    case Scr.Create: CreateScreen(x, cy, colW, rowH, gap); break;
+                    case Scr.Join: JoinScreen(x, cy, colW, rowH, gap); break;
                 }
             }
 
-            GUILayout.FlexibleSpace();
-
-            // Pie del panel (nombre del jugador)
-            GUILayout.Label("Jugador", UiTheme.Hint);
-            LocalName = GUILayout.TextField(LocalName ?? "", 16, GUILayout.Height(36));
-            GUILayout.Space(8);
-            GUILayout.Label("Los ajustes se guardan en este navegador", _menuSub);
-
-            GUILayout.EndArea();
-
-            // Bloquear clics fuera del panel
-            if (Event.current.type == EventType.MouseDown)
+            if (_ns.Root.waterMap != null)       // OpenStreetMap's licence asks for attribution wherever its data is used
             {
-                var mouse = Event.current.mousePosition;
-                if (mouse.x > panelW) Event.current.Use();
+                var oc2 = GUI.color; GUI.color = new Color(1f, 1f, 1f, 0.5f);
+                GUI.Label(new Rect(0, H - 20, W, 18), "Datos de agua \u00a9 colaboradores de OpenStreetMap \u00b7 OpenFreeMap", _mAttr);
+                GUI.color = oc2;
             }
-        }
-
-        bool MenuButton(string label, bool selected = false)
-        {
-            var style = selected ? _menuItemSel : _menuItem;
-            var r = GUILayoutUtility.GetRect(0, 48, GUILayout.ExpandWidth(true));
-            bool hover = r.Contains(Event.current.mousePosition);
-            if (Event.current.type == EventType.Repaint)
-            {
-                if (selected || hover)
-                {
-                    var col = selected
-                        ? new Color(0.12f, 0.55f, 0.75f, 0.35f)
-                        : new Color(1f, 1f, 1f, 0.07f);
-                    GUI.DrawTexture(r, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, col, 0f, 6f);
-                    if (selected)
-                    {
-                        GUI.DrawTexture(new Rect(r.x, r.y + 8, 4, r.height - 16), Texture2D.whiteTexture,
-                            ScaleMode.StretchToFill, true, 0f, new Color(0.24f, 0.85f, 1f, 1f), 0f, 0f);
-                    }
-                }
-            }
-            return GUI.Button(r, label, style);
-        }
-
-        void MainMenuItems(float panelW)
-        {
-            if (MenuButton("JUGAR", _scr == Scr.Play || _scr == Scr.Create || _scr == Scr.Join))
-            {
-                SaveName();
-                _ns.Error = "";
-                _scr = Scr.Play;
-            }
-
-            if (MenuButton("CONTROLES"))
-            {
-                SaveName();
-                _menu = false;
-                if (Root().hud != null) Root().hud.SetControlsOpen(true);
-            }
-
-            if (MenuButton("CÁMARA"))
-            {
-                SaveName();
-                _menu = false;
-                if (Root().camMenu != null) Root().camMenu.OpenMenu();
-            }
-
-            if (MenuButton("AJUSTES"))
-            {
-                SaveName();
-                _menu = false;
-                if (Root().hud != null) Root().hud.SetOpen(true);
-            }
-
-            GUILayout.Space(16);
-
-            // Botón grande de jugar solo (acción principal)
-            if (GUILayout.Button("JUGAR SOLO", _bigBtn, GUILayout.Height(52)))
-            {
-                SaveName();
-                _ns.Error = "";
-                _menu = false;
-                _ns.PlaySolo();
-            }
-
-            GUILayout.Space(10);
-            GUILayout.Label("O elige JUGAR para crear o unirte a una partida multijugador (hasta 4 jugadores).", _menuSub);
-        }
-
-        void PlayScreen()
-        {
-            GUILayout.Label("MULTIJUGADOR", _menuItemSel);
-            GUILayout.Space(4);
-            GUILayout.Label("Hasta 4 jugadores (1 anfitrión + 3 visitantes). Funciona de navegador a navegador.", _menuSub);
-            GUILayout.Space(18);
-
-            if (GUILayout.Button("Crear partida", _bigBtn))
-            {
-                SaveName();
-                _ns.Error = "";
-                _scr = Scr.Create;
-            }
-            GUILayout.Space(8);
-            if (GUILayout.Button("Unirse a partida", _bigBtn))
-            {
-                SaveName();
-                _ns.Error = "";
-                _scr = Scr.Join;
-            }
-            GUILayout.Space(8);
-            if (GUILayout.Button("Jugar solo", _bigBtn))
-            {
-                SaveName();
-                _ns.Error = "";
-                _menu = false;
-                _ns.PlaySolo();
-            }
-            GUILayout.Space(16);
-            if (GUILayout.Button("← Volver al menú", _smallBtn))
-            {
-                _ns.Error = "";
-                _scr = Scr.Main;
-            }
+            if (ev.type == EventType.Repaint) _lastMouse = ev.mousePosition;
+            GUI.Button(new Rect(0, 0, W, H), GUIContent.none, GUIStyle.none);       // modal: swallow clicks that miss the controls
         }
 
         void SaveName()
@@ -385,15 +323,67 @@ namespace RocketWorld.Net
             PlayerPrefs.SetString("rw.name", LocalName);
         }
 
-        void CreateScreen()
+        void MainScreen(float x, float cy, float colW, float rowH, float gap, float W, float H, bool narrow, bool shortScr)
         {
-            GUILayout.Label("CREAR PARTIDA", _menuItemSel);
-            GUILayout.Space(6);
-            GUILayout.Label("Se genera un código de 4 números para invitar a tus amigos. Máximo 4 jugadores. Tu navegador hace de servidor: mantén esta pestaña abierta.", _menuSub);
-            GUILayout.Space(16);
-            if (GUILayout.Button("Crear y entrar", _bigBtn)) _ns.HostGame();
-            GUILayout.Space(10);
-            if (GUILayout.Button("← Atrás", _smallBtn)) { _ns.Error = ""; _scr = Scr.Play; }
+            _rows = 4;
+            bool running = _ns.Root.carCtl != null && !_ns.Root.carCtl.Held;
+            if (MenuRow(0, new Rect(x, cy, colW, rowH), running ? "SEGUIR JUGANDO" : "JUGAR SOLO")) { SaveName(); _ns.Error = ""; _menu = false; _ns.PlaySolo(); }
+            if (MenuRow(1, new Rect(x, cy + (rowH + gap), colW, rowH), "CREAR PARTIDA")) { SaveName(); _ns.Error = ""; _scr = Scr.Create; }
+            if (MenuRow(2, new Rect(x, cy + (rowH + gap) * 2f, colW, rowH), "UNIRSE A PARTIDA")) { SaveName(); _ns.Error = ""; _scr = Scr.Join; }
+            if (MenuRow(3, new Rect(x, cy + (rowH + gap) * 3f, colW, rowH), "VER TUTORIAL")) { WebBridge.ShowTutorial(); }
+            float rowsBottom = cy + (rowH + gap) * 4f;
+            if (!shortScr) GUI.Label(new Rect(x, rowsBottom + 6f, colW, 40f), "Multijugador de hasta 4 jugadores: 1 anfitri\u00f3n y 3 visitantes.", _mSub);
+
+            // player card (bottom-left, like the in-game profile bar)
+            float cw = Mathf.Min(colW, 340f), ch = 64f;
+            var card = new Rect(x, H - 26f - ch - 14f, cw, ch);
+            if (card.y < rowsBottom + (shortScr ? 4f : 50f)) card.x = Mathf.Max(x, W - 16f - cw);        // not enough height: park it on the right
+            float ec = Ease((Time.unscaledTime - _menuT0 - 0.25f) / 0.4f);
+            var oc = GUI.color; GUI.color = new Color(1f, 1f, 1f, ec);
+            card.y += (1f - ec) * 30f;
+            Fill(card, new Color(0.04f, 0.07f, 0.13f, 0.9f * ec), 6f);
+            var cc = GameSettings.CarColors[Mathf.Clamp(_ns.Root.settings.carColor, 0, GameSettings.CarColors.Length - 1)].color;
+            var av = new Rect(card.x + 6f, card.y + 6f, ch - 12f, ch - 12f);
+            Fill(av, new Color(cc.r, cc.g, cc.b, ec), 4f);
+            string nm = string.IsNullOrWhiteSpace(LocalName) ? "?" : LocalName.Trim().Substring(0, 1).ToUpperInvariant();
+            _mAv.normal.textColor = (cc.r * 0.3f + cc.g * 0.59f + cc.b * 0.11f) > 0.55f ? UiTheme.Ink : Color.white;
+            GUI.Label(av, nm, _mAv);
+            GUI.Label(new Rect(card.x + ch + 4f, card.y + 6f, cw - ch - 10f, 16f), "JUGADOR \u00b7 toca para cambiar el nombre", _mCap);
+            GUI.SetNextControlName("rw_name");
+            LocalName = GUI.TextField(new Rect(card.x + ch + 4f, card.y + 24f, cw - ch - 14f, 32f), LocalName ?? "", 16, _mName);
+            GUI.color = oc;
+
+            // tips panel (right), only when there is room
+            if (!narrow && W >= 900f)
+            {
+                float pw = 310f, e2 = Ease((Time.unscaledTime - _menuT0 - 0.3f) / 0.45f);
+                var panel = new Rect(W - 44f - pw + (1f - e2) * 120f, Mathf.Max(110f, H * 0.2f), pw, 262f);
+                var o2 = GUI.color; GUI.color = new Color(1f, 1f, 1f, e2);
+                Fill(panel, new Color(0.05f, 0.08f, 0.15f, 0.9f * e2), 6f);
+                Fill(new Rect(panel.x, panel.y, pw, 34f), new Color(0.10f, 0.36f, 0.56f, 0.95f * e2), 6f);
+                GUI.Label(new Rect(panel.x, panel.y, pw, 34f), "CONSEJOS PARA EMPEZAR", _mHdr);
+                string[] keys = { "SHIFT", "ESPACIO \u00d7 2", "B  \u00b7  R" };
+                string[] tips = { "Turbo infinito: mantenlo pulsado para acelerar sin l\u00edmite.", "Salta y vuelve a pulsar en el aire para dar una voltereta.", "B invoca una pelota gigante. R te rescata si te atascas." };
+                for (int i = 0; i < 3; i++)
+                {
+                    float ty = panel.y + 46f + i * 68f;
+                    var kr = new Rect(panel.x + 14f, ty, 14f + keys[i].Length * 8.5f, 22f);
+                    Fill(kr, new Color(UiTheme.Accent.r, UiTheme.Accent.g, UiTheme.Accent.b, e2), 4f);
+                    GUI.Label(kr, keys[i], _mKey);
+                    GUI.Label(new Rect(panel.x + 14f, ty + 28f, pw - 28f, 36f), tips[i], _mTip);
+                }
+                GUI.color = o2;
+            }
+        }
+
+        void CreateScreen(float x, float cy, float colW, float rowH, float gap)
+        {
+            _rows = 2;
+            string d = "Se genera un c\u00f3digo de 4 n\u00fameros para invitar a tus amigos. M\u00e1ximo 4 jugadores. Tu navegador hace de servidor: mant\u00e9n esta pesta\u00f1a abierta.";
+            float dh = _mSub.CalcHeight(new GUIContent(d), colW + 40f);
+            GUI.Label(new Rect(x, cy, colW + 40f, dh), d, _mSub); cy += dh + 14f;
+            if (MenuRow(0, new Rect(x, cy, colW, rowH), "CREAR Y ENTRAR")) _ns.HostGame();
+            if (MenuRow(1, new Rect(x, cy + rowH + gap, colW, rowH), "ATR\u00c1S")) { _ns.Error = ""; _scr = Scr.Main; }
         }
 
         static string DigitsOnly(string s)
@@ -403,20 +393,20 @@ namespace RocketWorld.Net
             return sb.ToString();
         }
 
-        void JoinScreen()
+        void JoinScreen(float x, float cy, float colW, float rowH, float gap)
         {
-            GUILayout.Label("UNIRSE A PARTIDA", _menuItemSel);
-            GUILayout.Space(6);
-            GUILayout.Label("Introduce el código de 4 números que te ha pasado el anfitrión.", _menuSub);
-            GUILayout.Space(10);
-            GUILayout.Label("Código de la partida", UiTheme.Hint);
-            _code = DigitsOnly(GUILayout.TextField(_code ?? "", 4, GUILayout.Height(40)));
-            GUILayout.Space(12);
-            GUI.enabled = _code.Length == 4;
-            if (GUILayout.Button("Unirse", _bigBtn)) _ns.JoinByCode(_code);
-            GUI.enabled = true;
-            GUILayout.Space(10);
-            if (GUILayout.Button("← Atrás", _smallBtn)) { _ns.Error = ""; _scr = Scr.Play; }
+            _rows = 2;
+            GUI.Label(new Rect(x, cy, colW, 18f), "C\u00d3DIGO DE LA PARTIDA", _mCap); cy += 22f;
+            var rc = new Rect(x, cy, colW, 58f);
+            GUI.SetNextControlName("rw_code");
+            _code = DigitsOnly(GUI.TextField(rc, _code ?? "", 4, _mCode));
+            if (string.IsNullOrEmpty(_code) && GUI.GetNameOfFocusedControl() != "rw_code")
+            {
+                var o = GUI.color; GUI.color = new Color(1f, 1f, 1f, 0.22f); GUI.Label(rc, "0000", _mCode); GUI.color = o;
+            }
+            cy += 70f;
+            if (MenuRow(0, new Rect(x, cy, colW, rowH), "UNIRSE", _code.Length == 4)) _ns.JoinByCode(_code);
+            if (MenuRow(1, new Rect(x, cy + rowH + gap, colW, rowH), "ATR\u00c1S")) { _ns.Error = ""; _scr = Scr.Main; }
         }
     }
 }

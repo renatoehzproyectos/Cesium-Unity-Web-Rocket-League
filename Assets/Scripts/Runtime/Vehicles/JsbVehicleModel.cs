@@ -83,16 +83,16 @@ namespace RocketWorld
         {
             get
             {
-                if (cfg.heli) return "ROTOR " + (f != null ? (f["rotor/omega-rad_sec"] / 33.5 * 100).ToString("0") : "100") + "%  COLL " + (_lever * 100f).ToString("0") + "%  JSBSim";
-                if (cfg.hoverCar) return (_hover ? "HOVER" : "WHEELS") + "  JSBSim";
-                if (cfg.rocket) return "THR " + (_lever * 100f).ToString("0") + "%  PROP " + (PropFraction() * 100f).ToString("0") + "%  LEGS " + (_gearDown ? "DN" : "UP") + (f != null && f.engines.Count > 0 && f.engines[0].Starved ? "  NO PROPELLANT" : "") + "  JSBSim";
-                string t = s.hasGear ? (_gearDown ? "GEAR DN" : "GEAR UP") : "SKIDS";
-                if (s.hasRamp) t += _ramp > 0.98f ? "  RAMP OPEN" : _ramp < 0.02f ? "  RAMP CLOSED" : "  RAMP MOVING";
+                if (cfg.heli) return "ROTOR " + (f != null ? (f["rotor/omega-rad_sec"] / 33.5 * 100).ToString("0") : "100") + "%  PASO " + (_lever * 100f).ToString("0") + "%";
+                if (cfg.hoverCar) return (_hover ? "FLOTANDO" : "RUEDAS");
+                if (cfg.rocket) return "POTENCIA " + (_lever * 100f).ToString("0") + "%  COMBUSTIBLE " + (PropFraction() * 100f).ToString("0") + "%  PATAS " + (_gearDown ? "ABAJO" : "ARRIBA") + (f != null && f.engines.Count > 0 && f.engines[0].Starved ? "  SIN COMBUSTIBLE" : "");
+                string t = s.hasGear ? (_gearDown ? "TREN ABAJO" : "TREN ARRIBA") : "PATINES";
+                if (s.hasRamp) t += _ramp > 0.98f ? "  RAMPA ABIERTA" : _ramp < 0.02f ? "  RAMPA CERRADA" : "  RAMPA EN MOVIMIENTO";
                 if (cfg.flapDetents) t += "  FLAPS " + _flaps;
-                if (cfg.stovl) t += _stovl ? "  VTOL" : "  CRUISE";
-                if (cfg.speedbrake) t += _sb ? "  BRAKE" : "";
-                if (_reverse) t += "  REV";
-                return t + "  JSBSim";
+                if (cfg.stovl) t += _stovl ? "  VTOL" : "  CRUCERO";
+                if (cfg.speedbrake) t += _sb ? "  FRENO" : "";
+                if (_reverse) t += "  MARCHA ATRÁS";
+                return t;
             }
         }
 

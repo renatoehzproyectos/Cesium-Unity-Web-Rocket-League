@@ -42,7 +42,7 @@ namespace RocketWorld
             if (Active || root == null || root.tileset == null) return;
             Active = true;
             Take(root.tileset);
-            Toast("Tile cache cleared. Loading everything around you.");
+            Toast("Caché del mapa borrada. Cargando todo a tu alrededor.");
         }
 
         /// <summary>Back to the normal view-driven streaming. Tiles already loaded stay in the cache until the normal budget evicts them.</summary>
@@ -107,7 +107,7 @@ namespace RocketWorld
         {
             if (!Active) return;
             var ts = root != null ? root.tileset : null;
-            if (ts == null) { Status = "Esperando el tileset..."; return; }
+            if (ts == null) { Status = "Esperando el mapa..."; return; }
             if (ts != _ts) { Take(ts); return; }                                   // new place / new tileset: apply the mode again and save again once it is loaded
             root.CancelTurbo();
             if (Time.unscaledTime >= _nextEnsure) { _nextEnsure = Time.unscaledTime + 1f; Ensure(ts); _diag = Diag(ts); }
@@ -116,7 +116,7 @@ namespace RocketWorld
             float p = ts.ComputeLoadProgress();
             bool settled = p >= 99.9f && Time.unscaledTime - _t0 > 6f;
             if (settled) { if (_doneSince < 0f) _doneSince = Time.unscaledTime; } else _doneSince = -1f;
-            Status = "Cargando todo a tu alrededor: " + Mathf.Min(p, 99f).ToString("0") + " %\n" + _diag;
+            Status = "Cargando todo a tu alrededor: " + Mathf.Min(p, 99f).ToString("0") + " %";
             if (_doneSince >= 0f && Time.unscaledTime - _doneSince >= 4f) Finish();
         }
 
@@ -124,10 +124,10 @@ namespace RocketWorld
         {
             _finished = true;
             var roads = root.roads;
-            if (roads == null || !roads.CanSaveZone) { _doneMsg = "All loaded. Roads are off, so no zone was saved."; Toast(_doneMsg); return; }
-            if (SavedZones.All.Count >= SavedZones.MaxZones) { _doneMsg = "All loaded. Zone list is full: delete one to auto-save."; Toast(_doneMsg); return; }
+            if (roads == null || !roads.CanSaveZone) { _doneMsg = "Todo cargado. Las carreteras están desactivadas, así que no se guardó ninguna zona."; Toast(_doneMsg); return; }
+            if (SavedZones.All.Count >= SavedZones.MaxZones) { _doneMsg = "Todo cargado. La lista de zonas está llena: borra una para guardar automáticamente."; Toast(_doneMsg); return; }
             var z = roads.SaveZoneHere("Auto " + DateTime.Now.ToString("MM-dd HH:mm"));
-            _doneMsg = z != null ? "All loaded. Zone saved: " + z.name : "All loaded. No position yet to save a zone.";
+            _doneMsg = z != null ? "Todo cargado. Zona guardada: " + z.name : "Todo cargado. Aún no hay una posición para guardar la zona.";
         }
 
         void Toast(string t) { if (root != null && root.hud != null) root.hud.ShowToast(t); }
