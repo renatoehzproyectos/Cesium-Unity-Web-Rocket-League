@@ -32,7 +32,7 @@ namespace RocketWorld
         public string Status => _model != null ? _model.Status : "";
         public string Info => Active ? $"{Spec.name}  {SpeedMs * 3.6f:0} km/h  alt {AltM:0} m  vs {VsMs:0.0}  {Status}" : "vehicle off";
 
-        sealed class Built { public GameObject cols, hold; public Transform hinge; public VehicleVisual vis; public IVehicleModel model; }
+        sealed class Built { public GameObject cols, hold; public Transform hinge; public VehicleVisual vis; public IVehicleModel model; public BoxCollider[] hull; }
         readonly Built[] _built = new Built[16];
         Transform _visRoot;
         IVehicleModel _model; Built _cur;
@@ -40,6 +40,7 @@ namespace RocketWorld
         float _carMass; Vector3 _carInertia; Quaternion _carInertiaRot; bool _carGravity; float _carMaxLin;
         Renderer[] _hidden;
         float _ramp, _rampTarget; bool _crashed;
+        Vector3 _preV; readonly Collider[] _ovl = new Collider[4];
         /// <summary>Antonov rear ramp: 0 = closed .. 1 = open (replicated to the other players through the pose snapshot).</summary>
         public float RampOpen01 => _ramp;
         public bool HasRamp => Active && Spec != null && Spec.hasRamp;
@@ -117,6 +118,7 @@ namespace RocketWorld
                 var c = b.cols.AddComponent<BoxCollider>(); c.center = bx.center - sp.com; c.size = bx.size; c.sharedMaterial = PhysicsSetup.CarMaterial;
             }
             b.cols.SetActive(false);
+            b.hull = b.cols.GetComponents<BoxCollider>();
             if (sp.rocket) b.cols.AddComponent<VehicleCrashSensor>().driver = this;
             if (sp.holdBoxes != null)
             {   // drivable interior (Antonov): PlaneLayer, like the intro cargo plane, so the wheel rays of other cars see the deck
@@ -200,6 +202,45 @@ namespace RocketWorld
             _cur.vis.Tick(Viz, Mathf.Min(Time.unscaledDeltaTime, 0.1f));
         }
 
+        /// <summary>
+        /// Rocket crash detection that does not rely on the PhysX <c>OnCollisionEnter</c> callback (which never reached the driver reliably for the
+        /// rocket's hull): before each tick the hull boxes are swept along the velocity against the terrain; a closing speed above
+        /// <see cref="VehicleSpec.crashSpeed"/> destroys the rocket. A hull that is already inside the world (tunnelled / depenetrating) is caught by <see cref="CrashOverlap"/>.
+        /// </summary>
+        bool CrashSweep(Rigidbody rb, float dt)
+        {
+            if (_crashed || Spec == null || !Spec.rocket || _cur == null || _cur.hull == null) return false;
+            float speed = _preV.magnitude; if (speed < Spec.crashSpeed) return false;
+            Vector3 dir = _preV / speed; float dist = speed * dt * 1.5f + 0.25f;
+            foreach (var bc in _cur.hull)
+            {
+                if (bc == null) continue;
+                var t = bc.transform; Vector3 ctr = t.TransformPoint(bc.center), half = Vector3.Scale(bc.size * 0.5f, Abs(t.lossyScale));
+                if (Physics.BoxCast(ctr, half, dir, out var hit, t.rotation, dist, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore))
+                {
+                    if (hit.distance > speed * dt * 1.5f + 0.25f) continue;
+                    if (-Vector3.Dot(_preV, hit.normal) < Spec.crashSpeed) continue;          // grazing / sliding along a surface is survivable
+                    Crash(hit.point == Vector3.zero ? ctr + dir * hit.distance : hit.point); return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>Called after Physics.Simulate (see RocketCar.PostStep): the hull ended up inside the world while it was moving fast.</summary>
+        public void PostStep()
+        {
+            if (!Active || _crashed || Spec == null || !Spec.rocket || _cur == null || _cur.hull == null) return;
+            if (_preV.magnitude < Spec.crashSpeed) return;
+            foreach (var bc in _cur.hull)
+            {
+                if (bc == null) continue;
+                var t = bc.transform; Vector3 ctr = t.TransformPoint(bc.center), half = Vector3.Scale(bc.size * 0.5f, Abs(t.lossyScale)) + Vector3.one * 0.05f;
+                if (Physics.OverlapBoxNonAlloc(ctr, half, _ovl, t.rotation, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore) > 0) { Crash(ctr); return; }
+            }
+        }
+
+        static Vector3 Abs(Vector3 v) => new Vector3(Mathf.Abs(v.x), Mathf.Abs(v.y), Mathf.Abs(v.z));
+
         public float HeightMeters(Rigidbody rb)
         {
             if (car.georeference == null) return rb.position.y;
@@ -213,6 +254,8 @@ namespace RocketWorld
         {
             if (!Active || _model == null) return;
             var rb = car.Body;
+            _preV = rb.linearVelocity;
+            if (CrashSweep(rb, dt)) return;                                   // rocket: swept hull test against the world (does not depend on PhysX collision callbacks)
             _model.Step(this, rb, c, dt);
             SpeedMs = rb.linearVelocity.magnitude; AltM = HeightMeters(rb);
             if (_hasAlt) VsMs = Mathf.Lerp(VsMs, (AltM - _lastAlt) / dt, 0.1f);
