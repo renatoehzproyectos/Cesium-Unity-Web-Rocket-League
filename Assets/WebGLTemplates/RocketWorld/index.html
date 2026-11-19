@@ -281,7 +281,7 @@
         msg.textContent = "Está tardando más de lo normal… revisa tu conexión o recarga la página.";
     }, 60000);
 
-    // Loading video loops (muted, so autoplay is allowed) until the game calls RW_HideLoading, which happens when the plane's rear ramp starts to open.
+    // Loading video loops (muted, so autoplay is allowed) until the game calls RW_HideLoading, which happens when the map has loaded and the jump out of the bus is unlocked (RW_ShowLoading brings it back on a reload).
     (function () { var v = document.querySelector("#rw-loading video"); if (v) { v.muted = true; var p = v.play(); if (p && p.catch) p.catch(function () {}); } })();
     document.addEventListener("contextmenu", function (e) { e.preventDefault(); });
     window.addEventListener("pointerdown", function (e) { if (rwCrashed) return; try { document.getElementById("unity-canvas").focus(); } catch (e) {} });

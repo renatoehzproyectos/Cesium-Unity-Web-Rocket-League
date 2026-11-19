@@ -9,6 +9,7 @@ namespace RocketWorld
         [DllImport("__Internal")] static extern string RW_GetQueryParam(string name);
         [DllImport("__Internal")] static extern string RW_Prompt(string message, string def);
         [DllImport("__Internal")] static extern void RW_HideLoading();
+        [DllImport("__Internal")] static extern void RW_ShowLoading();
         [DllImport("__Internal")] static extern string RW_GetBaseUrl();
         [DllImport("__Internal")] static extern string RW_GetDeviceInfo();
         [DllImport("__Internal")] static extern string RW_GetDefaultIonToken();
@@ -40,6 +41,8 @@ namespace RocketWorld
         public static string Query(string name) => RW_GetQueryParam(name);
         public static string Prompt(string message, string def) => RW_Prompt(message, def);
         public static void HideLoading() => RW_HideLoading();
+        /// <summary>Shows the loading screen again (its video loops) while the map loads; <see cref="HideLoading"/> lifts it.</summary>
+        public static void ShowLoading() => RW_ShowLoading();
         /// <summary>Token baked into index.html by CI from the ION_TOKEN secret (empty if not set).</summary>
         public static string DefaultIonToken() => RW_GetDefaultIonToken() ?? "";
 #else
@@ -56,6 +59,7 @@ namespace RocketWorld
         public static string BaseUrl() => "http://localhost/";
         public static string DeviceInfo() => "8;8;0;1;1";
         public static void HideLoading() { }
+        public static void ShowLoading() { }
         /// <summary>Editor/desktop: ION_TOKEN or RW_ION env var.</summary>
         public static string DefaultIonToken() =>
             System.Environment.GetEnvironmentVariable("ION_TOKEN")

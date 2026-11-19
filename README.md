@@ -62,9 +62,11 @@ Custom web template (`Assets/WebGLTemplates/RocketWorld`: page title "Rocket Wor
 speed readout and a softly tuned chase camera. Changing the product name resets browser-saved settings once.
 
 ## Opening sequence
-The game starts inside a cargo plane 1 km above the start point (`PlaneIntro.cs`). You can drive around the hold; when the terrain below has loaded
-the rear ramp opens (animated) and you drive off and fall. Add `?intro=0` to the URL to skip it. Tuning constants (altitude, ramp angles, hold size)
-are at the top of `PlaneIntro.cs`.
+The game starts aboard a flying bus with a balloon, 1 km above the start point (`PlaneIntro.cs`), seen from a third-person camera. While the map
+loads, the loading video loops over the game and the jump is locked (the status line shows the progress). When the terrain has loaded the video
+fades out, the bus starts to cruise and a prompt asks for the **Jump** button (Space by default, rebindable; the touch Jump button on phones):
+pressing it drops the car out of the bus and it falls to the ground. Add `?intro=0` to the URL to skip it. Tuning constants (altitude, cruise
+speed, camera distance, minimum wait / timeout) are at the top of `PlaneIntro.cs`. The bus is built from primitives in `BuildBus`.
 
 ## Ball
 Press **B** (or the Ball button, or right-stick click on a gamepad) to put the ball in front of the car; press again to bring it back. It is a PhysX

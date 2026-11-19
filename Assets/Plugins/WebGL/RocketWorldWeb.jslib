@@ -48,8 +48,17 @@ mergeInto(LibraryManager.library, {
   RW_HeapMB: function () { try { return (HEAPU8.length / 1048576) | 0; } catch (e) { return 0; } },
   RW_HideLoading: function () {
     try { localStorage.setItem('rw_boot', '0'); } catch (e) {}   // first frame reached: this load did not crash
-    try { var l = document.getElementById('rw-loading'); if (l) { l.style.opacity = '0'; setTimeout(function () { l.style.display = 'none'; }, 500); } } catch (e) {}
+    try { var l = document.getElementById('rw-loading'); if (l) { l.style.opacity = '0'; clearTimeout(window.__rwHideT); window.__rwHideT = setTimeout(function () { l.style.display = 'none'; }, 500); } } catch (e) {}
     try { if (window.rwOnGameReady) window.rwOnGameReady(); } catch (e) {}   // the page starts the first-visit tutorial from here
+  },
+  // Brings the loading screen (looping video) back, e.g. while the map reloads after a teleport: the jump out of the bus stays locked meanwhile.
+  RW_ShowLoading: function () {
+    try {
+      var l = document.getElementById('rw-loading'); if (!l) return;
+      clearTimeout(window.__rwHideT);
+      l.style.display = ''; l.style.opacity = '1';
+      var v = l.querySelector('video'); if (v) { v.muted = true; var p = v.play(); if (p && p.catch) p.catch(function () {}); }
+    } catch (e) {}
   },
   // The page owns the "switch build" dialog (it also asks before an automatic switch): toLite = 1 asks to go to /lite/, 0 asks to go back to the full build.
   RW_AskSwitchBuild: function (toLite) { try { if (window.rwAskSwitch) window.rwAskSwitch(!!toLite); } catch (e) {} },

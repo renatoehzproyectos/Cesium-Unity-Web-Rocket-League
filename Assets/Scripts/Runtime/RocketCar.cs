@@ -231,7 +231,47 @@ namespace RocketWorld
         /// <summary>Name tags are drawn for cars that are actually placed in the world.</summary>
         public bool CanDrawTag() { return CurrentPhase == Phase.Running; }
 
-        public bool CanStep => simulated && !_held && CurrentPhase == Phase.Running && !_softHold;
+        public bool CanStep => simulated && !_held && CurrentPhase == Phase.Running && !_softHold && !Parked;
+
+        /// <summary>Controls this car obeys right now: the remote player's on the host, otherwise the local input.</summary>
+        public CarInput.Controls ActiveControls => useNetControls ? netControls : (input != null ? input.controls : default);
+
+        /// <summary>
+        /// True while the car is glued to a carrier (the intro's flying bus): not simulated, kinematic, model hidden.
+        /// <see cref="ParkAt"/> must be called every frame with the carrier's pose; <see cref="LaunchFrom"/> / <see cref="Unpark"/> end it.
+        /// </summary>
+        public bool Parked { get; private set; }
+
+        public void ParkAt(Vector3 pos, Quaternion rot)
+        {
+            if (_rb == null) return;
+            if (!Parked)
+            {
+                Parked = true;
+                PlaceDirect(pos, rot);                                   // phase = Running, flags reset
+                if (visual != null) visual.gameObject.SetActive(false);
+            }
+            _rb.isKinematic = true;
+            transform.SetPositionAndRotation(pos, rot);
+            _rb.position = pos; _rb.rotation = rot;
+            _prevPos = _currPos = pos; _prevRot = _currRot = rot;
+        }
+
+        /// <summary>Leaves the carrier without placing the car (the caller respawns or hands the car over).</summary>
+        public void Unpark()
+        {
+            if (!Parked) return;
+            Parked = false;
+            if (visual != null) visual.gameObject.SetActive(true);
+        }
+
+        /// <summary>Jumps off the carrier: the car appears at <paramref name="pos"/> and falls, keeping the carrier's velocity.</summary>
+        public void LaunchFrom(Vector3 pos, Quaternion rot, Vector3 velocity)
+        {
+            Unpark();
+            PlaceDirect(pos, rot);
+            if (_rb != null) { _rb.linearVelocity = velocity; _body.Pull(); }
+        }
 
         /// <summary>Switch between a car this machine simulates and a puppet that follows host snapshots.</summary>
         public void SetSimulated(bool sim)

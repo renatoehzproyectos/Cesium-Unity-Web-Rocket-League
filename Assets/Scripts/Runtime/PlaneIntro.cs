@@ -4,48 +4,51 @@ using UnityEngine;
 namespace RocketWorld
 {
     /// <summary>
-    /// Opening sequence. The game starts with the car parked inside a C-130 style cargo plane, 1 km above the start point.
-    /// You can drive around the hold but cannot leave it; when the terrain below has loaded the rear ramp swings open
-    /// (animated), you drive off the end and fall to the ground. The plane then flies away and is removed.
+    /// Opening sequence. The game starts with the player aboard a flying "battle bus" (blue bus under a balloon) 1 km above the start
+    /// point, seen from a third-person camera. The car is parked inside the bus (not simulated, hidden). While the map loads the
+    /// page's loading video loops over the game and the jump is locked; when the terrain has loaded the video fades out, the bus
+    /// starts to cruise and a prompt asks for the Jump button. Pressing it drops the car out of the bus and it falls to the ground.
+    /// The bus then flies away and is removed.
     ///
-    /// The model (Resources/Models/YC130.glb, CC BY 4.0, see THIRD_PARTY.md) was pre-processed: the closed ramp that was welded to
-    /// the hull is its own node "RearRamp" so it can be animated. The hold is made of invisible box colliders (floor, walls, ceiling,
-    /// bulkhead) plus a collider that follows the ramp. All numbers below are in the model's own space (metres, nose towards -Z).
-    /// If the model cannot be loaded the game simply starts on the ground as before.
+    /// The bus is built from primitives (no model asset). Axes of the bus: nose = +Z, up = +Y, origin in the middle of the body.
+    /// If the intro is disabled (?intro=0, benchmark) or cannot be built, the game starts on the ground as before.
     /// </summary>
+    [DefaultExecutionOrder(150)]
     public class PlaneIntro : MonoBehaviour
     {
-        public enum Stage { Idle, InPlane, Opening, Open, Falling, Done }
+        public enum Stage { Idle, InPlane, Ready, Falling, Done }
 
         public GameRoot root;
         public Stage CurrentStage { get; private set; } = Stage.Idle;
-        /// <summary>True while the player must not use "rescue" (it would raycast onto the plane or into thin air).</summary>
+        /// <summary>True while the player must not use "rescue" (it would raycast onto the bus or into thin air).</summary>
         public bool BlocksRescue => CurrentStage != Stage.Idle && CurrentStage != Stage.Done;
+        /// <summary>True while the jump is locked because the map is still loading.</summary>
+        public bool JumpLocked => CurrentStage == Stage.InPlane;
 
         public const float Altitude = 1000f;          // m above the start point (Unity y = 0 is ground level at the origin)
-        const float MinWait = 6f;                     // never open earlier than this, so the player gets a moment inside
-        const float Timeout = 45f;                    // open anyway if the terrain never finishes loading
-        const float OpenSeconds = 6f;
-        const float SlopeDeg = 23f;                   // closed ramp rises towards the tail at this angle
-        const float DropDeg = 8f;                     // open ramp points slightly downwards
-        const float PlaneSpeed = 75f;                 // fly-away speed
+        const float MinWait = 4f;                     // never unlock earlier than this, so the loading video is not just a flash
+        const float Timeout = 45f;                    // unlock anyway if the terrain never finishes loading
+        const float ReadyGrace = 0.4f;                // a jump pressed in the very moment the video fades out is ignored
+        const float CruiseSpeed = 22f;                // the bus cruises forward once the jump is unlocked
+        const float AwaySpeed = 60f;                  // fly-away speed after the player jumped
+        const float DropBelow = 3.4f;                 // the car appears this far below the bus centre (under the belly)
 
-        // hold geometry (model space)
-        const float FloorY = 0.956f, CeilY = 3.6f, HalfW = 1.5f;
-        const float FrontZ = -5.9f, HingeZ = 5.874f, RampLen = 7.8f, RampW = 3.1f;
-        static readonly Vector3 CarSpawn = new Vector3(0f, FloorY + 0.5f, -2.6f);
+        // third-person camera (bus space: +Z nose)
+        const float CamBack = 23f, CamUp = 8f, CamSide = 4.5f, CamFov = 62f;
 
         RocketCar _car;
         CesiumGlobeAnchor _carAnchor;
         GameObject _plane;
-        Transform _bay, _hinge;
-        float _t0, _openT0, _loadedSince = -1f, _fallT0, _planeSpeed;
+        Transform _model;
+        float _t0, _readyT0, _loadedSince = -1f, _fallT0, _planeSpeed;
         double _startHeight;
+        bool _prevJump, _camInit;
+        int _lastPct = -1;
 
         bool _began, _visualOnly;
         public Transform PlaneTransform => _plane != null && !_visualOnly ? _plane.transform : null;
 
-        /// <summary>First start of the game: plane above the start point.</summary>
+        /// <summary>First start of the game: bus above the start point.</summary>
         public bool Begin(RocketCar car)
         {
             if (_began) return false;
@@ -75,14 +78,14 @@ namespace RocketWorld
             return Spawn(xz, heading);
         }
 
-        /// <summary>Host: another player's car starts in its own cargo plane, flying in formation next to the reference plane (or above the reference car).</summary>
+        /// <summary>Host: another player's car starts in its own bus, flying in formation next to the reference bus (or above the reference car).</summary>
         public bool BeginRemote(RocketCar car, RocketCar reference, int slot)
         {
             if (_began || car == null || root == null) return false;
             Vector3 basePos; float heading;
             var rt = reference != null && reference.intro != null ? reference.intro.PlaneTransform : null;
             var st = reference != null && reference.intro != null ? reference.intro.CurrentStage : Stage.Idle;
-            if (rt != null && (st == Stage.InPlane || st == Stage.Opening || st == Stage.Open))
+            if (rt != null && (st == Stage.InPlane || st == Stage.Ready))
             {
                 basePos = rt.position; heading = rt.eulerAngles.y;
             }
@@ -99,34 +102,33 @@ namespace RocketWorld
             return Spawn(xz, heading);
         }
 
-        const float PlaneSpacing = 14f;               // formation: planes side by side (the hold is 3.8 m wide)
+        const float PlaneSpacing = 14f;               // formation: buses side by side (the balloon is ~8 m wide)
 
-        // ---- multiplayer plane replication (host sends the pose, clients show a model without colliders)
+        // ---- multiplayer replication (host sends the pose, clients show a model without colliders)
 
-        /// <summary>Host: pose of this plane and the rear ramp angle (degrees), false when there is no plane.</summary>
+        /// <summary>Host: pose of this bus (the "ramp" value is unused now and always 0), false when there is no bus.</summary>
         public bool TryGetPose(out Vector3 pos, out Quaternion rot, out float ramp)
         {
             pos = default; rot = Quaternion.identity; ramp = 0f;
-            if (_plane == null || _visualOnly || _hinge == null) return false;
+            if (_plane == null || _visualOnly) return false;
             pos = _plane.transform.position; rot = _plane.transform.rotation;
-            ramp = Mathf.DeltaAngle(0f, _hinge.localEulerAngles.x);
             return true;
         }
 
-        /// <summary>Client: build the plane model only (no physics, no car).</summary>
+        /// <summary>Client: build the bus model only (no physics, no car).</summary>
         public bool StartVisual() { if (_plane != null) return true; return Spawn(Vector3.zero, 0f, true); }
 
-        public void SetVisualPose(Vector3 pos, Quaternion rot, float rampDeg)
+        public void SetVisualPose(Vector3 pos, Quaternion rot, float unused)
         {
             if (_plane == null) return;
             _plane.transform.SetPositionAndRotation(pos, rot);
-            if (_hinge != null) _hinge.localRotation = Quaternion.Euler(rampDeg, 0f, 0f);
         }
 
         void ClearPlane()
         {
             if (_plane != null) { _plane.SetActive(false); Destroy(_plane); _plane = null; }
-            CurrentStage = Stage.Idle; _loadedSince = -1f; _planeSpeed = 0f;
+            if (_car != null) _car.Unpark();
+            CurrentStage = Stage.Idle; _loadedSince = -1f; _planeSpeed = 0f; _camInit = false; _lastPct = -1;
             if (_car != null && _car.colliderBudget != null) _car.colliderBudget.burst = false;
         }
 
@@ -134,111 +136,125 @@ namespace RocketWorld
         {
             if (root == null || root.georeference == null) return false;
             if (!visual && (root.settings.bench || root.settings.noIntro)) return false;
-            var prefab = Resources.Load<GameObject>("Models/YC130");
-            if (prefab == null) { Debug.LogWarning("[RocketWorld] Cargo plane model not found - starting on the ground."); return false; }
 
-            _plane = new GameObject("CargoPlane");
+            _plane = new GameObject("BattleBus");
             _plane.transform.SetParent(root.georeference.transform, false);
-            var model = Instantiate(prefab, _plane.transform);
-            model.name = "Model";
-            model.transform.localPosition = Vector3.zero; model.transform.localRotation = Quaternion.identity; model.transform.localScale = Vector3.one;
-            SetLayer(model, PhysicsSetup.PlaneLayer);
-            FixMaterials(model);
+            _model = BuildBus(_plane.transform);
+            SetLayer(_plane, PhysicsSetup.PlaneLayer);
 
-            // The importer may hand us the model rotated (we saw it nose-up). Work out where the nose and the tail fin point
-            // and rotate the model so that nose = -Z, up = +Y, the frame all the numbers below are written in.
-            var hullR = FindRenderer(model.transform, "Main_Body_Main_0");
-            var cockpitR = FindRenderer(model.transform, "Interior_Interior_0");
-            var finR = FindRenderer(model.transform, "Wings.013");           // vertical stabiliser
-            var fix = Quaternion.identity;
-            if (hullR != null && cockpitR != null && finR != null)
-            {
-                Vector3 hull = LocalCenter(hullR), cockpit = LocalCenter(cockpitR), fin = LocalCenter(finR);
-                var nose = DominantAxis(cockpit - hull, -1, out int noseAxis);           // the cockpit sits ahead of the hull centre
-                var up = DominantAxis(fin - hull, noseAxis, out _);                      // the fin sits above it (ignore the nose axis: the fin is at the tail)
-                fix = Quaternion.Inverse(Quaternion.LookRotation(-nose, up));
-            }
-            else Debug.LogWarning("[RocketWorld] Cargo plane: parts for orientation detection not found, using the imported orientation.");
-            model.transform.localRotation = fix;
-
-            _bay = new GameObject("Bay").transform;
-            _bay.SetParent(_plane.transform, false);
-            _bay.localRotation = Quaternion.identity;
-
-            if (!visual) BuildHold();
-
-            // hinge for the rear ramp
-            _hinge = new GameObject("RampHinge").transform;
-            _hinge.SetParent(_bay, false);
-            _hinge.localPosition = new Vector3(0f, FloorY, HingeZ);
-            var ramp = FindDeep(model.transform, "RearRamp");
-            if (ramp != null) ramp.SetParent(_hinge, true);          // keeps its pose; now it rotates around the hinge
-            if (!visual)
-            {
-                var rc = new GameObject("RampCollider");
-                rc.layer = PhysicsSetup.PlaneLayer;
-                rc.transform.SetParent(_hinge, false);
-                rc.transform.localRotation = Quaternion.Euler(-SlopeDeg, 0f, 0f);
-                var bc = rc.AddComponent<BoxCollider>();
-                bc.size = new Vector3(RampW, 0.4f, RampLen); bc.center = new Vector3(0f, -0.2f, RampLen * 0.5f);
-                bc.sharedMaterial = PhysicsSetup.WorldMaterial;
-            }
-
-            // place the plane so that the car (which faces the tail) looks along the configured heading
-            _plane.transform.rotation = Quaternion.Euler(0f, heading, 0f) * Quaternion.Inverse(_bay.localRotation);
+            _plane.transform.rotation = Quaternion.Euler(0f, heading, 0f);
             _plane.transform.position = new Vector3(xz.x, Altitude, xz.z);
             if (visual) { _visualOnly = true; return true; }         // joined client: just the model, the pose comes from the host
             _plane.AddComponent<CesiumGlobeAnchor>();                // stays put when Cesium re-centres the origin
-            Physics.SyncTransforms();
 
-            PlaceCarInBay();
+            ParkCar();
             _startHeight = _carAnchor != null ? _carAnchor.longitudeLatitudeHeight.z : 0.0;
             _t0 = Time.unscaledTime;
+            _planeSpeed = 0f; _loadedSince = -1f; _camInit = false; _lastPct = -1;
+            _prevJump = true;                                        // a jump button already held at this moment is not a press
             CurrentStage = Stage.InPlane;
+            WebBridge.ShowLoading();                                 // map loading: the loading video loops over the game until it is ready
             return true;
         }
 
-        void BuildHold()
+        void ParkCar()
         {
-            float zEnd = 13.2f;                                       // end of the roof / side walls
-            float len = zEnd - FrontZ, zc = (zEnd + FrontZ) * 0.5f;
-            float h = CeilY - FloorY;
-            Box("Floor", new Vector3(0f, FloorY - 0.25f, (HingeZ + FrontZ) * 0.5f), new Vector3(HalfW * 2f + 0.8f, 0.5f, HingeZ - FrontZ));
-            Box("WallL", new Vector3(-HalfW - 0.25f, FloorY + h * 0.5f, zc), new Vector3(0.5f, h + 1f, len));
-            Box("WallR", new Vector3(HalfW + 0.25f, FloorY + h * 0.5f, zc), new Vector3(0.5f, h + 1f, len));
-            Box("Ceiling", new Vector3(0f, CeilY + 0.25f, zc), new Vector3(HalfW * 2f + 1f, 0.5f, len));
-            Box("Bulkhead", new Vector3(0f, FloorY + h * 0.5f, FrontZ - 0.25f), new Vector3(HalfW * 2f + 1f, h + 1f, 0.5f));
+            if (_car != null && _plane != null) _car.ParkAt(_plane.transform.position, _plane.transform.rotation);
         }
 
-        void Box(string name, Vector3 center, Vector3 size)
-        {
-            var go = new GameObject(name) { layer = PhysicsSetup.PlaneLayer };
-            go.transform.SetParent(_bay, false);
-            go.transform.localPosition = center;
-            var bc = go.AddComponent<BoxCollider>();
-            bc.size = size; bc.sharedMaterial = PhysicsSetup.WorldMaterial;
-        }
+        // ---- the bus -------------------------------------------------------------------------------------
 
-        void PlaceCarInBay()
+        static Transform BuildBus(Transform parent)
         {
-            var pos = _bay.TransformPoint(CarSpawn);
-            var rot = Quaternion.LookRotation(_bay.forward, Vector3.up);
-            _car.PlaceDirect(pos, rot);
-        }
+            var root = new GameObject("Model").transform;
+            root.SetParent(parent, false);
+            var blue = Mat(new Color(0.10f, 0.28f, 0.85f), 0.45f);
+            var navy = Mat(new Color(0.04f, 0.09f, 0.32f), 0.4f);
+            var glass = Mat(new Color(0.03f, 0.05f, 0.07f), 0.85f);
+            var metal = Mat(new Color(0.24f, 0.24f, 0.27f), 0.3f);
+            var rope = Mat(new Color(0.45f, 0.38f, 0.20f), 0.1f);
+            var teal = Mat(new Color(0.12f, 0.72f, 0.84f), 0.4f);
+            var white = Mat(new Color(0.90f, 0.93f, 0.96f), 0.4f);
+            var yellow = Mat(new Color(0.95f, 0.78f, 0.12f), 0.4f);
 
-        /// <summary>R while in the plane puts the car back in the hold; while falling it is ignored. Returns true if handled.</summary>
-        public bool TryResetInBay()
-        {
-            if (!BlocksRescue) return false;
-            if (CurrentStage == Stage.InPlane || CurrentStage == Stage.Opening || CurrentStage == Stage.Open)
+            // body (hollow in spirit: the car is parked inside it, so it stays hidden)
+            Part(root, PrimitiveType.Cube, "Body", new Vector3(0f, 0f, 0f), new Vector3(2.6f, 2.4f, 9f), blue);
+            Part(root, PrimitiveType.Cube, "Hood", new Vector3(0f, -0.35f, 5.1f), new Vector3(2.4f, 1.5f, 1.8f), blue);
+            Part(root, PrimitiveType.Cube, "Bumper", new Vector3(0f, -0.7f, 6.05f), new Vector3(2.6f, 0.5f, 0.35f), metal);
+            Part(root, PrimitiveType.Cube, "Underside", new Vector3(0f, -1.3f, 0.4f), new Vector3(2.5f, 0.3f, 10.4f), navy);
+            Part(root, PrimitiveType.Cube, "RoofStripe", new Vector3(0f, 1.22f, 0f), new Vector3(1.6f, 0.08f, 8.4f), white);
+            Part(root, PrimitiveType.Cube, "Stripe", new Vector3(0f, -0.35f, 0f), new Vector3(2.64f, 0.12f, 9.02f), navy);
+            Part(root, PrimitiveType.Cube, "Windshield", new Vector3(0f, 0.4f, 4.51f), new Vector3(2.2f, 0.85f, 0.06f), glass);
+            Part(root, PrimitiveType.Cube, "Rear", new Vector3(0f, 0.2f, -4.52f), new Vector3(2.2f, 1.0f, 0.06f), glass);
+            for (int side = -1; side <= 1; side += 2)
             {
-                var local = _bay.InverseTransformPoint(_car.transform.position);
-                if (local.z < 14f) PlaceCarInBay();
+                float x = side * 1.31f;
+                Part(root, PrimitiveType.Cube, "Windows", new Vector3(x, 0.4f, 0f), new Vector3(0.06f, 0.8f, 7.6f), glass);
+                Part(root, PrimitiveType.Cube, "Pane", new Vector3(x, 0.4f, 0f), new Vector3(0.08f, 0.9f, 0.12f), navy);
+                for (int k = -3; k <= 3; k++)
+                    Part(root, PrimitiveType.Cube, "Pillar", new Vector3(x, 0.4f, k * 1.05f), new Vector3(0.09f, 0.9f, 0.1f), navy);
+                Part(root, PrimitiveType.Cube, "Light", new Vector3(side * 0.9f, -0.35f, 6.0f), new Vector3(0.4f, 0.28f, 0.1f), yellow);
             }
-            return true;
+
+            // engine block + frame under the balloon
+            Part(root, PrimitiveType.Cube, "Engine", new Vector3(0f, 1.9f, 0f), new Vector3(1.8f, 0.9f, 2.2f), metal);
+            Part(root, PrimitiveType.Cylinder, "Ring", new Vector3(0f, 8.2f, 0f), new Vector3(3.2f, 0.18f, 3.2f), metal);
+            Vector3[] foot = { new Vector3(-1f, 1.2f, -3f), new Vector3(1f, 1.2f, -3f), new Vector3(-1f, 1.2f, 3f), new Vector3(1f, 1.2f, 3f) };
+            Vector3[] top = { new Vector3(-1.4f, 8.1f, -1.4f), new Vector3(1.4f, 8.1f, -1.4f), new Vector3(-1.4f, 8.1f, 1.4f), new Vector3(1.4f, 8.1f, 1.4f) };
+            for (int i = 0; i < 4; i++) Strut(root, foot[i], top[i], 0.07f, rope);
+
+            // balloon: teal envelope with a white belt
+            Part(root, PrimitiveType.Sphere, "Balloon", new Vector3(0f, 12.4f, 0f), new Vector3(7.6f, 8.6f, 7.6f), teal);
+            Part(root, PrimitiveType.Cylinder, "Belt", new Vector3(0f, 11.3f, 0f), new Vector3(7.55f, 0.9f, 7.55f), white);
+            Part(root, PrimitiveType.Sphere, "Knot", new Vector3(0f, 8.3f, 0f), new Vector3(1.1f, 0.6f, 1.1f), yellow);
+            return root;
         }
+
+        static GameObject Part(Transform parent, PrimitiveType type, string name, Vector3 pos, Vector3 scale, Material m)
+        {
+            var go = GameObject.CreatePrimitive(type);
+            go.name = name;
+            var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);        // pure visuals
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = pos; go.transform.localScale = scale;
+            var r = go.GetComponent<Renderer>();
+            r.sharedMaterial = m; r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; r.receiveShadows = false;
+            return go;
+        }
+
+        /// <summary>A thin cylinder between two points (local space).</summary>
+        static void Strut(Transform parent, Vector3 a, Vector3 b, float radius, Material m)
+        {
+            var d = b - a;
+            var go = Part(parent, PrimitiveType.Cylinder, "Strut", (a + b) * 0.5f, new Vector3(radius * 2f, d.magnitude * 0.5f, radius * 2f), m);
+            go.transform.localRotation = Quaternion.FromToRotation(Vector3.up, d.normalized);
+        }
+
+        static Material Mat(Color c, float smooth)
+        {
+            var sh = Shader.Find("Universal Render Pipeline/Lit");
+            if (sh == null) sh = Shader.Find("Universal Render Pipeline/Simple Lit");
+            var m = new Material(sh != null ? sh : Shader.Find("Hidden/InternalErrorShader")) { name = "RW_Bus" };
+            c.a = 1f;
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+            if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0.05f);
+            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", smooth);
+            return m;
+        }
+
+        // ---- sequence ------------------------------------------------------------------------------------
+
+        /// <summary>R while aboard is ignored (there is nothing to rescue). Returns true if handled.</summary>
+        public bool TryResetInBay() => BlocksRescue;
 
         bool _loaderLifted;
+
+        string JumpKeyName()
+        {
+            if (DeviceProfile.IsMobile) return null;
+            string k = _car != null && _car.input != null && _car.input.bindings != null ? _car.input.bindings.Get(CarAction.Jump).key0 : "Space";
+            return string.IsNullOrEmpty(k) || k == "Space" ? "ESPACIO" : k.ToUpperInvariant();
+        }
 
         void Update()
         {
@@ -249,40 +265,51 @@ namespace RocketWorld
             // someone respawned the car on the ground (new city, new credentials): drop the intro
             if (_car.CurrentPhase == RocketCar.Phase.WaitingForGround && CurrentStage != Stage.Idle && CurrentStage != Stage.Done) { Abort(); return; }
 
+            bool jump = _car.ActiveControls.jump;
+            bool jumpPressed = jump && !_prevJump;
+            _prevJump = jump;
+
+            if (_model != null)                                      // the bus floats: gentle bob and sway
+            {
+                _model.localPosition = new Vector3(0f, Mathf.Sin(now * 1.4f) * 0.22f, 0f);
+                _model.localRotation = Quaternion.Euler(Mathf.Sin(now * 0.8f) * 0.8f, 0f, Mathf.Sin(now * 1.1f) * 1.6f);
+            }
+
             switch (CurrentStage)
             {
                 case Stage.InPlane:
                 {
+                    ParkCar();
                     float t = now - _t0;
                     float progress = _car.tileset != null ? _car.tileset.ComputeLoadProgress() : 100f;
                     if (progress >= 99.9f) { if (_loadedSince < 0f) _loadedSince = now; } else _loadedSince = -1f;
                     bool ready = (t >= MinWait && _loadedSince > 0f && now - _loadedSince > 0.8f) || t >= Timeout;
-                    if (!ready) { _car.SetStatus(t < MinWait && progress >= 99.9f ? "Acercándonos a la zona de salto…" : $"Acercándonos a la zona de salto… {progress:0}%"); break; }
-                    _openT0 = now; CurrentStage = Stage.Opening;
-                    WebBridge.HideLoading();   // map is loaded: the looping loading video ends as the ramp opens
-                    _car.SetStatus("Abriendo la rampa trasera…");
-                    if (_car.colliderBudget != null) _car.colliderBudget.burst = true;
+                    if (!ready)
+                    {
+                        int pct = Mathf.Clamp((int)progress, 0, 99);
+                        if (pct != _lastPct) { _lastPct = pct; _car.SetStatus($"Cargando el mapa… {pct}%"); }    // jump stays locked
+                        break;
+                    }
+                    _readyT0 = now; CurrentStage = Stage.Ready;
+                    WebBridge.HideLoading();                         // map loaded: the looping loading video ends, the bus appears
+                    if (_car.colliderBudget != null) _car.colliderBudget.burst = true;   // build terrain colliders ahead of the fall
+                    string key = JumpKeyName();
+                    _car.SetStatus(key != null ? $"Pulsa {key} para saltar del autobús" : "Toca SALTAR para lanzarte del autobús");
                     break;
                 }
-                case Stage.Opening:
+                case Stage.Ready:
                 {
-                    float e = Mathf.Clamp01((now - _openT0) / OpenSeconds);
-                    _hinge.localRotation = Quaternion.Euler((SlopeDeg + DropDeg) * Mathf.SmoothStep(0f, 1f, e), 0f, 0f);
-                    if (e >= 1f) { CurrentStage = Stage.Open; _car.SetStatus("¡Zona de salto: adelante!"); _openT0 = now; }
-                    break;
-                }
-                case Stage.Open:
-                {
-                    if (now - _openT0 > 3f) _car.SetStatus("");
-                    var local = _bay.InverseTransformPoint(_car.transform.position);
-                    if (local.z > 15f || local.y < FloorY - 6f) { StartFall(); }
+                    ParkCar();
+                    _planeSpeed = Mathf.MoveTowards(_planeSpeed, CruiseSpeed, 6f * dt);
+                    _plane.transform.position += _plane.transform.forward * (_planeSpeed * dt);
+                    if (jumpPressed && now - _readyT0 > ReadyGrace) Jump(now);
                     break;
                 }
                 case Stage.Falling:
                 {
-                    // the plane leaves
-                    _planeSpeed = Mathf.MoveTowards(_planeSpeed, PlaneSpeed, 14f * dt);
-                    _plane.transform.position += -_bay.forward * (_planeSpeed * dt);
+                    // the bus leaves
+                    _planeSpeed = Mathf.MoveTowards(_planeSpeed, AwaySpeed, 14f * dt);
+                    _plane.transform.position += _plane.transform.forward * (_planeSpeed * dt);
                     if (now - _fallT0 > 60f) { Destroy(_plane); _plane = null; }
 
                     // landed?
@@ -294,26 +321,54 @@ namespace RocketWorld
             }
         }
 
-        void StartFall()
+        /// <summary>
+        /// Third-person view of the bus while aboard: behind, above and a little to the side, with the balloon in frame. Runs after the
+        /// normal cameras (ChaseCamera 100) and before the Camera-menu offset (CamRigEnd 200); afterwards the chase camera simply
+        /// glides from this position to the falling car.
+        /// </summary>
+        void LateUpdate()
         {
-            CurrentStage = Stage.Falling; _fallT0 = Time.unscaledTime; _planeSpeed = 0f;
+            if (_visualOnly || _plane == null || root == null || root.cam == null || _car == null || _car != root.carCtl) return;
+            if (CurrentStage != Stage.InPlane && CurrentStage != Stage.Ready) { _camInit = false; return; }
+            var cam = root.cam;
+            var ct = cam.transform;
+            var bt = _plane.transform;
+            float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
+
+            var fwd = Vector3.ProjectOnPlane(bt.forward, Vector3.up).normalized;
+            var right = Vector3.Cross(Vector3.up, fwd);
+            var want = bt.position - fwd * CamBack + Vector3.up * CamUp + right * CamSide;
+            var look = bt.position + Vector3.up * 5.5f + fwd * 1.5f;
+            var pos = _camInit ? Vector3.Lerp(ct.position, want, 1f - Mathf.Exp(-6f * dt)) : want;
+            _camInit = true;
+            ct.SetPositionAndRotation(pos, Quaternion.LookRotation(look - pos, Vector3.up));
+            cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, CamFov, 1f - Mathf.Exp(-4f * dt));
+        }
+
+        void Jump(float now)
+        {
+            var t = _plane.transform;
+            var pos = t.position - Vector3.up * DropBelow;
+            var rot = Quaternion.LookRotation(Vector3.ProjectOnPlane(t.forward, Vector3.up).normalized, Vector3.up);
+            _car.LaunchFrom(pos, rot, t.forward * _planeSpeed);
+            CurrentStage = Stage.Falling; _fallT0 = now;
             _car.SetStatus("");
-            foreach (var c in _plane.GetComponentsInChildren<Collider>()) c.enabled = false;
             if (_car.colliderBudget != null) _car.colliderBudget.burst = true;       // build terrain colliders as fast as possible on the way down
         }
 
         void Finish()
         {
             CurrentStage = Stage.Done;
-            WebBridge.HideLoading();   // safety net: no plane / aborted intro still lifts the loading video
+            WebBridge.HideLoading();   // safety net: no bus / aborted intro still lifts the loading video
             if (_car != null)
             {
+                _car.Unpark();
                 _car.SetStatus("");
                 if (_car.colliderBudget != null) _car.colliderBudget.burst = false;
             }
         }
 
-        /// <summary>Drop the plane and the intro (joining a multiplayer game as a client).</summary>
+        /// <summary>Drop the bus and the intro (joining a multiplayer game as a client).</summary>
         public void Abort()
         {
             if (_plane != null) Destroy(_plane);
@@ -368,40 +423,6 @@ namespace RocketWorld
         internal static void SetLayer(GameObject go, int layer)
         {
             foreach (var t in go.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = layer;
-        }
-
-        Vector3 LocalCenter(Renderer r) => _plane.transform.InverseTransformPoint(r.bounds.center);
-
-        static Renderer FindRenderer(Transform root, string name)
-        {
-            var t = FindDeep(root, name);
-            return t != null ? t.GetComponentInChildren<Renderer>() : null;
-        }
-
-        /// <summary>Unit vector along the axis where |v| is largest (optionally skipping one axis), signed like v.</summary>
-        static Vector3 DominantAxis(Vector3 v, int skip, out int axis)
-        {
-            axis = 0; float best = -1f;
-            for (int i = 0; i < 3; i++)
-            {
-                if (i == skip) continue;
-                float a = Mathf.Abs(v[i]);
-                if (a > best) { best = a; axis = i; }
-            }
-            var r = Vector3.zero;
-            r[axis] = v[axis] >= 0f ? 1f : -1f;
-            return r;
-        }
-
-        static Transform FindDeep(Transform t, string name)
-        {
-            if (t.name == name) return t;
-            for (int i = 0; i < t.childCount; i++)
-            {
-                var r = FindDeep(t.GetChild(i), name);
-                if (r != null) return r;
-            }
-            return null;
         }
     }
 }

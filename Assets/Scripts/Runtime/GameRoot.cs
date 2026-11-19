@@ -174,7 +174,7 @@ namespace RocketWorld
             orbit.padBlocked = () => carInput != null && carInput.Blocked;
         }
 
-        void Start() { /* loader is hidden by PlaneIntro when the ramp opens (or when the intro ends/aborts) */ }
+        void Start() { /* loader is hidden by PlaneIntro when the map has loaded (jump unlocked) (or when the intro ends/aborts) */ }
 
         void Update()
         {
@@ -564,7 +564,7 @@ namespace RocketWorld
             carCtl.spawnHeadingDeg = settings.heading;
             carVisual = CarVisual.Build(car, GameSettings.CarColors[settings.carColor].color, -0.3406f);   // Octane rest height: CoM 17 uu above the ground
             carCtl.visual = carVisual;
-            var intro = gameObject.AddComponent<PlaneIntro>();            // opening: start inside a cargo plane 1 km up
+            var intro = gameObject.AddComponent<PlaneIntro>();            // opening: start aboard a flying bus 1 km up
             intro.root = this;
             carCtl.intro = intro;
             ball = gameObject.AddComponent<RocketBall>();                 // appears when the player presses the Ball button
