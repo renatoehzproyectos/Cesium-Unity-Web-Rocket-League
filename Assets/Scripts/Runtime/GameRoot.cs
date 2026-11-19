@@ -92,7 +92,23 @@ namespace RocketWorld
         public bool TotalLoadActive => totalLoad != null && totalLoad.Active;
         public float EffectiveRadius => TotalLoadActive ? Mathf.Max(PriorityLogic.Radius(settings.loadRadius, Mods), 1500f) : settings.viewCull && viewPolicy != null ? Mathf.Min(PriorityLogic.Radius(settings.loadRadius, Mods), viewPolicy.Ring) : PriorityLogic.Radius(settings.loadRadius, Mods) * autoFarMul * RadiusMul;
         public TileViewPolicy viewPolicy;
-        public TotalLoad totalLoad;                            // created on first use from the settings panel
+        public TotalLoad totalLoad;                            // created on first use from the settings panel or the /max/ solo menu
+        bool _pendingTotalLoad;
+
+        /// <summary>Turn on carga total as soon as the map exists. The /max/ menu asks before solo play; settings can still start it later.</summary>
+        public void RequestTotalLoad()
+        {
+            _pendingTotalLoad = true;
+            TryBeginTotalLoad();
+        }
+
+        void TryBeginTotalLoad()
+        {
+            if (!_pendingTotalLoad || tileset == null) return;
+            if (totalLoad == null) { totalLoad = gameObject.AddComponent<TotalLoad>(); totalLoad.root = this; }
+            if (!totalLoad.Active) totalLoad.Begin();
+            if (totalLoad.Active) _pendingTotalLoad = false;
+        }
 
         /// <summary>Ends the coarse-first SSE ramp now (Total load keeps the user's tile detail).</summary>
         public void CancelTurbo() { if (!_turbo) return; _turbo = false; if (tileset != null) CommitSse(EffectiveSse, protectCar: false); }
@@ -192,6 +208,7 @@ namespace RocketWorld
                     if (carInput.DoorPressed) carCtl.vehicle.Toggle(VehicleToggle.Door);
                 }
             }
+            TryBeginTotalLoad();
             if (tileset != null && Time.unscaledTime - _radChkT >= 6f)
             {
                 float p = tileset.ComputeLoadProgress();
@@ -312,6 +329,7 @@ namespace RocketWorld
                 _ground = plane.transform;
             }
             if (carCtl != null) { carCtl.tileset = tileset; carCtl.colliderBudget = budget; carCtl.roads = roads; carCtl.Respawn(false); }
+            TryBeginTotalLoad();
         }
 
         void TrySetTileset(string name, object value)

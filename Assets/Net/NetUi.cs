@@ -11,7 +11,7 @@ namespace RocketWorld.Net
     {
         public static string LocalName = "Jugador";
 
-        enum Scr { Main, Create, Join }
+        enum Scr { Main, Create, Join, SoloAsk }
         NetSession _ns;
         bool _menu = true;
         Scr _scr = Scr.Main;
@@ -292,6 +292,7 @@ namespace RocketWorld.Net
             else
             {
                 if (_scr == Scr.Main) { GUI.Label(new Rect(x, cy - 4f, colW, 20f), "CONDUCE POR CUALQUIER LUGAR DEL MUNDO", _mCap); cy += shortScr ? 14f : 26f; }
+                else if (_scr == Scr.SoloAsk) { GUI.Label(new Rect(x, cy, colW, 34f), "¿CÓMO QUIERES JUGAR?", _mSec); cy += 40f; }
                 else { GUI.Label(new Rect(x, cy, colW, 34f), _scr == Scr.Create ? "CREAR PARTIDA" : "UNIRSE A PARTIDA", _mSec); cy += 40f; }
                 if (!string.IsNullOrEmpty(_ns.Error))
                 {
@@ -304,6 +305,7 @@ namespace RocketWorld.Net
                     case Scr.Main: MainScreen(x, cy, colW, rowH, gap, W, H, narrow, shortScr); break;
                     case Scr.Create: CreateScreen(x, cy, colW, rowH, gap); break;
                     case Scr.Join: JoinScreen(x, cy, colW, rowH, gap); break;
+                    case Scr.SoloAsk: SoloAskScreen(x, cy, colW, rowH, gap); break;
                 }
             }
 
@@ -327,7 +329,13 @@ namespace RocketWorld.Net
         {
             _rows = 4;
             bool running = _ns.Root.carCtl != null && !_ns.Root.carCtl.Held;
-            if (MenuRow(0, new Rect(x, cy, colW, rowH), running ? "SEGUIR JUGANDO" : "JUGAR SOLO")) { SaveName(); _ns.Error = ""; _menu = false; _ns.PlaySolo(); }
+            if (MenuRow(0, new Rect(x, cy, colW, rowH), running ? "SEGUIR JUGANDO" : "JUGAR SOLO"))
+            {
+                SaveName(); _ns.Error = "";
+                // Only the big-heap /max/ build asks. Everywhere else, solo starts immediately.
+                if (!running && WebBridge.IsMaxBuild()) _scr = Scr.SoloAsk;
+                else StartSolo(false);
+            }
             if (MenuRow(1, new Rect(x, cy + (rowH + gap), colW, rowH), "CREAR PARTIDA")) { SaveName(); _ns.Error = ""; _scr = Scr.Create; }
             if (MenuRow(2, new Rect(x, cy + (rowH + gap) * 2f, colW, rowH), "UNIRSE A PARTIDA")) { SaveName(); _ns.Error = ""; _scr = Scr.Join; }
             if (MenuRow(3, new Rect(x, cy + (rowH + gap) * 3f, colW, rowH), "VER TUTORIAL")) { WebBridge.ShowTutorial(); }
@@ -374,6 +382,26 @@ namespace RocketWorld.Net
                 }
                 GUI.color = o2;
             }
+        }
+
+        void SoloAskScreen(float x, float cy, float colW, float rowH, float gap)
+        {
+            _rows = 3;
+            string d = "Puedes entrar y que el mapa se cargue como siempre, o cargar todo lo que te rodea, también detrás de ti. La carga total borra la caché del mapa.";
+            float dh = _mSub.CalcHeight(new GUIContent(d), colW + 40f);
+            GUI.Label(new Rect(x, cy, colW + 40f, dh), d, _mSub); cy += dh + 14f;
+            if (MenuRow(0, new Rect(x, cy, colW, rowH), "JUGAR NORMALMENTE")) StartSolo(false);
+            if (MenuRow(1, new Rect(x, cy + rowH + gap, colW, rowH), "CARGA TOTAL")) StartSolo(true);
+            if (MenuRow(2, new Rect(x, cy + (rowH + gap) * 2f, colW, rowH), "ATRÁS")) { _ns.Error = ""; _scr = Scr.Main; }
+        }
+
+        void StartSolo(bool total)
+        {
+            SaveName();
+            _ns.Error = "";
+            _menu = false;
+            _ns.PlaySolo();
+            if (total && _ns.Root != null) _ns.Root.RequestTotalLoad();
         }
 
         void CreateScreen(float x, float cy, float colW, float rowH, float gap)
