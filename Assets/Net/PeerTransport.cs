@@ -7,7 +7,7 @@ namespace RocketWorld.Net
 {
     /// <summary>
     /// Netcode transport over WebRTC data channels (PeerJS, see RocketWorldPeer.jslib). Browser to browser, so a WebGL build can host.
-    /// Host = client id 0 in transport terms; visitors get 1, 2, 3. Reliable traffic uses the ordered channel, unreliable the unordered one.
+    /// Host = client id 0 in transport terms; visitors get 1, 2, 3 ... (up to 14). Reliable traffic uses the ordered channel, unreliable the unordered one.
     /// </summary>
     public class PeerTransport : NetworkTransport
     {
@@ -17,7 +17,7 @@ namespace RocketWorld.Net
         public string HostId = "";
 
 #if UNITY_WEBGL && !UNITY_EDITOR
-        [DllImport("__Internal")] static extern void RW_PeerHost(string id);
+        [DllImport("__Internal")] static extern void RW_PeerHost(string id, int maxVisitors);
         [DllImport("__Internal")] static extern void RW_PeerClient(string hostId);
         [DllImport("__Internal")] static extern int RW_PeerStatus();
         [DllImport("__Internal")] static extern string RW_PeerError();
@@ -27,7 +27,7 @@ namespace RocketWorld.Net
         [DllImport("__Internal")] static extern void RW_PeerClose(int id);
         [DllImport("__Internal")] static extern void RW_PeerShutdown();
 #else
-        static void RW_PeerHost(string id) { }
+        static void RW_PeerHost(string id, int maxVisitors) { }
         static void RW_PeerClient(string hostId) { }
         static int RW_PeerStatus() => -1;
         static string RW_PeerError() => "El multijugador solo funciona en el navegador (WebGL).";
@@ -48,7 +48,7 @@ namespace RocketWorld.Net
         public int ConnectedPeers => RW_PeerCount();
 
         /// <summary>Registers this browser as host with the signalling server (async: poll Status).</summary>
-        public void OpenHost(string peerId) => RW_PeerHost(peerId);
+        public void OpenHost(string peerId, int maxVisitors) => RW_PeerHost(peerId, maxVisitors);
 
         public override void Initialize(NetworkManager networkManager = null) { }
 

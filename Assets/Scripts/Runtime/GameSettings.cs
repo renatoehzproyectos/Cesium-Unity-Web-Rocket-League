@@ -51,6 +51,10 @@ namespace RocketWorld
         {
             ("Naranja", new Color(1f, 0.353f, 0.063f)), ("Azul", new Color(0.1f, 0.38f, 1f)), ("Rojo", new Color(0.86f, 0.1f, 0.1f)),
             ("Blanco", new Color(0.92f, 0.93f, 0.95f)), ("Negro", new Color(0.06f, 0.06f, 0.07f)), ("Verde", new Color(0.1f, 0.7f, 0.25f)),
+            // colours 6-14: a 15-player room gets a different colour for everybody
+            ("Amarillo", new Color(1f, 0.86f, 0.1f)), ("Morado", new Color(0.55f, 0.2f, 0.85f)), ("Cian", new Color(0.1f, 0.85f, 0.9f)),
+            ("Rosa", new Color(1f, 0.45f, 0.75f)), ("Lima", new Color(0.7f, 0.95f, 0.15f)), ("Turquesa", new Color(0.05f, 0.6f, 0.55f)),
+            ("Gris", new Color(0.5f, 0.52f, 0.56f)), ("Marrón", new Color(0.45f, 0.26f, 0.12f)), ("Dorado", new Color(0.83f, 0.63f, 0.15f)),
         };
 
         const string P = "rw2.";

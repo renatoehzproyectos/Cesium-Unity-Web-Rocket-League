@@ -65,10 +65,10 @@ namespace RocketWorld.Net
         {
             string code = string.IsNullOrEmpty(_ns.Code) ? "—" : _ns.Code;
             var me = LocalPlayer();
-            string lag = _ns.State == NetState.Client && me != null ? $"   ·   {me.InputLagMs:0} ms" : "";
+            string lag = _ns.State == NetState.Client && PlayerNet.RttMs > 0f ? $"   ·   {PlayerNet.RttMs:0} ms" : "";
             string role = _ns.State == NetState.Host ? "ANFITRIÓN" : "JUGADOR";
             float bw = UiLayout.BannerWidth(460f), x = (W - bw) * 0.5f;
-            GUI.Box(new Rect(x + 78f, y, bw - 78f, 50), $"{role}   CÓDIGO  <b>{code}</b>   ·   {_ns.PlayerCount}/{NetSession.MaxPlayers}{lag}\n<size=11>Red: {(string.IsNullOrEmpty(_ns.NetInfo) ? "?" : _ns.NetInfo)}</size>", UiTheme.Pill);
+            GUI.Box(new Rect(x + 78f, y, bw - 78f, 50), $"{role}   CÓDIGO  <b>{code}</b>   ·   {_ns.PlayerCount}/{_ns.MaxPlayers}{lag}\n<size=11>Red: {(string.IsNullOrEmpty(_ns.NetInfo) ? "?" : _ns.NetInfo)}</size>", UiTheme.Pill);
             if (GUI.Button(new Rect(x, y, 72, 50), "Salir", UiTheme.DangerBtn)) _ns.Leave();
         }
 
@@ -257,6 +257,8 @@ namespace RocketWorld.Net
                     else _enter = true;
                     ev.Use();
                 }
+                else if (_scr == Scr.Create && ev.keyCode == KeyCode.LeftArrow) { _maxPl = Mathf.Max(MinPl, (_maxPl < 0 ? 4 : _maxPl) - 1); ev.Use(); }
+                else if (_scr == Scr.Create && ev.keyCode == KeyCode.RightArrow) { _maxPl = Mathf.Min(MaxPl, (_maxPl < 0 ? 4 : _maxPl) + 1); ev.Use(); }
                 else if (ev.keyCode == KeyCode.Escape && _scr != Scr.Main) { _ns.Error = ""; _scr = Scr.Main; ev.Use(); }
             }
 
@@ -340,7 +342,7 @@ namespace RocketWorld.Net
             if (MenuRow(2, new Rect(x, cy + (rowH + gap) * 2f, colW, rowH), "UNIRSE A PARTIDA")) { SaveName(); _ns.Error = ""; _scr = Scr.Join; }
             if (MenuRow(3, new Rect(x, cy + (rowH + gap) * 3f, colW, rowH), "VER TUTORIAL")) { WebBridge.ShowTutorial(); }
             float rowsBottom = cy + (rowH + gap) * 4f;
-            if (!shortScr) GUI.Label(new Rect(x, rowsBottom + 6f, colW, 40f), "Multijugador de hasta 4 jugadores: 1 anfitri\u00f3n y 3 visitantes.", _mSub);
+            if (!shortScr) GUI.Label(new Rect(x, rowsBottom + 6f, colW, 40f), "Multijugador de 2 a 15 jugadores: el anfitri\u00f3n elige el m\u00e1ximo al crear la partida.", _mSub);
 
             // player card (bottom-left, like the in-game profile bar)
             float cw = Mathf.Min(colW, 340f), ch = 64f;
@@ -404,13 +406,27 @@ namespace RocketWorld.Net
             if (total && _ns.Root != null) _ns.Root.RequestTotalLoad();
         }
 
+        int _maxPl = -1;
+        const int MinPl = NetSession.MinPlayersLimit, MaxPl = NetSession.HardMaxPlayers;
+
         void CreateScreen(float x, float cy, float colW, float rowH, float gap)
         {
+            if (_maxPl < 0) _maxPl = Mathf.Clamp(PlayerPrefs.GetInt("rw.maxpl", 4), MinPl, MaxPl);
             _rows = 2;
-            string d = "Se genera un c\u00f3digo de 4 n\u00fameros para invitar a tus amigos. M\u00e1ximo 4 jugadores. Tu navegador hace de servidor: mant\u00e9n esta pesta\u00f1a abierta.";
+            string d = $"Se genera un c\u00f3digo de 4 n\u00fameros para invitar a tus amigos. M\u00e1ximo {_maxPl} jugadores. Tu navegador hace de servidor: mant\u00e9n esta pesta\u00f1a abierta.";
             float dh = _mSub.CalcHeight(new GUIContent(d), colW + 40f);
             GUI.Label(new Rect(x, cy, colW + 40f, dh), d, _mSub); cy += dh + 14f;
-            if (MenuRow(0, new Rect(x, cy, colW, rowH), "CREAR Y ENTRAR")) _ns.HostGame();
+
+            // room size stepper (2-15): buttons, or the left / right arrow keys
+            GUI.Label(new Rect(x, cy, colW, 18f), "JUGADORES M\u00c1XIMOS (" + MinPl + "-" + MaxPl + ")", _mCap); cy += 22f;
+            float bw = 56f, sh = rowH;
+            Fill(new Rect(x, cy, colW, sh), new Color(0.04f, 0.07f, 0.13f, 0.84f), 3f);
+            GUI.Label(new Rect(x + bw, cy, colW - bw * 2f, sh), _maxPl.ToString(), _mAv);
+            if (GUI.Button(new Rect(x, cy, bw, sh), "\u2212")) _maxPl = Mathf.Max(MinPl, _maxPl - 1);
+            if (GUI.Button(new Rect(x + colW - bw, cy, bw, sh), "+")) _maxPl = Mathf.Min(MaxPl, _maxPl + 1);
+            cy += sh + gap + 4f;
+
+            if (MenuRow(0, new Rect(x, cy, colW, rowH), "CREAR Y ENTRAR")) { PlayerPrefs.SetInt("rw.maxpl", _maxPl); _ns.HostGame(_maxPl); }
             if (MenuRow(1, new Rect(x, cy + rowH + gap, colW, rowH), "ATR\u00c1S")) { _ns.Error = ""; _scr = Scr.Main; }
         }
 

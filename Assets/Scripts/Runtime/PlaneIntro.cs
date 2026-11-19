@@ -55,8 +55,13 @@ namespace RocketWorld
             _began = true;
             _car = car;
             _carAnchor = car.GetComponent<CesiumGlobeAnchor>();
-            return Spawn(Vector3.zero, root != null ? root.settings.heading : 0f);
+            float hd = root != null ? root.settings.heading : 0f;
+            return Spawn(SlotOffset(hd), hd);
         }
+
+        /// <summary>Multiplayer: every player flies in their own bus, side by side (the player's slot picks the lane). 0 offline.</summary>
+        public static int NetSlot;
+        static Vector3 SlotOffset(float headingDeg) => NetSlot > 0 ? Quaternion.Euler(0f, headingDeg, 0f) * Vector3.right * (PlaneSpacing * NetSlot) : Vector3.zero;
 
         /// <summary>
         /// Run the sequence again: after teleporting to another city (atCar = false: above the new origin) or after a detail (SSE)
@@ -74,6 +79,7 @@ namespace RocketWorld
                 var f = _car.transform.forward; f.y = 0f;
                 if (f.sqrMagnitude > 1e-3f) heading = Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg;
             }
+            if (!atCar) xz += SlotOffset(heading);
             ClearPlane();
             return Spawn(xz, heading);
         }

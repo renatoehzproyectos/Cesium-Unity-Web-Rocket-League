@@ -343,6 +343,31 @@ namespace RocketWorld
             Status = running ? "" : "Esperando al anfitrión…";
             if (_boostFx != null) _boostFx.SetBoosting(boosting && running);
         }
+
+        // ---- other players' cars (puppets): a kinematic body moved every physics tick, so the own car and the ball collide with it
+        Vector3 _pxPos, _pxVel; Quaternion _pxRot = Quaternion.identity; bool _pxHas;
+        public bool HasProxyTarget => _pxHas;
+
+        /// <summary>Velocity the physics sees: the body's own for a simulated car, the network velocity for a puppet.</summary>
+        public Vector3 PhysVelocity => simulated ? (_rb != null ? _rb.linearVelocity : Vector3.zero) : netVelocity;
+
+        /// <summary>Called every frame with the interpolated network pose. Small errors are blended (no velocity spikes on the kinematic body), big ones snap.</summary>
+        public void SetProxyTarget(Vector3 pos, Quaternion rot, Vector3 vel)
+        {
+            if (!_pxHas || (pos - _pxPos).sqrMagnitude > 2.25f) _pxPos = pos;
+            else _pxPos = Vector3.Lerp(_pxPos, pos, 0.35f);
+            _pxRot = rot; _pxVel = vel; _pxHas = true;
+        }
+
+        /// <summary>Before Physics.Simulate (CarSimLoop): dead-reckon the puppet's body one tick, so contacts see its real velocity.</summary>
+        public void ProxyPreStep()
+        {
+            if (simulated || !_pxHas || _rb == null || CurrentPhase != Phase.Running) return;
+            if (!_rb.isKinematic) _rb.isKinematic = true;
+            _pxPos += _pxVel * Tick;
+            _rb.MovePosition(_pxPos); _rb.MoveRotation(_pxRot);
+        }
+
         void OnGeoChanged() { _resync = true; }
 
         /// <summary>Boat mode ended (reached land): hand the body back to the wheel model with a clean state (wheels, jump flags, auto-flip).</summary>

@@ -103,5 +103,27 @@ mergeInto(LibraryManager.library, {
     var size = lengthBytesUTF8(v) + 1, buf = _malloc(size);
     stringToUTF8(v, buf, size);
     return buf;
+  },
+
+  // Procedural boom made directly with WebAudio. AudioClip.SetData fails in the threaded WebGL build ("Float32Array value must not be shared"
+  // inside jsAudioCreateUncompressedSoundClipFromPCM and kills the player), so the explosion sound never goes through a Unity AudioClip.
+  RW_PlayBoom: function (full, volume) {
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+      var ctx = window.__rwBoomCtx || (window.__rwBoomCtx = new AC());
+      if (ctx.state === 'suspended') ctx.resume();
+      var rate = ctx.sampleRate, len = full ? 7 : 1.5, n = Math.floor(rate * len);
+      var buf = ctx.createBuffer(1, n, rate), d = new Float32Array(n);   // plain (non shared) array
+      var seed = 12345, lp = 0, tau = full ? 2.2 : 0.35;
+      for (var i = 0; i < n; i++) {
+        var t = i / rate, env = Math.exp(-t / tau) * Math.min(1, t * 30);
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        var noise = ((seed >>> 9) / 4194304) - 1; lp += (noise - lp) * 0.02;
+        d[i] = (lp * 4 + 0.7 * Math.sin(2 * Math.PI * 32 * t) + 0.4 * Math.sin(2 * Math.PI * 21 * t)) * env * 0.9;
+      }
+      buf.copyToChannel(d, 0);
+      var src = ctx.createBufferSource(), g = ctx.createGain();
+      src.buffer = buf; g.gain.value = volume; src.connect(g); g.connect(ctx.destination); src.start();
+    } catch (e) { console.warn('RW_PlayBoom: ' + e); }
   }
 });

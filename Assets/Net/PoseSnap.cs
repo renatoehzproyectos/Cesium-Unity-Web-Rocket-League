@@ -67,6 +67,8 @@ namespace RocketWorld.Net
 
         public int Count => _t.Count;
 
+        public void Clear() { _t.Clear(); _s.Clear(); _has = false; _lastSeq = 0; }
+
         public void Add(float recvTime, PoseSnap s)
         {
             if (_has && (short)(s.seq - _lastSeq) <= 0) return;           // older / duplicate packet

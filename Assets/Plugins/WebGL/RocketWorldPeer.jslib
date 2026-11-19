@@ -2,7 +2,7 @@
 // Event types returned by RW_PeerPoll: 0 none, 1 connect, 2 data, 3 disconnect. Client id 0 = the host.
 mergeInto(LibraryManager.library, {
 
-  RW_PeerHost: function (idPtr) {
+  RW_PeerHost: function (idPtr, maxVisitors) {
     var id = UTF8ToString(idPtr);
     (window.__rwpStop = window.__rwpStop || function () {
       var S = window.__rwp; if (!S) return;
@@ -11,7 +11,7 @@ mergeInto(LibraryManager.library, {
       try { if (S.peer) S.peer.destroy(); } catch (e) {}
       window.__rwp = null;
     })();
-    var S = window.__rwp = { mode: 'host', status: 1, err: '', q: [], nextId: 1, conns: {}, peer: null };
+    var S = window.__rwp = { mode: 'host', status: 1, err: '', q: [], nextId: 1, conns: {}, peer: null, max: Math.max(1, Math.min(14, maxVisitors | 0)) };
     if (typeof Peer === 'undefined') { S.status = -1; S.err = 'PeerJS no se cargó (¿bloqueador o sin conexión?)'; return; }
     function drop(rec) { if (!rec || rec.gone) return; rec.gone = true; delete S.conns[rec.id]; if (rec.announced) S.q.push({ t: 3, id: rec.id }); try { rec.c.close(); } catch (e) {} }
     var p = S.peer = new Peer(id, { debug: 1 });
@@ -24,8 +24,8 @@ mergeInto(LibraryManager.library, {
     p.on('connection', function (c) {
       var rec = { id: 0, c: c, u: null, gone: false, announced: false };
       var n = 0; for (var k in S.conns) n++;
-      if (n >= 3) {                                                                  // 1 host + 3 visitors
-        c.on('open', function () { try { c.send(new Uint8Array([255, 70, 85, 76, 76]).buffer); } catch (e) {} setTimeout(function () { try { c.close(); } catch (e) {} }, 400); });
+      if (n >= S.max) {                                                              // room full: 1 host + max visitors (chosen when the match is created)
+        c.on('open', function () { try { c.send(new Uint8Array([255, 70, 85, 76, 76, S.max + 1]).buffer); } catch (e) {} setTimeout(function () { try { c.close(); } catch (e) {} }, 400); });
         return;
       }
       rec.id = S.nextId++; S.conns[rec.id] = rec;
@@ -81,7 +81,7 @@ mergeInto(LibraryManager.library, {
       c.on('data', function (d) {
         var u8 = d instanceof ArrayBuffer ? new Uint8Array(d) : (d && d.buffer ? new Uint8Array(d.buffer, d.byteOffset, d.byteLength) : null);
         if (!u8) return;
-        if (u8.length === 5 && u8[0] === 255 && u8[1] === 70 && u8[2] === 85) { S.err = 'La partida está llena (máx. 4 jugadores).'; return; }
+        if (u8.length >= 5 && u8.length <= 6 && u8[0] === 255 && u8[1] === 70 && u8[2] === 85) { S.err = 'La partida está llena' + (u8.length === 6 ? ' (máx. ' + u8[5] + ' jugadores).' : '.'); return; }
         S.q.push({ t: 2, id: 0, d: u8 });
       });
       c.on('close', function () { if (S.done) return; S.done = true; S.status = -1; S.q.push({ t: 3, id: 0 }); });

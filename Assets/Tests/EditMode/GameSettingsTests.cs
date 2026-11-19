@@ -21,7 +21,7 @@ namespace RocketWorld.Tests
                 Assert.That(p.lon, Is.InRange(-180.0, 180.0), p.name);
                 Assert.That(p.h, Is.InRange(-200f, 800f), p.name);
             }
-            Assert.AreEqual(6, GameSettings.CarColors.Length);
+            Assert.AreEqual(15, GameSettings.CarColors.Length);      // one colour per player of a full 15-player room
         }
 
         [Test] public void CredentialsCheckFollowsProvider()

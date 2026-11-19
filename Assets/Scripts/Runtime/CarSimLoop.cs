@@ -15,12 +15,14 @@ namespace RocketWorld
         const float Tick = 1f / 120f;
         float _acc;
         readonly List<RocketCar> _step = new List<RocketCar>(8);
+        readonly List<RocketCar> _proxy = new List<RocketCar>(16);       // other players' cars: kinematic bodies fed by the network
 
         void Update()
         {
             float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
             _step.Clear();
-            foreach (var c in RocketCar.All) if (c != null && c.CanStep) _step.Add(c);
+            _proxy.Clear();
+            foreach (var c in RocketCar.All) { if (c == null) continue; if (c.CanStep) _step.Add(c); else if (!c.simulated && c.HasProxyTarget) _proxy.Add(c); }
             if (_step.Count == 0) { _acc = 0f; return; }
 
             _acc += dt;
@@ -30,10 +32,12 @@ namespace RocketWorld
             for (int i = 0; i < ticks; i++)
             {
                 foreach (var c in _step) c.PreStep();
+                foreach (var c in _proxy) c.ProxyPreStep();
                 if (ball != null)
                 {
                     ball.BeginTick();
                     foreach (var c in _step) ball.CarPreTick(c);          // RocketSim's extra car-ball impulse goes in before the contact solve
+                    foreach (var c in _proxy) ball.CarPreTick(c);         // ... also for the other players' cars
                 }
                 Physics.Simulate(Tick);
                 foreach (var c in _step) c.PostStep();

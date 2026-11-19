@@ -62,11 +62,12 @@ namespace RocketWorld
         public void Summon(RocketCar car)
         {
             if (puppet) return;
-            if (car == null || car.CurrentPhase != RocketCar.Phase.Running || !car.simulated) return;
+            if (car == null || car.CurrentPhase != RocketCar.Phase.Running) return;      // also another player's car (host side)
             if (!EnsureBuilt(car)) return;
 
             var t = car.transform;
-            var fwd = Vector3.ProjectOnPlane(root.carVisual != null ? root.carVisual.forward : t.forward, Vector3.up);
+            var vis = car == root.carCtl ? root.carVisual : car.visual;
+            var fwd = Vector3.ProjectOnPlane(vis != null ? vis.forward : t.forward, Vector3.up);
             if (fwd.sqrMagnitude < 1e-3f) fwd = Vector3.ProjectOnPlane(t.forward, Vector3.up);
             if (fwd.sqrMagnitude < 1e-3f) fwd = Vector3.forward;
             fwd.Normalize();
@@ -290,7 +291,7 @@ namespace RocketWorld
             var away = p - closest;
             float dist = away.magnitude - ColliderRadius;                                   // gap between the sphere and the hitbox
             var n = away.sqrMagnitude > 1e-8f ? away.normalized : (p - center).normalized;
-            var relV = _rb.linearVelocity - car.Body.linearVelocity;
+            var relV = _rb.linearVelocity - car.PhysVelocity;
             float closing = Mathf.Max(0f, -Vector3.Dot(relV, n)) * Tick;                    // how far they approach during this tick
             if (dist - closing > 0.04f) return;                                             // not touching in this tick
 

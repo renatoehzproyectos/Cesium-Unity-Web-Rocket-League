@@ -659,9 +659,10 @@ namespace RocketWorld
         bool DrawSwatches(GameSettings s)
         {
             bool changed = false;
-            GUILayout.BeginHorizontal();
+            const int perRow = 8;
             for (int i = 0; i < GameSettings.CarColors.Length; i++)
             {
+                if (i % perRow == 0) { if (i > 0) { GUILayout.FlexibleSpace(); GUILayout.EndHorizontal(); } GUILayout.BeginHorizontal(); }
                 var r = GUILayoutUtility.GetRect(40, 40, GUILayout.Width(40), GUILayout.Height(40));
                 if (Event.current.type == EventType.Repaint)
                 {
@@ -670,7 +671,7 @@ namespace RocketWorld
                     if (s.carColor == i) GUI.DrawTexture(r, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0f, UiTheme.Accent, 3f, r.width * 0.5f);
                 }
                 if (GUI.Button(r, GUIContent.none, GUIStyle.none) && s.carColor != i) { s.carColor = i; changed = true; }
-                if (i < GameSettings.CarColors.Length - 1) GUILayout.Space(4);
+                if (i % perRow != perRow - 1 && i < GameSettings.CarColors.Length - 1) GUILayout.Space(4);
             }
             GUILayout.FlexibleSpace();
             GUILayout.EndHorizontal();

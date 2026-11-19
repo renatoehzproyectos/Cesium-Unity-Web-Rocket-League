@@ -1,4 +1,5 @@
 using CesiumForUnity;
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 namespace RocketWorld
@@ -154,43 +155,26 @@ namespace RocketWorld
             var old = GUI.color; GUI.color = new Color(1f, 0.98f, 0.92f, a); GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), _white); GUI.color = old;
         }
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+        [DllImport("__Internal")] static extern void RW_PlayBoom(int full, float volume);
+#endif
+
         void PlayBoom()
         {
-            // WebGL + SharedArrayBuffer: AudioClip.SetData feeds a shared Float32Array into AudioBuffer.copyToChannel,
-            // which browsers reject (TypeError). Stream samples through PCMReaderCallback so Unity fills a non-shared buffer.
-            try
+#if UNITY_WEBGL && !UNITY_EDITOR
+            RW_PlayBoom(_full ? 1 : 0, _full ? 1f : 0.5f);      // WebAudio in JS: AudioClip.SetData crashes the threaded WebGL player
+            return;
+#endif
+            const int rate = 22050; float len = _full ? 7f : 1.5f; int n = (int)(rate * len); var d = new float[n];
+            uint seed = 12345u; float lp = 0f;
+            for (int i = 0; i < n; i++)
             {
-                const int rate = 22050;
-                float len = _full ? 7f : 1.5f;
-                int n = (int)(rate * len);
-                float decay = _full ? 2.2f : 0.35f;
-                int pos = 0;
-                uint seed = 12345u;
-                float lp = 0f;
-                var clip = AudioClip.Create("boom", n, 1, rate, true, data =>
-                {
-                    for (int i = 0; i < data.Length; i++)
-                    {
-                        if (pos >= n) { data[i] = 0f; continue; }
-                        float t = pos / (float)rate;
-                        float env = Mathf.Exp(-t / decay) * Mathf.Clamp01(t * 30f);
-                        seed = seed * 1664525u + 1013904223u;
-                        float noise = ((seed >> 9) / 4194304f) - 1f;
-                        lp += (noise - lp) * 0.02f;
-                        data[i] = (lp * 4f + 0.7f * Mathf.Sin(2f * Mathf.PI * 32f * t) + 0.4f * Mathf.Sin(2f * Mathf.PI * 21f * t)) * env * 0.9f;
-                        pos++;
-                    }
-                });
-                _audio = gameObject.AddComponent<AudioSource>();
-                _audio.spatialBlend = 0f;
-                _audio.volume = _full ? 1f : 0.5f;
-                _audio.clip = clip;
-                _audio.Play();
+                float t = i / (float)rate, env = Mathf.Exp(-t / (_full ? 2.2f : 0.35f)) * Mathf.Clamp01(t * 30f);
+                seed = seed * 1664525u + 1013904223u; float noise = ((seed >> 9) / 4194304f) - 1f; lp += (noise - lp) * 0.02f;        // low-passed noise = rumble
+                d[i] = (lp * 4f + 0.7f * Mathf.Sin(2f * Mathf.PI * 32f * t) + 0.4f * Mathf.Sin(2f * Mathf.PI * 21f * t)) * env * 0.9f;
             }
-            catch (System.Exception e)
-            {
-                Debug.LogWarning("[RocketWorld] boom audio skipped: " + e.Message);
-            }
+            var clip = AudioClip.Create("boom", n, 1, rate, false); clip.SetData(d, 0);
+            _audio = gameObject.AddComponent<AudioSource>(); _audio.spatialBlend = 0f; _audio.volume = _full ? 1f : 0.5f; _audio.clip = clip; _audio.Play();
         }
     }
 }

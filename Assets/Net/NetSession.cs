@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using RocketWorld.Sim;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -26,11 +27,21 @@ namespace RocketWorld.Net
 
     /// <summary>
     /// Netcode for GameObjects over a WebRTC transport (PeerJS, browser to browser): the host's browser is the server.
-    /// Host: pick a 4-digit code and register it as the PeerJS id. Join: type the code. Max 4 players = 1 host + 3 visitors.
+    /// Host: pick a 4-digit code and register it as the PeerJS id, and choose the room size (2-15 players = 1 host + 1-14 visitors). Join: type the code.
     /// </summary>
     public class NetSession : MonoBehaviour, INetRole
     {
-        public const int MaxPlayers = 4;
+        public const int MinPlayersLimit = 2, HardMaxPlayers = 15;
+        int _hostMax = 4;
+        /// <summary>Room size: what the host chose; joined players read it from the replicated player objects.</summary>
+        public int MaxPlayers
+        {
+            get
+            {
+                if (State == NetState.Client && PlayerNet.All.Count > 0) return Mathf.Clamp(PlayerNet.All[0].MaxPlayersNv.Value, MinPlayersLimit, HardMaxPlayers);
+                return _hostMax;
+            }
+        }
         public static NetSession Instance;
 
         public GameRoot Root;
@@ -60,8 +71,11 @@ namespace RocketWorld.Net
             RocketBall.BallHit += OnBallHit;
         }
 
+        float _joinT; bool _clientStarted;
+
         void Update()
         {
+            if (State == NetState.Client && !_clientStarted) TryStartClient();
             // diagnostics shown in the code banner
             NetInfo = _nm == null ? "" : _nm.IsServer ? (_nm.IsListening ? "anfitrión activo" : "anfitrión parado")
                 : _nm.IsConnectedClient ? "conectado" : "sin conexión";
@@ -78,7 +92,7 @@ namespace RocketWorld.Net
         /// <summary>"Jugar solo": the original offline game.</summary>
         public void PlaySolo() { if (Root != null) Root.BeginPlay(); }
 
-        public void HostGame() { _ = HostCore(); }
+        public void HostGame(int maxPlayers = 4) { _hostMax = Mathf.Clamp(maxPlayers, MinPlayersLimit, HardMaxPlayers); _ = HostCore(); }
         public void JoinByCode(string code) { _ = JoinCore((code ?? "").Trim()); }
 
         public void BroadcastExplosion(Vector3 worldPosition) { foreach (var p in PlayerNet.All) if (p.IsOwner) { p.SendExplosion(worldPosition); return; } }
@@ -123,7 +137,7 @@ namespace RocketWorld.Net
                 for (int attempt = 0; attempt < 8 && code == ""; attempt++)
                 {
                     string c = RandomCode();
-                    _pt.OpenHost(IdPrefix + c);
+                    _pt.OpenHost(IdPrefix + c, _hostMax - 1);
                     if (!await WaitFor(() => _pt.Status != 1, 15f)) throw new Exception("El servidor de señalización no responde. Revisa tu conexión.");
                     if (_pt.Status == 2) code = c;
                     else if (_pt.Status != -2) throw new Exception(_pt.LastError);
@@ -176,17 +190,44 @@ namespace RocketWorld.Net
         {
             State = role; Info = "";
             Application.runInBackground = true;               // a hosted game must keep running when the tab loses focus
-            if (role == NetState.Client) PrepareClient();
+            PlayerNet.ResetStatics();
+            if (role == NetState.Client)
+            {
+                PrepareClient();
+                _joinT = Time.realtimeSinceStartup; _clientStarted = false;       // the player starts once the host's position is known (TryStartClient)
+                return;
+            }
+            PlaneIntro.NetSlot = 0;
             Root.BeginPlay();
         }
 
-        /// <summary>Joined player: the local car stops simulating and follows the host (idempotent).</summary>
+        /// <summary>A joined player plays its own car: it starts where the host is (world recentred there) in its own bus, next to the host's.</summary>
+        void TryStartClient()
+        {
+            PlayerNet me = null;
+            foreach (var p in PlayerNet.All) if (p.IsOwner) me = p;
+            bool ready = me != null && PlayerNet.HostPoseKnown;
+            if (!ready && Time.realtimeSinceStartup - _joinT < 8f) return;          // waiting for the first batch from the host (timeout: start at the default place)
+            _clientStarted = true;
+            if (PlayerNet.HostPoseKnown && Root.georeference != null)
+            {
+                var h = PlayerNet.HostPose;
+                Geo.EcefToLonLatHeight(h.x, h.y, h.z, out double lon, out double lat, out double height);
+                Geo.LonLatToEcef(lon, lat, Math.Min(height, 800.0), out double ox, out double oy, out double oz);   // origin near the ground even if the host is high up
+                GeoSync.Recenter(Root.georeference, ox, oy, oz);
+            }
+            PlaneIntro.NetSlot = me != null ? me.Slot.Value : 1;
+            Root.BeginPlay();
+        }
+
+        /// <summary>Called by the local player's PlayerNet when it spawns (slot known).</summary>
+        public void OnLocalPlayerSpawned(PlayerNet p) { }
+
+        /// <summary>Joined player: the car is still simulated locally (zero input lag); only the ball becomes the host's (idempotent).</summary>
         public void PrepareClient()
         {
             if (_clientPrepared || Root == null) return;
             _clientPrepared = true;
-            if (Root.carCtl.intro != null) Root.carCtl.intro.Abort();
-            Root.carCtl.SetSimulated(false);
             if (Root.ball != null) { Root.ball.Despawn(); Root.ball.SetPuppet(true); }
         }
 
@@ -205,16 +246,12 @@ namespace RocketWorld.Net
             State = NetState.Offline; Code = ""; _clientPrepared = false;
             if (!string.IsNullOrEmpty(reason)) Error = reason;
             Application.runInBackground = false;
+            PlayerNet.ResetStatics(); PlaneIntro.NetSlot = 0;
             if (Root != null)
             {
                 foreach (var c in RocketCar.All.ToArray()) if (c != null && c != Root.carCtl) Root.DestroyRemoteCar(c);
                 Root.extraFoci.Clear();
-                if (wasClient)
-                {
-                    if (Root.ball != null) Root.ball.SetPuppet(false);
-                    Root.carCtl.SetSimulated(true);
-                    Root.carCtl.Respawn(true);                       // keep playing solo where the puppet was
-                }
+                if (wasClient && Root.ball != null) Root.ball.SetPuppet(false);        // the own car keeps driving: it was never a puppet
             }
             ReturnToMenu = true;
         }
@@ -253,7 +290,7 @@ namespace RocketWorld.Net
             var go = Instantiate(_prefab);
             var pn = go.GetComponent<PlayerNet>();
             bool isHost = clientId == NetworkManager.ServerClientId;
-            pn.initSlot = (byte)FreeSlot();
+            pn.initSlot = (byte)FreeSlot(); pn.initMax = (byte)_hostMax;
             pn.initColor = (byte)(isHost ? Mathf.Clamp(Root.settings.carColor, 0, GameSettings.CarColors.Length - 1) : FreeColor());
             pn.initName = isHost ? NetUi.LocalName : "Jugador " + (pn.initSlot + 1);
             go.GetComponent<NetworkObject>().SpawnAsPlayerObject(clientId, true);
@@ -261,13 +298,13 @@ namespace RocketWorld.Net
 
         static int FreeSlot()
         {
-            for (int i = 0; i < MaxPlayers; i++)
+            for (int i = 0; i < HardMaxPlayers; i++)
             {
                 bool used = false;
                 foreach (var p in PlayerNet.All) if (p.IsSpawned && p.Slot.Value == i) used = true;
                 if (!used) return i;
             }
-            return MaxPlayers - 1;
+            return HardMaxPlayers - 1;
         }
 
         static int FreeColor()
@@ -278,7 +315,7 @@ namespace RocketWorld.Net
                 foreach (var p in PlayerNet.All) if (p.IsSpawned && p.ColorIdx.Value == i) used = true;
                 if (!used) return i;
             }
-            return 0;
+            return PlayerNet.All.Count % GameSettings.CarColors.Length;
         }
 
         void OnBallHit(RocketCar car)
