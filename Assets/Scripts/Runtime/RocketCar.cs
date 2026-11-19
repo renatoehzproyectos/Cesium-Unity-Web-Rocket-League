@@ -527,6 +527,7 @@ namespace RocketWorld
             }
             if (vehicle != null && vehicle.Active)
             {
+                vehicle.PostStep();                           // rocket: crash if the hull ended up inside the terrain
                 _prevPos = _currPos; _prevRot = _currRot;
                 _currPos = _rb.position; _currRot = _rb.rotation;
                 return;
