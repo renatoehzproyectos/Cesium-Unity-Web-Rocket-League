@@ -289,11 +289,17 @@ namespace RocketWorld
                     float t = now - _t0;
                     float progress = _car.tileset != null ? _car.tileset.ComputeLoadProgress() : 100f;
                     if (progress >= 99.9f) { if (_loadedSince < 0f) _loadedSince = now; } else _loadedSince = -1f;
-                    bool ready = (t >= MinWait && _loadedSince > 0f && now - _loadedSince > 0.8f) || t >= Timeout;
+                    // Total load wipes the cache and loads every direction: Cesium reports ~100 % of what it has selected so far (coarse tiles, or none
+                    // yet right after the wipe), so the jump must wait for Total load's own "everything loaded and calm" signal, with a longer timeout.
+                    var tl = root != null ? root.totalLoad : null;
+                    bool total = tl != null && tl.Active;
+                    bool loaded = t >= MinWait && _loadedSince > 0f && now - _loadedSince > 0.8f && (!total || tl.Finished);
+                    bool ready = loaded || t >= (total ? Timeout * 4f : Timeout);
+                    if (total && !ready) progress = Mathf.Min(progress, 99f);
                     if (!ready)
                     {
                         int pct = Mathf.Clamp((int)progress, 0, 99);
-                        if (pct != _lastPct) { _lastPct = pct; _car.SetStatus($"Cargando el mapa… {pct}%"); }    // jump stays locked
+                        if (pct != _lastPct) { _lastPct = pct; _car.SetStatus(total && !string.IsNullOrEmpty(tl.Status) ? tl.Status : $"Cargando el mapa… {pct}%"); }    // jump stays locked
                         break;
                     }
                     _readyT0 = now; CurrentStage = Stage.Ready;
