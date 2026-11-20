@@ -144,6 +144,12 @@ namespace RocketWorld
 
         public void Save()
         {
+            if (_beforeNet != null) { var b = _beforeNet.Value; float keepSse = sse; Priority keepP = priorities; bool keepA = antiCrash; sse = b.sse; priorities = b.prio; antiCrash = b.anti; SaveCore(); sse = keepSse; priorities = keepP; antiCrash = keepA; return; }
+            SaveCore();
+        }
+
+        void SaveCore()
+        {
             PlayerPrefs.SetInt(P + "provider", (int)provider); PlayerPrefs.SetString(P + "gkey", googleKey); PlayerPrefs.SetString(P + "iontoken", ionToken);
             PlayerPrefs.SetString(P + "ionasset", ionAssetId.ToString(Inv)); PlayerPrefs.SetString(P + "lat", lat.ToString(Inv)); PlayerPrefs.SetString(P + "lon", lon.ToString(Inv));
             PlayerPrefs.SetFloat(P + "gh", groundHeight); PlayerPrefs.SetFloat(P + "hdg", heading); PlayerPrefs.SetFloat(P + "tod", timeOfDay);
@@ -151,6 +157,25 @@ namespace RocketWorld
             PlayerPrefs.SetInt(P + "baked", bakedLighting ? 1 : 0); PlayerPrefs.SetInt(P + "auto", autoRotate ? 1 : 0); PlayerPrefs.SetInt(P + "psky", proceduralSky ? 1 : 0); PlayerPrefs.SetInt(P + "hud", debugHud ? 1 : 0);
             PlayerPrefs.SetInt(P + "car", carColor); PlayerPrefs.SetInt(P + "autoq", autoQuality ? 1 : 0); PlayerPrefs.SetInt(P + "init", 1); PlayerPrefs.SetInt(P + "tv", TerrainVersion); PlayerPrefs.SetInt(P + "cammode", camMode); PlayerPrefs.SetInt(P + "anticrash", antiCrash ? 1 : 0); WebBridge.SetAntiCrash(antiCrash); PlayerPrefs.SetFloat(P + "fxd", fxDof); PlayerPrefs.SetFloat(P + "fxm", fxMotion); PlayerPrefs.SetInt(P + "prio", (int)priorities); PlayerPrefs.SetInt(P + "pave", roadPavement ? 1 : 0); PlayerPrefs.SetInt(P + "vc", viewCull ? 1 : 0); PlayerPrefs.SetFloat(P + "rh", Mathf.Clamp(roadHeight, 0f, MaxRoadHeight));
             PlayerPrefs.Save();
+        }
+
+        // ---- multiplayer defaults: everybody in a room starts with the same light, crash-proof profile (not persisted; restored on leaving) ----
+        public const float MultiplayerSse = 32f;
+        public const Priority MultiplayerPriorities = Priority.FastLoad | Priority.Fps;
+        struct Saved { public float sse; public Priority prio; public bool anti; }
+        Saved? _beforeNet;
+
+        /// <summary>Fast map load + more FPS + SSE 32 + anti crash. Idempotent; the player's own values come back with <see cref="RestoreAfterMultiplayer"/>.</summary>
+        public void ApplyMultiplayerDefaults()
+        {
+            if (_beforeNet == null) _beforeNet = new Saved { sse = sse, prio = priorities, anti = antiCrash };
+            sse = MultiplayerSse; priorities = MultiplayerPriorities; antiCrash = true;
+        }
+
+        public void RestoreAfterMultiplayer()
+        {
+            if (_beforeNet == null) return;
+            sse = _beforeNet.Value.sse; priorities = _beforeNet.Value.prio; antiCrash = _beforeNet.Value.anti; _beforeNet = null;
         }
 
         public bool HasCredentials => provider == TileProvider.GoogleDirect ? !string.IsNullOrWhiteSpace(googleKey) : !string.IsNullOrWhiteSpace(ionToken);

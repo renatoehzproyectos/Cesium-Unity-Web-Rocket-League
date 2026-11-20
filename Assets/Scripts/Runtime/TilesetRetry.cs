@@ -17,7 +17,8 @@ namespace RocketWorld
         Cesium3DTileset _ts;
         float _next, _retryAt = -1f;
         int _tries, _rootFails;
-        bool _listening, _toasted;
+        bool _listening, _toasted, _hadTiles;
+        float _emptySince = -1f, _lastRecreate = -100f;
 
         void OnEnable()
         {
@@ -42,6 +43,20 @@ namespace RocketWorld
             float now = Time.unscaledTime;
             if (_ts == null || now < _next) return;
             _next = now + 1f;
+            // The map must never vanish: it had tiles and now has none for several seconds (origin shift, multiplayer recentre, evicted cache) -> rebuild it.
+            if (transform.childCount > 0) { _hadTiles = true; _emptySince = -1f; }
+            else if (_hadTiles)
+            {
+                if (_emptySince < 0f) _emptySince = now;
+                else if (now - _emptySince > 6f && now - _lastRecreate > 15f && Application.internetReachability != NetworkReachability.NotReachable)
+                {
+                    _lastRecreate = now; _emptySince = -1f;
+                    Debug.Log("[RocketWorld] map vanished: recreating the tileset");
+                    try { var m = typeof(Cesium3DTileset).GetMethod("RecreateTileset", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance, null, Type.EmptyTypes, null); if (m != null) m.Invoke(_ts, null); else { var go = _ts.gameObject; go.SetActive(false); go.SetActive(true); } }
+                    catch (Exception e) { Debug.LogWarning("[RocketWorld] map recreate failed: " + e.Message); }
+                    return;
+                }
+            }
             if (transform.childCount > 0) { _tries = 0; _retryAt = -1f; _toasted = false; Interlocked.Exchange(ref _rootFails, 0); return; }   // tiles exist: all fine
             if (_retryAt < 0f)
             {

@@ -1,5 +1,8 @@
 // Browser-to-browser transport for Netcode (WebRTC through PeerJS). Unity never gets callbacks: JS queues events, C# polls them.
 // Event types returned by RW_PeerPoll: 0 none, 1 connect, 2 data, 3 disconnect. Client id 0 = the host.
+var RW_ICE_CFG = function () { return { debug: 1, config: { iceCandidatePoolSize: 4, iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }, { urls: 'stun:global.stun.twilio.com:3478' },
+      { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' } ] } }; };
 mergeInto(LibraryManager.library, {
 
   RW_PeerHost: function (idPtr, maxVisitors) {
@@ -14,13 +17,16 @@ mergeInto(LibraryManager.library, {
     var S = window.__rwp = { mode: 'host', status: 1, err: '', q: [], nextId: 1, conns: {}, peer: null, max: Math.max(1, Math.min(14, maxVisitors | 0)) };
     if (typeof Peer === 'undefined') { S.status = -1; S.err = 'PeerJS no se cargó (¿bloqueador o sin conexión?)'; return; }
     function drop(rec) { if (!rec || rec.gone) return; rec.gone = true; delete S.conns[rec.id]; if (rec.announced) S.q.push({ t: 3, id: rec.id }); try { rec.c.close(); } catch (e) {} }
-    var p = S.peer = new Peer(id, { debug: 1 });
+    var p = S.peer = new Peer(id, RW_ICE_CFG());
     p.on('open', function () { S.status = 2; });
     p.on('error', function (e) {
       S.err = (e && e.type ? e.type + ': ' : '') + (e && e.message ? e.message : e);
       if (S.status === 1) S.status = (e && e.type === 'unavailable-id') ? -2 : -1;
     });
-    p.on('disconnected', function () { try { p.reconnect(); } catch (e) {} });     // lost the signalling server only: keep playing
+    p.on('disconnected', function () {                                           // lost the signalling server only: keep playing and keep retrying so the code stays joinable
+      var tries = 0;
+      (function again() { if (!S || window.__rwp !== S || p.destroyed || !p.disconnected) return; try { p.reconnect(); } catch (e) {} if (++tries < 60) setTimeout(again, Math.min(10000, 1000 * tries)); })();
+    });
     p.on('connection', function (c) {
       var rec = { id: 0, c: c, u: null, gone: false, announced: false };
       var n = 0; for (var k in S.conns) n++;
@@ -59,13 +65,25 @@ mergeInto(LibraryManager.library, {
     var S = window.__rwp = { mode: 'client', status: 1, err: '', q: [], srv: null, peer: null, done: false };
     if (typeof Peer === 'undefined') { S.status = -1; S.err = 'PeerJS no se cargó (¿bloqueador o sin conexión?)'; S.q.push({ t: 3, id: 0 }); return; }
     function fail(msg) { if (S.done) return; S.done = true; if (!S.err || msg) S.err = msg || S.err; S.status = -1; S.q.push({ t: 3, id: 0 }); }
-    var p = S.peer = new Peer({ debug: 1 });
-    var timer = setTimeout(function () { if (S.status === 1) fail('Tiempo agotado: no se pudo abrir la conexión WebRTC con el anfitrión (¿red móvil que bloquea P2P?).'); }, 25000);
+    var attempt = 0, MAXTRY = 4, timer = null;
+    var p = S.peer = new Peer(RW_ICE_CFG());
     p.on('error', function (e) {
       var t = e && e.type;
-      fail(t === 'peer-unavailable' ? 'No existe una partida con ese código.' : ((t ? t + ': ' : '') + (e && e.message ? e.message : e)));
+      if (S.status === 2 || S.done) return;
+      if (t === 'peer-unavailable' && attempt < MAXTRY) { setTimeout(function () { connect(); }, 1500); return; }     // the host may be re-registering with the signalling server: ask again
+      if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') { if (attempt < MAXTRY) return; }
+      fail(t === 'peer-unavailable' ? 'No existe una partida con ese código (o el anfitrión perdió la conexión).' : ((t ? t + ': ' : '') + (e && e.message ? e.message : e)));
     });
-    p.on('open', function () {
+    function connect() {
+      if (S.done || S.status === 2) return;
+      attempt++;
+      if (S.srv) { try { S.srv.c.close(); } catch (e) {} S.srv = null; }
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        if (S.status !== 1 || S.done) return;
+        if (attempt < MAXTRY) connect();
+        else fail('Tiempo agotado: no se pudo abrir la conexión WebRTC con el anfitrión (¿red móvil que bloquea P2P?).');
+      }, 12000);
       var c = p.connect(hostId, { serialization: 'raw', reliable: true });
       var rec = S.srv = { id: 0, c: c, u: null };
       c.on('open', function () {
@@ -84,9 +102,10 @@ mergeInto(LibraryManager.library, {
         if (u8.length >= 5 && u8.length <= 6 && u8[0] === 255 && u8[1] === 70 && u8[2] === 85) { S.err = 'La partida está llena' + (u8.length === 6 ? ' (máx. ' + u8[5] + ' jugadores).' : '.'); return; }
         S.q.push({ t: 2, id: 0, d: u8 });
       });
-      c.on('close', function () { if (S.done) return; S.done = true; S.status = -1; S.q.push({ t: 3, id: 0 }); });
-      c.on('error', function (e) { fail('conexión: ' + (e && e.message ? e.message : e)); });
-    });
+      c.on('close', function () { if (rec !== S.srv) return; if (S.status !== 2) { return; } if (S.done) return; S.done = true; S.status = -1; S.q.push({ t: 3, id: 0 }); });
+      c.on('error', function (e) { if (S.status === 2) { fail('conexión: ' + (e && e.message ? e.message : e)); } });
+    }
+    p.on('open', function () { connect(); });
   },
 
   RW_PeerStatus: function () { var S = window.__rwp; return S ? S.status : 0; },

@@ -571,7 +571,7 @@ namespace RocketWorld
             {
                 var k = new GameObject("RoadCol") { layer = PhysicsSetup.RoadLayer };    // child so the whole collider can be lifted by the road height
                 k.transform.SetParent(c.go.transform, false); k.transform.localPosition = new Vector3(0f, RoadHeight, 0f);
-                c.col = k.AddComponent<MeshCollider>(); c.col.sharedMaterial = PhysicsSetup.RoadMaterial;
+                c.col = k.AddComponent<MeshCollider>(); c.col.cookingOptions = TileColliderBudget.SafeCooking; c.col.sharedMaterial = PhysicsSetup.RoadMaterial;
             }
             c.col.sharedMesh = c.mesh; c.col.enabled = true; Physics.SyncTransforms(); Changed(c);
         }

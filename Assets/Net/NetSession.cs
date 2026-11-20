@@ -189,6 +189,7 @@ namespace RocketWorld.Net
         void Begin(NetState role)
         {
             State = role; Info = "";
+            ApplyMultiplayerProfile();
             Application.runInBackground = true;               // a hosted game must keep running when the tab loses focus
             PlayerNet.ResetStatics();
             if (role == NetState.Client)
@@ -199,6 +200,14 @@ namespace RocketWorld.Net
             }
             PlaneIntro.NetSlot = 0;
             Root.BeginPlay();
+        }
+
+        /// <summary>Every player of a room (host and visitors) starts with: fast map load, more FPS, SSE 32 and anti crash.</summary>
+        void ApplyMultiplayerProfile()
+        {
+            if (Root == null || Root.settings == null) return;
+            Root.settings.ApplyMultiplayerDefaults();
+            Root.ApplyLive();
         }
 
         /// <summary>A joined player plays its own car: it starts where the host is (world recentred there) in its own bus, next to the host's.</summary>
@@ -247,6 +256,7 @@ namespace RocketWorld.Net
             if (!string.IsNullOrEmpty(reason)) Error = reason;
             Application.runInBackground = false;
             PlayerNet.ResetStatics(); PlaneIntro.NetSlot = 0;
+            if (Root != null && Root.settings != null) { Root.settings.RestoreAfterMultiplayer(); Root.ApplyLive(); }
             if (Root != null)
             {
                 foreach (var c in RocketCar.All.ToArray()) if (c != null && c != Root.carCtl) Root.DestroyRemoteCar(c);

@@ -128,6 +128,7 @@ namespace RocketWorld
                     if (e.colliders[i] != null || e.filters[i] == null || e.filters[i].sharedMesh == null) continue;
                     if (e.renderers[i] == null || D2(e.renderers[i].bounds) >= on2) continue;
                     var mc = e.filters[i].gameObject.AddComponent<MeshCollider>();       // shares the MeshFilter's mesh
+                    mc.cookingOptions = SafeCooking;
                     var src = e.filters[i].sharedMesh;
                     Mesh clean = despike ? MeshDespike.Build(src, e.filters[i].transform.InverseTransformDirection(Vector3.up)) : null;
                     if (roads != null && roads.Enabled)                                    // cut the road corridor out: the road collider replaces it
@@ -143,6 +144,9 @@ namespace RocketWorld
             }
             if (added > 0) Physics.SyncTransforms();
         }
+
+        /// <summary>PhysX "cleaning the mesh failed" leaves the tile without a collider (holes, the car falls). Cooking without the cleaner always succeeds.</summary>
+        public const MeshColliderCookingOptions SafeCooking = MeshColliderCookingOptions.CookForFasterSimulation | MeshColliderCookingOptions.UseFastMidphase;
 
         static int Count(Entry e) { int n = 0; foreach (var c in e.colliders) if (c != null) n++; return n; }
     }
