@@ -1,0 +1,5 @@
+<linker>
+  <!-- Keep native Physics classes (CapsuleCollider, ...): engine code stripping removed them and Unity logged
+       "Can't add component because class 'CapsuleCollider' doesn't exist!" -->
+  <assembly fullname="UnityEngine.PhysicsModule" preserve="all"/>
+</linker>

@@ -27,6 +27,8 @@ namespace RocketWorld
         public GameRoot root;
         public bool Active { get; private set; }
         public string Status { get; private set; } = "";
+        /// <summary>True once everything selected is loaded and stayed loaded (the bus intro waits for this before it unlocks the jump).</summary>
+        public bool Finished => Active && _finished;
 
         static readonly string[] Keys =
         {
