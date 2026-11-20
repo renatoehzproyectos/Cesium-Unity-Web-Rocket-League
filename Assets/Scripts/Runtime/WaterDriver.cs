@@ -218,8 +218,8 @@ namespace RocketWorld
         {
             var rb = car.Body;
             float max = RL.CarMaxSpeed * RL.UuToBt * car.HyperMul;
-            var v = rb.linearVelocity; if (v.sqrMagnitude > max * max) rb.linearVelocity = v.normalized * max;
-            var w = rb.angularVelocity; if (w.sqrMagnitude > RL.CarMaxAngSpeed * RL.CarMaxAngSpeed) rb.angularVelocity = w.normalized * RL.CarMaxAngSpeed;
+            var v = rb.linearVelocity; if (v.sqrMagnitude > max * max) { if (!rb.isKinematic) rb.linearVelocity = v.normalized * max; }
+            var w = rb.angularVelocity; if (w.sqrMagnitude > RL.CarMaxAngSpeed * RL.CarMaxAngSpeed) { if (!rb.isKinematic) rb.angularVelocity = w.normalized * RL.CarMaxAngSpeed; }
         }
 
         float Swell(float x, float z, float a)

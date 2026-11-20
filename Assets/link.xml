@@ -1,5 +1,7 @@
 <linker>
-  <!-- Keep native Physics classes (CapsuleCollider, ...): engine code stripping removed them and Unity logged
-       "Can't add component because class 'CapsuleCollider' doesn't exist!" -->
+  <!-- Engine code stripping removed native Physics classes ("Can't add component because class 'CapsuleCollider' doesn't exist!"). -->
   <assembly fullname="UnityEngine.PhysicsModule" preserve="all"/>
+  <!-- StreamingCameras / TotalLoad reach Cesium through reflection (CesiumCameraManager, optional tileset properties); stripping hid them
+       ("CesiumCameraManager not found: radius loading disabled"). -->
+  <assembly fullname="CesiumForUnity" preserve="all"/>
 </linker>

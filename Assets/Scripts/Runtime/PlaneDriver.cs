@@ -85,10 +85,10 @@ namespace RocketWorld
             if (ground)
             {
                 float lowest = 0f; foreach (var g in a.gears) lowest = Mathf.Max(lowest, -PlaneModel.Local(a, g.locIn.x, g.locIn.y, g.locIn.z).y);
-                rb.position = hit.point + Vector3.up * (lowest + 0.15f); rb.linearVelocity = Vector3.zero; ThrottleLever = 0f;
+                rb.position = hit.point + Vector3.up * (lowest + 0.15f); { if (!rb.isKinematic) rb.linearVelocity = Vector3.zero; } ThrottleLever = 0f;
             }
-            else { rb.linearVelocity = rot * Vector3.forward * 40f; ThrottleLever = 0.55f; a.propRpm = 2200; }
-            rb.rotation = rot; rb.angularVelocity = Vector3.zero;
+            else { { if (!rb.isKinematic) rb.linearVelocity = rot * Vector3.forward * 40f; } ThrottleLever = 0.55f; a.propRpm = 2200; }
+            rb.rotation = rot; { if (!rb.isKinematic) rb.angularVelocity = Vector3.zero; }
             rb.mass = (float)(a.massSlug * PlaneModel.SlugToKg);
             rb.inertiaTensor = new Vector3((float)(a.iyy * 1.35582), (float)(a.izz * 1.35582), (float)(a.ixx * 1.35582));   // Unity local x pitch, y yaw, z roll (slug ft2 -> kg m2)
             rb.inertiaTensorRotation = Quaternion.identity;
@@ -113,8 +113,8 @@ namespace RocketWorld
             float yaw = rb.rotation.eulerAngles.y;
             Vector3 up = Vector3.up * 1.2f;
             if (Physics.Raycast(rb.position + Vector3.up * 3f, Vector3.down, out var hit, 200f, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore)) up = Vector3.up * 0.6f;
-            rb.position += up; rb.rotation = Quaternion.Euler(0, yaw, 0); rb.angularVelocity = Vector3.zero;
-            var v = rb.linearVelocity; v = Vector3.ClampMagnitude(new Vector3(v.x, Mathf.Min(v.y, 0f), v.z), RL.CarMaxSpeed * RL.UuToBt); rb.linearVelocity = v;
+            rb.position += up; rb.rotation = Quaternion.Euler(0, yaw, 0); { if (!rb.isKinematic) rb.angularVelocity = Vector3.zero; }
+            var v = rb.linearVelocity; v = Vector3.ClampMagnitude(new Vector3(v.x, Mathf.Min(v.y, 0f), v.z), RL.CarMaxSpeed * RL.UuToBt); { if (!rb.isKinematic) rb.linearVelocity = v; }
             car.OnBoatExit();                                     // clean wheel-model state
             Debug.Log("[RocketWorld] plane mode OFF");
         }

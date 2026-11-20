@@ -178,6 +178,7 @@
     var buildUrl = "Build";
     var loaderUrl = buildUrl + "/{{{ LOADER_FILENAME }}}";
     var config = {
+      autoSyncPersistentDataPath: true,   // silences the deprecated JS_FileSystem_Sync warning: Unity syncs the persistent folder itself
       arguments: [],
       dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}",
       frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",

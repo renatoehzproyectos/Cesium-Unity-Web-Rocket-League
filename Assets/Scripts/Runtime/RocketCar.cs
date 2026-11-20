@@ -270,7 +270,7 @@ namespace RocketWorld
         {
             Unpark();
             PlaceDirect(pos, rot);
-            if (_rb != null) { _rb.linearVelocity = velocity; _body.Pull(); }
+            if (_rb != null) { { if (!_rb.isKinematic) _rb.linearVelocity = velocity; } _body.Pull(); }
         }
 
         /// <summary>Switch between a car this machine simulates and a puppet that follows host snapshots.</summary>
@@ -397,8 +397,8 @@ namespace RocketWorld
         {
             if (CurrentPhase != Phase.Running || _rb == null) return;
             if (colliderBudget != null) colliderBudget.burst = true;
-            _rb.linearVelocity = Vector3.zero;
-            _rb.angularVelocity = Vector3.zero;
+            { if (!_rb.isKinematic) _rb.linearVelocity = Vector3.zero; }
+            { if (!_rb.isKinematic) _rb.angularVelocity = Vector3.zero; }
             _rb.isKinematic = true;
             _softHold = true;
             _softHoldUntil = Time.realtimeSinceStartup + Mathf.Max(0.3f, seconds);
@@ -414,7 +414,7 @@ namespace RocketWorld
             if (colliderBudget != null) colliderBudget.burst = true;
             if (roads != null) roads.Boost();
             CurrentPhase = Phase.WaitingForGround; _waitStart = Time.realtimeSinceStartup; _stableSince = -1f;
-            if (_rb != null) { _rb.linearVelocity = Vector3.zero; _rb.angularVelocity = Vector3.zero; _rb.isKinematic = true; }
+            if (_rb != null) { { if (!_rb.isKinematic) _rb.linearVelocity = Vector3.zero; } { if (!_rb.isKinematic) _rb.angularVelocity = Vector3.zero; } _rb.isKinematic = true; }
         }
 
         void Update()
@@ -445,8 +445,8 @@ namespace RocketWorld
                         _prevPos = _currPos = pos;
                     }
                     _rb.isKinematic = false;
-                    _rb.linearVelocity = Vector3.zero;
-                    _rb.angularVelocity = Vector3.zero;
+                    { if (!_rb.isKinematic) _rb.linearVelocity = Vector3.zero; }
+                    { if (!_rb.isKinematic) _rb.angularVelocity = Vector3.zero; }
                     if (colliderBudget != null) colliderBudget.burst = false;
                     _softHold = false; _voidHold = false;
                     Physics.SyncTransforms();
@@ -537,7 +537,7 @@ namespace RocketWorld
                 if (v.magnitude > 5f) v = Vector3.RotateTowards(v, f, 1.0f * Mathf.Clamp01(_hyperT) * Tick, 0f);
             }
             float sp = v.magnitude; if (sp > cap) v *= cap / sp;
-            if (v.magnitude > _rb.linearVelocity.magnitude) _rb.linearVelocity = v;      // never slower than RocketSim's own result
+            if (v.magnitude > _rb.linearVelocity.magnitude) { if (!_rb.isKinematic) _rb.linearVelocity = v; }      // never slower than RocketSim's own result
         }
 
         /// <summary>Second half of a tick, after the shared Physics.Simulate.</summary>
@@ -604,7 +604,7 @@ namespace RocketWorld
             Physics.SyncTransforms();
             Quaternion dq = transform.rotation * Quaternion.Inverse(_currRot);
             _rb.position = transform.position; _rb.rotation = transform.rotation;
-            _rb.linearVelocity = dq * _rb.linearVelocity; _rb.angularVelocity = dq * _rb.angularVelocity;
+            { if (!_rb.isKinematic) _rb.linearVelocity = dq * _rb.linearVelocity; } { if (!_rb.isKinematic) _rb.angularVelocity = dq * _rb.angularVelocity; }
             _prevPos = _currPos = _rb.position; _prevRot = _currRot = _rb.rotation;
             if (ball != null) ball.OnOriginShift(dq);
         }
@@ -645,7 +645,7 @@ namespace RocketWorld
             _rb.isKinematic = false;
             transform.SetPositionAndRotation(pos, rot);
             _rb.position = pos; _rb.rotation = rot;
-            _rb.linearVelocity = Vector3.zero; _rb.angularVelocity = Vector3.zero;
+            { if (!_rb.isKinematic) _rb.linearVelocity = Vector3.zero; } { if (!_rb.isKinematic) _rb.angularVelocity = Vector3.zero; }
             Physics.SyncTransforms();
             _body.Pull();
             Vehicle.OnStateSet(true);

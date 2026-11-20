@@ -80,7 +80,7 @@ namespace RocketWorld
                 pos = hit.point + Vector3.up * ((float)_prm.bodyBottom + 0.02f);
             _home = pos; _homeYaw = yaw;
             rb.useGravity = false; rb.maxLinearVelocity = 6000f;
-            rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero;
+            { if (!rb.isKinematic) rb.linearVelocity = Vector3.zero; } { if (!rb.isKinematic) rb.angularVelocity = Vector3.zero; }
             car.HitCollider.enabled = false;
             HideCarVisual();
             Active = true;
@@ -96,8 +96,8 @@ namespace RocketWorld
             var rb = car.Body; Restore(rb);
             float yaw = rb.rotation.eulerAngles.y;
             Vector3 up = Physics.Raycast(rb.position + Vector3.up * 3f, Vector3.down, out _, 200f, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore) ? Vector3.up * 0.6f : Vector3.up * 1.2f;
-            rb.position += up; rb.rotation = Quaternion.Euler(0, yaw, 0); rb.angularVelocity = Vector3.zero;
-            var v = rb.linearVelocity; rb.linearVelocity = Vector3.ClampMagnitude(new Vector3(v.x, Mathf.Min(v.y, 0f), v.z), RL.CarMaxSpeed * RL.UuToBt);
+            rb.position += up; rb.rotation = Quaternion.Euler(0, yaw, 0); { if (!rb.isKinematic) rb.angularVelocity = Vector3.zero; }
+            var v = rb.linearVelocity; { if (!rb.isKinematic) rb.linearVelocity = Vector3.ClampMagnitude(new Vector3(v.x, Mathf.Min(v.y, 0f), v.z), RL.CarMaxSpeed * RL.UuToBt); }
             car.OnBoatExit();
             Debug.Log("[RocketWorld] FPV drone OFF");
         }
@@ -240,8 +240,8 @@ namespace RocketWorld
             var s = _sim.s;
             rb.position = FpvFrame.ToUnity(s[FpvS.px], s[FpvS.py], s[FpvS.pz]);
             rb.rotation = FpvFrame.ToUnity(s[FpvS.qw], s[FpvS.qx], s[FpvS.qy], s[FpvS.qz]);
-            rb.linearVelocity = FpvFrame.ToUnity(s[FpvS.vx], s[FpvS.vy], s[FpvS.vz]);
-            rb.angularVelocity = Vector3.zero;
+            { if (!rb.isKinematic) rb.linearVelocity = FpvFrame.ToUnity(s[FpvS.vx], s[FpvS.vy], s[FpvS.vz]); }
+            { if (!rb.isKinematic) rb.angularVelocity = Vector3.zero; }
             _lastPos = rb.position;
         }
 

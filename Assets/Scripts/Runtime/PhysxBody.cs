@@ -51,7 +51,7 @@ namespace RocketWorld
         /// <summary>Write velocities back (only if the model changed them) and add the gyroscopic compensation torque.</summary>
         public void Push()
         {
-            if (_dirty) { _rb.linearVelocity = PhysicsSetup.ToUnity(_vel); _rb.angularVelocity = PhysicsSetup.ToUnity(_ang); _dirty = false; }
+            if (_dirty) { { if (!_rb.isKinematic) _rb.linearVelocity = PhysicsSetup.ToUnity(_vel); } { if (!_rb.isKinematic) _rb.angularVelocity = PhysicsSetup.ToUnity(_ang); } _dirty = false; }
             if (cancelGyroscopic)
             {
                 // PhysX integrates dw/dt = I^-1 (tau - w x I w); Bullet-without-gyro integrates dw/dt = I^-1 tau. Adding tau = w x (I w) cancels the extra term.
@@ -64,7 +64,7 @@ namespace RocketWorld
         public void PushVelocity()
         {
             if (!_dirty) return;
-            _rb.linearVelocity = PhysicsSetup.ToUnity(_vel); _rb.angularVelocity = PhysicsSetup.ToUnity(_ang); _dirty = false;
+            { if (!_rb.isKinematic) _rb.linearVelocity = PhysicsSetup.ToUnity(_vel); } { if (!_rb.isKinematic) _rb.angularVelocity = PhysicsSetup.ToUnity(_ang); } _dirty = false;
         }
     }
 
@@ -115,7 +115,7 @@ namespace RocketWorld
             rb.automaticInertiaTensor = false; rb.inertiaTensor = new Vector3(simInertia.y, simInertia.z, simInertia.x); rb.inertiaTensorRotation = Quaternion.identity;
             rb.linearDamping = 0f; rb.angularDamping = 0f; rb.maxAngularVelocity = 100f; rb.sleepThreshold = 0f;
             var w0 = new Vector3(3f, 2f, 4f);
-            rb.angularVelocity = w0;
+            { if (!rb.isKinematic) rb.angularVelocity = w0; }
             for (int i = 0; i < 30; i++) Physics.Simulate(1f / 120f);
             deltaRadPerSec = (rb.angularVelocity - w0).magnitude;
             Object.Destroy(go);

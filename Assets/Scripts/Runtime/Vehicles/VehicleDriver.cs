@@ -152,9 +152,9 @@ namespace RocketWorld
             foreach (var w in sp.wheels) bottom = Mathf.Max(bottom, sp.rocket ? -(w.pos.z - sp.com.z) : -(w.pos.y - w.radius - sp.com.y));   // rocket: it stands on its tail, the skids are along -Z
             bool ground = Physics.Raycast(rb.position + Vector3.up * 2f, Vector3.down, out var hit, 6f, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore);
             float yaw = rb.rotation.eulerAngles.y; var rot = Quaternion.Euler(-sp.startPitchDeg, yaw, 0);   // startPitchDeg 90: nose up
-            if (ground) { rb.position = hit.point + Vector3.up * (bottom + 0.15f); rb.linearVelocity = Vector3.zero; }
-            else rb.linearVelocity = rot * Vector3.forward * (sp.aero != AeroClass.None ? Mathf.Min(150f, sp.vMax * 0.45f) : 0f);
-            rb.rotation = rot; rb.angularVelocity = Vector3.zero;
+            if (ground) { rb.position = hit.point + Vector3.up * (bottom + 0.15f); { if (!rb.isKinematic) rb.linearVelocity = Vector3.zero; } }
+            else { if (!rb.isKinematic) rb.linearVelocity = rot * Vector3.forward * (sp.aero != AeroClass.None ? Mathf.Min(150f, sp.vMax * 0.45f) : 0f); }
+            rb.rotation = rot; { if (!rb.isKinematic) rb.angularVelocity = Vector3.zero; }
             rb.mass = sp.mass; rb.inertiaTensor = sp.inertia; rb.inertiaTensorRotation = Quaternion.identity;
             rb.useGravity = false; rb.maxLinearVelocity = 6000f;                 // Hyper Boost goes well past the car's 1000 m/s clamp
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
@@ -175,8 +175,8 @@ namespace RocketWorld
             var rb = car.Body; Restore(rb);
             float yaw = rb.rotation.eulerAngles.y; Vector3 up = Vector3.up * 1.2f;
             if (Physics.Raycast(rb.position + Vector3.up * 3f, Vector3.down, out _, 200f, PhysicsSetup.TerrainMask, QueryTriggerInteraction.Ignore)) up = Vector3.up * 0.6f;
-            rb.position += up; rb.rotation = Quaternion.Euler(0, yaw, 0); rb.angularVelocity = Vector3.zero;
-            var v = rb.linearVelocity; rb.linearVelocity = Vector3.ClampMagnitude(new Vector3(v.x, Mathf.Min(v.y, 0f), v.z), RL.CarMaxSpeed * RL.UuToBt);
+            rb.position += up; rb.rotation = Quaternion.Euler(0, yaw, 0); { if (!rb.isKinematic) rb.angularVelocity = Vector3.zero; }
+            var v = rb.linearVelocity; { if (!rb.isKinematic) rb.linearVelocity = Vector3.ClampMagnitude(new Vector3(v.x, Mathf.Min(v.y, 0f), v.z), RL.CarMaxSpeed * RL.UuToBt); }
             car.OnBoatExit();                                                    // clean wheel-model state
             Debug.Log("[RocketWorld] vehicle OFF");
         }
@@ -275,7 +275,7 @@ namespace RocketWorld
             {
                 float need = target - Vector3.Dot(v, dir);
                 if (need > 0f) rb.AddForce(dir * (Mathf.Min(need * 2.5f, 120f) * rb.mass), ForceMode.Force);
-                if (steerVelocity && speed > 5f) rb.linearVelocity = Vector3.RotateTowards(v, dir, 1.3f * Mathf.Clamp01((mul - 1f) / 2f) * dt, 0f);
+                if (steerVelocity && speed > 5f) { if (!rb.isKinematic) rb.linearVelocity = Vector3.RotateTowards(v, dir, 1.3f * Mathf.Clamp01((mul - 1f) / 2f) * dt, 0f); }
             }
             if (speed > target * 1.02f && speed > vRef * 1.1f)
             {

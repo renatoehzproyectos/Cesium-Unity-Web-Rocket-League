@@ -305,6 +305,7 @@ namespace RocketWorld
                 _appliedSse = EffectiveSse;
                 if (tileLog != null) tileLog.Begin(tileset);
                 if (settings.viewCull) { viewPolicy = go.AddComponent<TileViewPolicy>(); viewPolicy.root = this; viewPolicy.tileset = tileset; }
+                var retry = go.AddComponent<TilesetRetry>(); retry.root = this;      // reconnects the map after a network failure
                 budget = go.AddComponent<TileColliderBudget>();        // subscribes in OnEnable, before the tileset starts loading
                 budget.tileset = tileset;
                 budget.focus = car;

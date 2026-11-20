@@ -85,7 +85,7 @@ namespace RocketWorld
             _rb.isKinematic = false;
             _go.transform.SetPositionAndRotation(p, Quaternion.identity);
             _rb.position = p; _rb.rotation = Quaternion.identity;
-            _rb.linearVelocity = Vector3.zero; _rb.angularVelocity = Vector3.zero;
+            { if (!_rb.isKinematic) _rb.linearVelocity = Vector3.zero; } { if (!_rb.isKinematic) _rb.angularVelocity = Vector3.zero; }
             Physics.SyncTransforms();
             _prevPos = _currPos = p; _prevRot = _currRot = Quaternion.identity;
             foreach (var c in RocketCar.All) c.ballExtraTick = _tick - 10;
@@ -336,7 +336,7 @@ namespace RocketWorld
             if (!Exists) return;
             Physics.SyncTransforms();
             _rb.position = _go.transform.position; _rb.rotation = _go.transform.rotation;
-            _rb.linearVelocity = dq * _rb.linearVelocity; _rb.angularVelocity = dq * _rb.angularVelocity;
+            { if (!_rb.isKinematic) _rb.linearVelocity = dq * _rb.linearVelocity; } { if (!_rb.isKinematic) _rb.angularVelocity = dq * _rb.angularVelocity; }
             _prevPos = _currPos = _rb.position; _prevRot = _currRot = _rb.rotation;
         }
 
